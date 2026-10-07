@@ -1,0 +1,63 @@
+# Unity가 자동으로 만드는 폴더 (언제든 다시 생성됨)
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# 에셋 스토어 도구가 만드는 폴더
+/[Aa]ssets/AssetStoreTools*
+
+# Addressables 빌드 산출물
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# 코드 편집기가 만드는 파일
+.vs/
+.vscode/
+.idea/
+.gradle/
+ExportedObj/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity가 만드는 디버그 정보와 충돌 기록
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+mono_crash.*
+
+# 빌드 결과물
+*.apk
+*.aab
+*.unitypackage
+*.unitypackage.meta
+*.app
+
+# 운영체제가 만드는 파일
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude가 결과물을 복사해 두는 폴더
+/Claude outputs/

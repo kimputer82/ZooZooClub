@@ -1,0 +1,23 @@
+{
+    "name": "ZooZooClub.Editor",
+    "rootNamespace": "ZooZooClub.EditorTools",
+    "references": [
+        "ZooZooClub.Core",
+        "Unity.TextMeshPro",
+        "UnityEditor.TestRunner",
+        "UnityEngine.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

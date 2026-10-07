@@ -1,0 +1,39 @@
+# 텍스트 파일은 저장소 안에서 줄바꿈을 하나로 통일한다.
+* text=auto
+
+# 코드
+*.cs text diff=csharp
+*.json text
+*.md text
+*.asmdef text
+
+# Unity가 텍스트(YAML)로 저장하는 파일. Unity는 항상 LF로 쓰므로 그대로 둔다.
+*.meta text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+*.mat text eol=lf
+*.anim text eol=lf
+*.controller text eol=lf
+*.physicsMaterial2D text eol=lf
+*.inputactions text eol=lf
+
+# 그림, 소리, 글꼴 등은 내용을 건드리지 않는다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.psd binary
+*.tga binary
+*.tif binary
+*.tiff binary
+*.exr binary
+*.ase binary
+*.aseprite binary
+*.ttf binary
+*.otf binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.fbx binary
+*.dll binary
+*.pdf binary

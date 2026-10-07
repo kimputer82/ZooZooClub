@@ -1,0 +1,88 @@
+{
+  "items": [
+    { "id": "carrot", "displayName": "당근", "value": 4 },
+    { "id": "wheat", "displayName": "밀", "value": 6 },
+    { "id": "strawberry", "displayName": "딸기", "value": 10 },
+    { "id": "corn", "displayName": "옥수수", "value": 14 },
+    { "id": "pumpkin", "displayName": "호박", "value": 22 },
+    { "id": "bread", "displayName": "빵", "value": 20 },
+    { "id": "carrot_cake", "displayName": "당근 케이크", "value": 40 },
+    { "id": "pumpkin_pie", "displayName": "호박 파이", "value": 80 },
+    { "id": "carrot_juice", "displayName": "당근 주스", "value": 18 },
+    { "id": "strawberry_juice", "displayName": "딸기 주스", "value": 32 },
+    { "id": "strawberry_jam", "displayName": "딸기잼", "value": 45 },
+    { "id": "popcorn", "displayName": "팝콘", "value": 42 }
+  ],
+  "crops": [
+    { "id": "carrot", "displayName": "당근", "harvestItemId": "carrot", "harvestAmount": 2, "growSeconds": 20, "seedCost": 0, "harvestXp": 1, "unlockLevel": 1 },
+    { "id": "wheat", "displayName": "밀", "harvestItemId": "wheat", "harvestAmount": 2, "growSeconds": 45, "seedCost": 1, "harvestXp": 2, "unlockLevel": 1 },
+    { "id": "strawberry", "displayName": "딸기", "harvestItemId": "strawberry", "harvestAmount": 2, "growSeconds": 90, "seedCost": 3, "harvestXp": 3, "unlockLevel": 3 },
+    { "id": "corn", "displayName": "옥수수", "harvestItemId": "corn", "harvestAmount": 2, "growSeconds": 150, "seedCost": 4, "harvestXp": 4, "unlockLevel": 4 },
+    { "id": "pumpkin", "displayName": "호박", "harvestItemId": "pumpkin", "harvestAmount": 2, "growSeconds": 300, "seedCost": 7, "harvestXp": 6, "unlockLevel": 6 }
+  ],
+  "recipes": [
+    { "id": "bread", "facilityId": "bakery", "outputItemId": "bread", "outputAmount": 1, "inputs": [ { "itemId": "wheat", "amount": 2 } ], "craftSeconds": 60, "xp": 4, "unlockLevel": 2 },
+    { "id": "carrot_cake", "facilityId": "bakery", "outputItemId": "carrot_cake", "outputAmount": 1, "inputs": [ { "itemId": "carrot", "amount": 2 }, { "itemId": "wheat", "amount": 2 } ], "craftSeconds": 120, "xp": 8, "unlockLevel": 3 },
+    { "id": "pumpkin_pie", "facilityId": "bakery", "outputItemId": "pumpkin_pie", "outputAmount": 1, "inputs": [ { "itemId": "pumpkin", "amount": 2 }, { "itemId": "wheat", "amount": 2 } ], "craftSeconds": 300, "xp": 16, "unlockLevel": 6 },
+    { "id": "carrot_juice", "facilityId": "juice_bar", "outputItemId": "carrot_juice", "outputAmount": 1, "inputs": [ { "itemId": "carrot", "amount": 3 } ], "craftSeconds": 45, "xp": 4, "unlockLevel": 3 },
+    { "id": "strawberry_juice", "facilityId": "juice_bar", "outputItemId": "strawberry_juice", "outputAmount": 1, "inputs": [ { "itemId": "strawberry", "amount": 2 } ], "craftSeconds": 90, "xp": 7, "unlockLevel": 4 },
+    { "id": "strawberry_jam", "facilityId": "jam_workshop", "outputItemId": "strawberry_jam", "outputAmount": 1, "inputs": [ { "itemId": "strawberry", "amount": 3 } ], "craftSeconds": 180, "xp": 10, "unlockLevel": 4 },
+    { "id": "popcorn", "facilityId": "popcorn_cart", "outputItemId": "popcorn", "outputAmount": 1, "inputs": [ { "itemId": "corn", "amount": 2 } ], "craftSeconds": 150, "xp": 9, "unlockLevel": 5 }
+  ],
+  "placeables": [
+    { "id": "plot", "displayName": "밭", "kind": "plot", "width": 1, "height": 1, "cost": 20, "unlockLevel": 1, "queueSlots": 0, "charm": 0, "maxCount": 0 },
+    { "id": "bakery", "displayName": "빵집", "kind": "facility", "width": 2, "height": 2, "cost": 150, "unlockLevel": 2, "queueSlots": 3, "charm": 0, "maxCount": 1 },
+    { "id": "juice_bar", "displayName": "주스 가게", "kind": "facility", "width": 2, "height": 2, "cost": 250, "unlockLevel": 3, "queueSlots": 3, "charm": 0, "maxCount": 1 },
+    { "id": "jam_workshop", "displayName": "잼 공방", "kind": "facility", "width": 2, "height": 2, "cost": 500, "unlockLevel": 4, "queueSlots": 3, "charm": 0, "maxCount": 1 },
+    { "id": "popcorn_cart", "displayName": "팝콘 수레", "kind": "facility", "width": 1, "height": 2, "cost": 700, "unlockLevel": 5, "queueSlots": 3, "charm": 0, "maxCount": 1 },
+    { "id": "fence", "displayName": "울타리", "kind": "decor", "width": 1, "height": 1, "cost": 10, "unlockLevel": 1, "queueSlots": 0, "charm": 1, "maxCount": 0 },
+    { "id": "flower_bed", "displayName": "꽃밭", "kind": "decor", "width": 1, "height": 1, "cost": 30, "unlockLevel": 1, "queueSlots": 0, "charm": 3, "maxCount": 0 },
+    { "id": "tree", "displayName": "나무", "kind": "decor", "width": 1, "height": 1, "cost": 40, "unlockLevel": 1, "queueSlots": 0, "charm": 4, "maxCount": 0 },
+    { "id": "bench", "displayName": "벤치", "kind": "decor", "width": 2, "height": 1, "cost": 60, "unlockLevel": 2, "queueSlots": 0, "charm": 5, "maxCount": 0 },
+    { "id": "street_lamp", "displayName": "가로등", "kind": "decor", "width": 1, "height": 1, "cost": 80, "unlockLevel": 3, "queueSlots": 0, "charm": 6, "maxCount": 0 },
+    { "id": "fountain", "displayName": "분수", "kind": "decor", "width": 2, "height": 2, "cost": 400, "unlockLevel": 5, "queueSlots": 0, "charm": 30, "maxCount": 0 }
+  ],
+  "customers": [
+    { "id": "dog", "displayName": "몽이", "species": "강아지" },
+    { "id": "rabbit", "displayName": "토리", "species": "토끼" },
+    { "id": "bear", "displayName": "두리", "species": "곰" },
+    { "id": "elephant", "displayName": "코코", "species": "코끼리" },
+    { "id": "fox", "displayName": "루비", "species": "여우" }
+  ],
+  "levels": [
+    { "xpToNext": 10, "rewardCoins": 50, "rewardGems": 1 },
+    { "xpToNext": 25, "rewardCoins": 75, "rewardGems": 1 },
+    { "xpToNext": 50, "rewardCoins": 100, "rewardGems": 1 },
+    { "xpToNext": 90, "rewardCoins": 150, "rewardGems": 2 },
+    { "xpToNext": 140, "rewardCoins": 200, "rewardGems": 2 },
+    { "xpToNext": 200, "rewardCoins": 250, "rewardGems": 2 },
+    { "xpToNext": 280, "rewardCoins": 300, "rewardGems": 3 },
+    { "xpToNext": 380, "rewardCoins": 400, "rewardGems": 3 },
+    { "xpToNext": 500, "rewardCoins": 500, "rewardGems": 5 }
+  ],
+  "balance": {
+    "startCoins": 200,
+    "startGems": 10,
+    "startStorage": 50,
+    "storageUpgradeStep": 25,
+    "storageUpgradeBaseCost": 150,
+    "startLandSize": 8,
+    "maxLandSize": 20,
+    "landExpandStep": 2,
+    "landExpandBaseCost": 300,
+    "landExpandFirstLevel": 2,
+    "landExpandLevelStep": 2,
+    "orderSlots": 4,
+    "orderCooldownSeconds": 10,
+    "orderDiscardCooldownSeconds": 60,
+    "orderRewardPercent": 150,
+    "orderXpPercent": 30,
+    "sellBackPercent": 50,
+    "starterObjects": [
+      { "defId": "plot", "x": 1, "y": 1 },
+      { "defId": "plot", "x": 2, "y": 1 },
+      { "defId": "plot", "x": 1, "y": 2 },
+      { "defId": "plot", "x": 2, "y": 2 }
+    ]
+  }
+}
