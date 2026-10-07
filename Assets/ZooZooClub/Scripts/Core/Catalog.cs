@@ -77,12 +77,15 @@ namespace ZooZooClub.Core
         public int maxCount;
     }
 
+    /// <summary>마을 주민. 주문을 내는 손님이기도 하고, 시설에 배치하면 생산을 빠르게 해 준다.</summary>
     [Serializable]
-    public class CustomerDef
+    public class ResidentDef
     {
         public string id;
         public string displayName;
         public string species;
+        public int unlockLevel = 1;
+        public int craftSpeedBonusPercent;
     }
 
     [Serializable]
@@ -131,7 +134,7 @@ namespace ZooZooClub.Core
         public List<CropDef> crops = new List<CropDef>();
         public List<RecipeDef> recipes = new List<RecipeDef>();
         public List<PlaceableDef> placeables = new List<PlaceableDef>();
-        public List<CustomerDef> customers = new List<CustomerDef>();
+        public List<ResidentDef> residents = new List<ResidentDef>();
         public List<LevelDef> levels = new List<LevelDef>();
         public BalanceDef balance = new BalanceDef();
 
@@ -139,7 +142,7 @@ namespace ZooZooClub.Core
         Dictionary<string, CropDef> cropsById;
         Dictionary<string, RecipeDef> recipesById;
         Dictionary<string, PlaceableDef> placeablesById;
-        Dictionary<string, CustomerDef> customersById;
+        Dictionary<string, ResidentDef> residentsById;
 
         public ItemDef GetItem(string id)
         {
@@ -165,10 +168,10 @@ namespace ZooZooClub.Core
             return Find(placeablesById, id);
         }
 
-        public CustomerDef GetCustomer(string id)
+        public ResidentDef GetResident(string id)
         {
-            if (customersById == null) customersById = Index(customers, d => d.id);
-            return Find(customersById, id);
+            if (residentsById == null) residentsById = Index(residents, d => d.id);
+            return Find(residentsById, id);
         }
 
         /// <summary>데이터 간 참조가 깨진 곳을 찾아 사람이 읽을 수 있는 오류 목록으로 돌려준다.</summary>
@@ -205,6 +208,12 @@ namespace ZooZooClub.Core
                     errors.Add("placeable '" + placeable.id + "' needs a positive size");
                 if (placeable.kind == PlaceableKind.Facility && placeable.queueSlots <= 0)
                     errors.Add("facility '" + placeable.id + "' needs queueSlots > 0");
+            }
+
+            foreach (var resident in residents)
+            {
+                if (resident.craftSpeedBonusPercent < 0 || resident.craftSpeedBonusPercent >= 100)
+                    errors.Add("resident '" + resident.id + "' needs craftSpeedBonusPercent between 0 and 99");
             }
 
             if (balance != null)

@@ -43,7 +43,7 @@ namespace ZooZooClub.Core
             {
                 recipeId = recipe.id,
                 startAt = start,
-                finishAt = start + recipe.craftSeconds
+                finishAt = start + CraftSecondsFor(objectId, recipe)
             });
 
             NotifyChanged();

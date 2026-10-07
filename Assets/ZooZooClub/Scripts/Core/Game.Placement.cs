@@ -95,6 +95,7 @@ namespace ZooZooClub.Core
                 State.coins += (long)def.cost * Catalog.balance.sellBackPercent / 100;
             }
 
+            ClearAssignmentsFor(obj.id);
             State.objects.Remove(obj);
             NotifyChanged();
             return ActionResult.Ok;

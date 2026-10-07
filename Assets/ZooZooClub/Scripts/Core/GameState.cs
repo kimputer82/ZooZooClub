@@ -31,6 +31,13 @@ namespace ZooZooClub.Core
     }
 
     [Serializable]
+    public class ResidentAssignment
+    {
+        public string residentId;
+        public int objectId;
+    }
+
+    [Serializable]
     public class Order
     {
         public int id;
@@ -59,6 +66,7 @@ namespace ZooZooClub.Core
         public List<ItemAmount> inventory = new List<ItemAmount>();
         public List<PlacedObject> objects = new List<PlacedObject>();
         public List<Order> orders = new List<Order>();
+        public List<ResidentAssignment> assignments = new List<ResidentAssignment>();
 
         public static GameState CreateNew(GameCatalog catalog, long now)
         {
@@ -98,6 +106,7 @@ namespace ZooZooClub.Core
             if (inventory == null) inventory = new List<ItemAmount>();
             if (objects == null) objects = new List<PlacedObject>();
             if (orders == null) orders = new List<Order>();
+            if (assignments == null) assignments = new List<ResidentAssignment>();
 
             foreach (var obj in objects)
             {
@@ -110,6 +119,22 @@ namespace ZooZooClub.Core
             {
                 if (order.items == null) order.items = new List<ItemAmount>();
                 if (order.id >= nextOrderId) nextOrderId = order.id + 1;
+            }
+
+            // 사라진 시설에 남아 있는 배치 기록을 지운다.
+            for (int i = assignments.Count - 1; i >= 0; i--)
+            {
+                var assignment = assignments[i];
+                bool found = false;
+                foreach (var obj in objects)
+                {
+                    if (obj.id == assignment.objectId)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found || string.IsNullOrEmpty(assignment.residentId)) assignments.RemoveAt(i);
             }
         }
     }

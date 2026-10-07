@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.Compilation;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
+using ZooZooClub.Client;
 using ZooZooClub.Core;
 
 namespace ZooZooClub.EditorTools
@@ -14,7 +15,8 @@ namespace ZooZooClub.EditorTools
     /// 프로젝트의 Logs/ZooBridge/cmd.txt 에 "아이디 명령" 한 줄을 쓰면 실행하고,
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
-    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, boost, clear
+    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, boost, clear
+    /// 플레이 중 점검용: ui <버튼 이름>, cell <x> <y>, dump, state
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -115,10 +117,30 @@ namespace ZooZooClub.EditorTools
             }
         }
 
-        static void Execute(string id, string command)
+        static void Execute(string id, string line)
         {
+            int space = line.IndexOf(' ');
+            string command = space < 0 ? line : line.Substring(0, space);
+            string argument = space < 0 ? "" : line.Substring(space + 1).Trim();
+
             switch (command)
             {
+                case "ui":
+                    WriteOut(id + " ui: " + ClickButton(argument));
+                    break;
+
+                case "cell":
+                    WriteOut(id + " cell: " + ClickCell(argument));
+                    break;
+
+                case "dump":
+                    WriteOut(id + " dump: " + DumpUi());
+                    break;
+
+                case "state":
+                    WriteOut(id + " state: " + DumpState());
+                    break;
+
                 case "ping":
                     WriteOut(id + " pong " + State());
                     break;
@@ -162,6 +184,14 @@ namespace ZooZooClub.EditorTools
                     WriteOut(id + " save deleted");
                     break;
 
+                case "backup":
+                    WriteOut(id + " backup: " + CopySave(SavePath, SavePath + ".backup"));
+                    break;
+
+                case "restore":
+                    WriteOut(id + " restore: " + CopySave(SavePath + ".backup", SavePath));
+                    break;
+
                 case "boost":
                     WriteOut(id + " boost " + BoostSave());
                     break;
@@ -175,6 +205,88 @@ namespace ZooZooClub.EditorTools
                     WriteOut(id + " unknown command: " + command);
                     break;
             }
+        }
+
+        // ---------- 플레이 화면 점검 ----------
+
+        static readonly string UiDumpPath = Path.Combine(Dir, "ui.txt");
+        static readonly string StateDumpPath = Path.Combine(Dir, "state.json");
+
+        /// <summary>이름이 같은 켜져 있는 버튼을 찾아 누른 것처럼 동작시킨다.</summary>
+        static string ClickButton(string name)
+        {
+            if (!EditorApplication.isPlaying) return "skipped, not playing";
+
+            foreach (var button in Resources.FindObjectsOfTypeAll<UnityEngine.UI.Button>())
+            {
+                var go = button.gameObject;
+                if (go.name != name || !go.scene.IsValid() || !go.activeInHierarchy) continue;
+                if (!button.interactable) return name + " is disabled";
+                button.onClick.Invoke();
+                return name + " clicked";
+            }
+            return name + " not found";
+        }
+
+        static string ClickCell(string argument)
+        {
+            if (!EditorApplication.isPlaying) return "skipped, not playing";
+
+            var parts = argument.Split(' ');
+            int x, y;
+            if (parts.Length != 2 || !int.TryParse(parts[0], out x) || !int.TryParse(parts[1], out y))
+                return "usage: cell <x> <y>";
+
+            foreach (var world in Resources.FindObjectsOfTypeAll<WorldView>())
+            {
+                if (!world.gameObject.scene.IsValid() || !world.gameObject.activeInHierarchy) continue;
+                world.SimulateClick(x, y);
+                return "clicked " + x + "," + y;
+            }
+            return "world not found";
+        }
+
+        /// <summary>화면에 켜져 있는 UI의 글자와 버튼 상태를 ui.txt 에 적는다.</summary>
+        static string DumpUi()
+        {
+            if (!EditorApplication.isPlaying) return "skipped, not playing";
+
+            var builder = new StringBuilder();
+            foreach (var canvas in Resources.FindObjectsOfTypeAll<Canvas>())
+            {
+                var go = canvas.gameObject;
+                if (!go.scene.IsValid() || !go.activeInHierarchy) continue;
+                DumpNode(go.transform, 0, builder);
+            }
+            File.WriteAllText(UiDumpPath, builder.ToString(), Encoding.UTF8);
+            return "written";
+        }
+
+        static void DumpNode(Transform node, int depth, StringBuilder builder)
+        {
+            if (!node.gameObject.activeSelf) return;
+
+            var button = node.GetComponent<UnityEngine.UI.Button>();
+            var text = node.GetComponent<TMPro.TMP_Text>();
+            if (button != null || text != null || depth <= 2)
+            {
+                builder.Append(' ', depth * 2).Append(node.name);
+                if (button != null) builder.Append(button.interactable ? " [button]" : " [button disabled]");
+                if (text != null) builder.Append(" : ").Append(text.text.Replace("\n", " / "));
+                builder.Append('\n');
+            }
+
+            for (int i = 0; i < node.childCount; i++) DumpNode(node.GetChild(i), depth + 1, builder);
+        }
+
+        static string DumpState()
+        {
+            if (!EditorApplication.isPlaying) return "skipped, not playing";
+            var session = GameSession.Instance;
+            if (session == null || session.Game == null) return "no session";
+
+            File.WriteAllText(StateDumpPath, JsonUtility.ToJson(session.Game.State, true), Encoding.UTF8);
+            return "written";
         }
 
         // ---------- 저장 파일 (테스트용) ----------
@@ -199,6 +311,14 @@ namespace ZooZooClub.EditorTools
         static void BoostSaveMenu()
         {
             Debug.Log("[Zoo] boost: " + BoostSave());
+        }
+
+        static string CopySave(string from, string to)
+        {
+            if (EditorApplication.isPlaying) return "skipped, stop play mode first";
+            if (!File.Exists(from)) return "skipped, nothing to copy";
+            File.Copy(from, to, true);
+            return "done";
         }
 
         /// <summary>후반 콘텐츠를 바로 시험해 볼 수 있게 저장 파일의 레벨, 코인, 재료를 올린다.</summary>

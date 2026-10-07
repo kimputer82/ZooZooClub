@@ -9,7 +9,8 @@ using ZooZooClub.Core;
 namespace ZooZooClub.Client
 {
     /// <summary>
-    /// 마을 화면. 바닥 격자와 배치물을 그리고, 마우스 입력(선택, 배치, 이동, 화면 끌기, 확대)을 처리한다.
+    /// 마을 화면. 바닥 격자, 배치물, 돌아다니는 주민을 그리고
+    /// 마우스 입력(선택, 배치, 이동, 화면 끌기, 확대)을 처리한다.
     /// 게임 규칙은 건드리지 않고 Game의 메서드만 호출한다.
     /// </summary>
     public sealed class WorldView : MonoBehaviour
@@ -29,28 +30,62 @@ namespace ZooZooClub.Client
             public PlaceableDef def;
             public GameObject root;
             public readonly List<SpriteRenderer> bases = new List<SpriteRenderer>();
+            public Color baseColor;
             public SpriteRenderer body;
             public TextMeshPro label;
+            public Vector3 center;
+            public float sortOffsetY;
+        }
+
+        sealed class ResidentView
+        {
+            public ResidentDef def;
+            public GameObject root;
+            public SpriteRenderer body;
+            public Vector3 bodyRest;
+            public Vector2 cell;
+            public Vector2 target;
+            public bool moving;
+            public float waitUntil;
+            public float phase;
         }
 
         const float DragThresholdPixels = 10f;
         const float MinZoom = 2f;
         const float MaxZoom = 12f;
+        const float ResidentSpeed = 0.75f;
+        const float ResidentWidth = 0.44f;
         const int GroundOrder = -5000;
         const int BaseOrder = -4000;
-        const int GhostOrder = 7000;
-        const int LabelOrder = 6000;
+        const int SortBase = 5000;
+        const int LabelOrder = 9000;
+        const int GhostOrder = 9500;
+
+        static readonly Color SelectedTint = new Color(1f, 0.93f, 0.35f, 1f);
+
+        // 장식 그림의 가로 폭(차지하는 땅의 폭에 대한 비율). 적혀 있지 않으면 0.62.
+        static readonly Dictionary<string, float> DecorWidths = new Dictionary<string, float>
+        {
+            { "fence", 0.7f },
+            { "flower_bed", 0.72f },
+            { "tree", 0.66f },
+            { "bench", 0.62f },
+            { "street_lamp", 0.34f },
+            { "fountain", 0.8f }
+        };
 
         Game game;
         Camera cam;
 
         Transform groundRoot;
         Transform objectRoot;
+        Transform residentRoot;
         Transform ghostRoot;
         int groundWidth;
         int groundHeight;
 
         readonly Dictionary<int, ObjectView> views = new Dictionary<int, ObjectView>();
+        readonly Dictionary<string, ResidentView> residents = new Dictionary<string, ResidentView>();
         readonly List<int> removeBuffer = new List<int>();
         readonly List<SpriteRenderer> ghostCells = new List<SpriteRenderer>();
 
@@ -105,6 +140,7 @@ namespace ZooZooClub.Client
 
             groundRoot = NewChild("Ground");
             objectRoot = NewChild("Objects");
+            residentRoot = NewChild("Residents");
             ghostRoot = NewChild("Ghost");
 
             SetUpCamera();
@@ -172,6 +208,12 @@ namespace ZooZooClub.Client
             HideGhost();
         }
 
+        /// <summary>격자 칸 하나를 누른 것과 같은 동작을 한다. 자동 점검에서 쓴다.</summary>
+        public void SimulateClick(int x, int y)
+        {
+            Click(new Vector2Int(x, y));
+        }
+
         // ---------- 매 프레임 ----------
 
         void Update()
@@ -190,6 +232,7 @@ namespace ZooZooClub.Client
                 foreach (var view in views.Values) RefreshVisual(view);
             }
 
+            UpdateResidents(Time.unscaledDeltaTime);
             HandleInput();
         }
 
@@ -317,7 +360,7 @@ namespace ZooZooClub.Client
             return null;
         }
 
-        // ---------- 그리기 ----------
+        // ---------- 배치물 그리기 ----------
 
         void Sync()
         {
@@ -349,11 +392,22 @@ namespace ZooZooClub.Client
                     view.x = obj.x;
                     view.y = obj.y;
                     view.root.transform.localPosition = IsoMath.CellToWorld(obj.x, obj.y);
-                    ApplySorting(view);
+                    if (view.body != null)
+                    {
+                        view.body.sortingOrder = SortOrderAt(view.root.transform.localPosition.y + view.sortOffsetY);
+                    }
                 }
 
                 RefreshVisual(view);
             }
+
+            SyncResidents();
+        }
+
+        static int SortOrderAt(float worldY)
+        {
+            // 화면 아래쪽(앞쪽)에 있는 것이 위에 그려지도록 한다.
+            return SortBase - Mathf.RoundToInt(worldY * 100f);
         }
 
         void SyncGround()
@@ -387,6 +441,24 @@ namespace ZooZooClub.Client
             return renderer;
         }
 
+        TextMeshPro NewLabel(Transform parent, Vector3 localPosition, float fontSize)
+        {
+            var go = new GameObject("Label");
+            go.transform.SetParent(parent, false);
+            var label = go.AddComponent<TextMeshPro>();
+            if (Ui.Font != null) label.font = Ui.Font;
+            label.fontSize = fontSize;
+            label.alignment = TextAlignmentOptions.Center;
+            label.color = Color.white;
+            label.outlineWidth = 0.25f;
+            label.outlineColor = new Color32(40, 30, 20, 255);
+            label.rectTransform.sizeDelta = new Vector2(3f, 1f);
+            label.sortingOrder = LabelOrder;
+            label.text = "";
+            go.transform.localPosition = localPosition;
+            return label;
+        }
+
         ObjectView CreateView(PlacedObject obj)
         {
             var def = game.Catalog.GetPlaceable(obj.defId);
@@ -396,71 +468,78 @@ namespace ZooZooClub.Client
             view.root = new GameObject(def.id + " #" + obj.id);
             view.root.transform.SetParent(objectRoot, false);
 
-            Color baseColor = def.kind == PlaceableKind.Plot ? PlaceholderArt.Soil
-                : def.kind == PlaceableKind.Facility ? PlaceholderArt.FacilityBase
-                : PlaceholderArt.DecorBase;
+            // 차지하는 땅(마름모)의 가로 폭과 세로 높이.
+            float footprintWidth = (def.width + def.height) * 0.5f;
+            float footprintHeight = footprintWidth * 0.5f;
+            view.center = IsoMath.CellToWorld(def.width * 0.5f, def.height * 0.5f);
+
+            Sprite plotArt = def.kind == PlaceableKind.Plot ? ArtLibrary.Get("plot") : null;
+            if (def.kind == PlaceableKind.Plot) view.baseColor = plotArt != null ? Color.white : PlaceholderArt.Soil;
+            else if (def.kind == PlaceableKind.Facility) view.baseColor = PlaceholderArt.FacilityBase;
+            else view.baseColor = Color.clear;
 
             for (int j = 0; j < def.height; j++)
             {
                 for (int i = 0; i < def.width; i++)
                 {
                     var cell = NewSprite("Base", view.root.transform, PlaceholderArt.Diamond);
-                    cell.transform.localPosition = IsoMath.CellToWorld(i + 0.5f, j + 0.5f);
-                    cell.transform.localScale = new Vector3(0.92f, 0.92f, 1f);
-                    cell.color = baseColor;
+                    Vector3 cellCenter = IsoMath.CellToWorld(i + 0.5f, j + 0.5f);
+                    if (plotArt != null)
+                    {
+                        // 그림의 가운데가 칸의 가운데에 오게 한다.
+                        float height = ArtLibrary.FittedHeight(plotArt, 0.96f);
+                        ArtLibrary.Fit(cell, plotArt, cellCenter - new Vector3(0f, height * 0.5f, 0f), 0.96f);
+                    }
+                    else
+                    {
+                        cell.transform.localPosition = cellCenter;
+                        cell.transform.localScale = new Vector3(0.92f, 0.92f, 1f);
+                    }
+                    cell.color = view.baseColor;
                     cell.sortingOrder = BaseOrder;
                     view.bases.Add(cell);
                 }
             }
 
-            Vector3 center = IsoMath.CellToWorld(def.width * 0.5f, def.height * 0.5f);
+            float labelHeight;
 
             if (def.kind == PlaceableKind.Plot)
             {
                 view.body = NewSprite("Crop", view.root.transform, PlaceholderArt.Circle);
-                view.body.transform.localPosition = center + new Vector3(0f, 0.08f, 0f);
                 view.body.enabled = false;
-            }
-            else if (def.kind == PlaceableKind.Facility)
-            {
-                float size = 0.62f * Mathf.Max(def.width, def.height);
-                view.body = NewSprite("Body", view.root.transform, PlaceholderArt.Box);
-                view.body.transform.localPosition = center + new Vector3(0f, size * 0.32f, 0f);
-                view.body.transform.localScale = new Vector3(size, size, 1f);
-                view.body.color = PlaceholderArt.ColorFor(def.id);
+                view.sortOffsetY = view.center.y;
+                labelHeight = 0.5f;
             }
             else
             {
-                float size = 0.42f * Mathf.Max(def.width, def.height);
-                view.body = NewSprite("Body", view.root.transform, PlaceholderArt.Circle);
-                view.body.transform.localPosition = center + new Vector3(0f, size * 0.35f, 0f);
-                view.body.transform.localScale = new Vector3(size, size, 1f);
-                view.body.color = PlaceholderArt.ColorFor(def.id);
+                bool facility = def.kind == PlaceableKind.Facility;
+                Sprite art = ArtLibrary.Get(def.id);
+                view.body = NewSprite("Body", view.root.transform, art);
+
+                float widthRatio = 0.7f;
+                if (!facility && !DecorWidths.TryGetValue(def.id, out widthRatio)) widthRatio = 0.62f;
+                float width = footprintWidth * widthRatio;
+                Vector3 ground = view.center - new Vector3(0f, footprintHeight * (facility ? 0.3f : 0.2f), 0f);
+
+                if (art != null)
+                {
+                    ArtLibrary.Fit(view.body, art, ground, width);
+                    labelHeight = (ground.y - view.center.y) + ArtLibrary.FittedHeight(art, width) + 0.16f;
+                }
+                else
+                {
+                    // 그림이 없으면 색 도형으로 대신한다.
+                    Sprite shape = facility ? PlaceholderArt.Box : PlaceholderArt.Circle;
+                    ArtLibrary.Fit(view.body, shape, ground, width);
+                    view.body.color = PlaceholderArt.ColorFor(def.id);
+                    labelHeight = (ground.y - view.center.y) + width + 0.16f;
+                }
+
+                view.sortOffsetY = ground.y;
             }
 
-            var labelGo = new GameObject("Label");
-            labelGo.transform.SetParent(view.root.transform, false);
-            view.label = labelGo.AddComponent<TextMeshPro>();
-            if (Ui.Font != null) view.label.font = Ui.Font;
-            view.label.fontSize = 1.7f;
-            view.label.alignment = TextAlignmentOptions.Center;
-            view.label.color = Color.white;
-            view.label.outlineWidth = 0.25f;
-            view.label.outlineColor = new Color32(40, 30, 20, 255);
-            view.label.rectTransform.sizeDelta = new Vector2(3f, 1f);
-            view.label.sortingOrder = LabelOrder;
-            float labelHeight = def.kind == PlaceableKind.Facility ? 0.62f * Mathf.Max(def.width, def.height) + 0.2f : 0.45f;
-            labelGo.transform.localPosition = center + new Vector3(0f, labelHeight, 0f);
-            view.label.text = "";
-
+            view.label = NewLabel(view.root.transform, view.center + new Vector3(0f, labelHeight, 0f), 1.7f);
             return view;
-        }
-
-        void ApplySorting(ObjectView view)
-        {
-            // 화면 아래쪽(앞쪽)에 있는 것이 위에 그려지도록 한다.
-            int order = 1000 - (view.x + view.y) * 10;
-            if (view.body != null) view.body.sortingOrder = order;
         }
 
         void RefreshVisual(ObjectView view)
@@ -469,51 +548,175 @@ namespace ZooZooClub.Client
             if (obj == null) return;
 
             bool selected = view.id == SelectedObjectId;
-            Color baseColor = view.def.kind == PlaceableKind.Plot ? PlaceholderArt.Soil
-                : view.def.kind == PlaceableKind.Facility ? PlaceholderArt.FacilityBase
-                : PlaceholderArt.DecorBase;
-            if (selected) baseColor = Color.Lerp(baseColor, new Color(1f, 0.95f, 0.4f), 0.55f);
+            Color baseColor = view.baseColor;
+            if (selected)
+            {
+                baseColor = view.baseColor.a < 0.01f
+                    ? new Color(SelectedTint.r, SelectedTint.g, SelectedTint.b, 0.7f)
+                    : Color.Lerp(view.baseColor, SelectedTint, 0.5f);
+            }
             foreach (var cell in view.bases) cell.color = baseColor;
 
-            if (view.def.kind == PlaceableKind.Plot)
+            if (view.def.kind == PlaceableKind.Plot) RefreshPlot(view, obj);
+            else if (view.def.kind == PlaceableKind.Facility) RefreshFacility(view, obj);
+        }
+
+        void RefreshPlot(ObjectView view, PlacedObject obj)
+        {
+            if (string.IsNullOrEmpty(obj.cropId))
             {
-                if (string.IsNullOrEmpty(obj.cropId))
-                {
-                    view.body.enabled = false;
-                    view.label.text = "";
-                    return;
-                }
-
-                float progress = game.GrowthProgress(obj.id);
-                bool ripe = game.IsRipe(obj.id);
-                float size = Mathf.Lerp(0.14f, 0.46f, progress);
-                if (ripe) size += Mathf.Sin(Time.unscaledTime * 5f) * 0.03f;
-
-                view.body.enabled = true;
-                view.body.color = PlaceholderArt.ColorFor(obj.cropId);
-                view.body.transform.localScale = new Vector3(size, size, 1f);
-                view.label.text = ripe ? "수확!" : Texts.Duration(game.SecondsUntilRipe(obj.id));
+                view.body.enabled = false;
+                view.label.text = "";
+                return;
             }
-            else if (view.def.kind == PlaceableKind.Facility)
+
+            float progress = game.GrowthProgress(obj.id);
+            bool ripe = game.IsRipe(obj.id);
+            Vector3 ground = view.center - new Vector3(0f, 0.08f, 0f);
+
+            // 앞 절반은 새싹, 뒤 절반은 작물 그림으로 자라는 모습을 보여 준다.
+            Sprite art = progress < 0.5f ? ArtLibrary.Get("crop_sprout") : ArtLibrary.Get("crop_" + obj.cropId);
+            if (art == null) art = ArtLibrary.Get("crop_" + obj.cropId);
+
+            view.body.enabled = true;
+            if (art != null)
             {
-                int ready = game.ReadyJobCount(obj.id);
-                if (ready > 0)
-                {
-                    view.label.text = view.def.displayName + "\n완성 " + ready;
-                }
-                else if (obj.queue.Count > 0)
-                {
-                    long remaining = Math.Max(0L, obj.queue[0].finishAt - game.Now);
-                    view.label.text = view.def.displayName + "\n" + Texts.Duration(remaining);
-                }
-                else
-                {
-                    view.label.text = view.def.displayName;
-                }
+                float width = progress < 0.5f
+                    ? Mathf.Lerp(0.22f, 0.36f, progress * 2f)
+                    : Mathf.Lerp(0.36f, 0.56f, (progress - 0.5f) * 2f);
+                if (ripe) width += Mathf.Sin(Time.unscaledTime * 5f) * 0.02f;
+                view.body.color = Color.white;
+                ArtLibrary.Fit(view.body, art, ground, width);
             }
             else
             {
-                view.label.text = "";
+                float size = Mathf.Lerp(0.14f, 0.46f, progress);
+                view.body.color = PlaceholderArt.ColorFor(obj.cropId);
+                ArtLibrary.Fit(view.body, PlaceholderArt.Circle, ground, size);
+            }
+
+            view.label.text = ripe ? "수확!" : Texts.Duration(game.SecondsUntilRipe(obj.id));
+        }
+
+        void RefreshFacility(ObjectView view, PlacedObject obj)
+        {
+            int ready = game.ReadyJobCount(obj.id);
+            if (ready > 0)
+            {
+                view.label.text = view.def.displayName + "\n완성 " + ready;
+            }
+            else if (obj.queue.Count > 0)
+            {
+                long remaining = Math.Max(0L, obj.queue[0].finishAt - game.Now);
+                view.label.text = view.def.displayName + "\n" + Texts.Duration(remaining);
+            }
+            else
+            {
+                view.label.text = view.def.displayName;
+            }
+        }
+
+        // ---------- 주민 ----------
+
+        void SyncResidents()
+        {
+            foreach (var def in game.UnlockedResidents())
+            {
+                if (residents.ContainsKey(def.id)) continue;
+
+                var view = new ResidentView { def = def, phase = UnityEngine.Random.Range(0f, 6f) };
+                view.root = new GameObject("Resident " + def.id);
+                view.root.transform.SetParent(residentRoot, false);
+
+                Sprite art = ArtLibrary.Get("resident_" + def.id);
+                view.body = NewSprite("Body", view.root.transform, art);
+                if (art != null)
+                {
+                    ArtLibrary.Fit(view.body, art, Vector3.zero, ResidentWidth);
+                }
+                else
+                {
+                    ArtLibrary.Fit(view.body, PlaceholderArt.Circle, Vector3.zero, ResidentWidth * 0.7f);
+                    view.body.color = PlaceholderArt.ColorFor(def.id);
+                }
+                view.bodyRest = view.body.transform.localPosition;
+
+                var label = NewLabel(view.root.transform, new Vector3(0f, ResidentWidth + 0.12f, 0f), 1.3f);
+                label.text = def.displayName;
+
+                Vector2 start;
+                if (!TryPickFreeCell(out start)) start = new Vector2(0.5f, 0.5f);
+                view.cell = start;
+                view.target = start;
+                view.waitUntil = Time.unscaledTime + UnityEngine.Random.Range(0.5f, 2.5f);
+
+                residents[def.id] = view;
+            }
+        }
+
+        bool TryPickFreeCell(out Vector2 cell)
+        {
+            for (int attempt = 0; attempt < 16; attempt++)
+            {
+                int x = UnityEngine.Random.Range(0, game.State.landWidth);
+                int y = UnityEngine.Random.Range(0, game.State.landHeight);
+                if (ObjectAt(x, y) != null) continue;
+                cell = new Vector2(x + 0.5f, y + 0.5f);
+                return true;
+            }
+            cell = Vector2.zero;
+            return false;
+        }
+
+        void UpdateResidents(float deltaTime)
+        {
+            float now = Time.unscaledTime;
+
+            foreach (var view in residents.Values)
+            {
+                // 시설에 배치된 주민은 그 시설 앞으로 가서 머문다. 나머지는 빈 땅을 산책한다.
+                PlacedObject workplace = null;
+                int assigned = game.AssignedObjectOf(view.def.id);
+                if (assigned != 0) workplace = game.FindObject(assigned);
+
+                if (workplace != null)
+                {
+                    view.target = new Vector2(workplace.x + 0.2f, workplace.y + 0.2f);
+                }
+                else if (!view.moving && now >= view.waitUntil)
+                {
+                    Vector2 next;
+                    if (TryPickFreeCell(out next)) view.target = next;
+                    else view.waitUntil = now + 2f;
+                }
+
+                Vector2 toTarget = view.target - view.cell;
+                float distance = toTarget.magnitude;
+                float step = ResidentSpeed * deltaTime;
+                float worldDx = 0f;
+
+                if (distance > 0.001f)
+                {
+                    Vector2 move = distance <= step ? toTarget : toTarget / distance * step;
+                    view.cell += move;
+                    worldDx = (move.x - move.y) * IsoMath.HalfWidth;
+                    view.moving = distance > step;
+                    if (!view.moving) view.waitUntil = now + UnityEngine.Random.Range(1f, 3.5f);
+                }
+                else
+                {
+                    view.moving = false;
+                }
+
+                Vector3 world = IsoMath.CellToWorld(view.cell.x, view.cell.y);
+                view.root.transform.localPosition = world;
+
+                float bob = view.moving
+                    ? Mathf.Abs(Mathf.Sin(now * 9f + view.phase)) * 0.035f
+                    : Mathf.Sin(now * 2f + view.phase) * 0.006f;
+                view.body.transform.localPosition = view.bodyRest + new Vector3(0f, bob, 0f);
+                if (Mathf.Abs(worldDx) > 0.0001f) view.body.flipX = worldDx < 0f;
+                view.body.sortingOrder = SortOrderAt(world.y) + 1;
             }
         }
 

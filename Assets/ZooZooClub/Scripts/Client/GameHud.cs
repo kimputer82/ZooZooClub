@@ -24,6 +24,7 @@ namespace ZooZooClub.Client
             Build,
             Orders,
             Storage,
+            Residents,
             Selection
         }
 
@@ -151,6 +152,7 @@ namespace ZooZooClub.Client
             Ui.Button("BuildButton", bar.transform, "건설", () => Toggle(PanelKind.Build), 60f, 28f);
             Ui.Button("OrdersButton", bar.transform, "주문", () => Toggle(PanelKind.Orders), 60f, 28f);
             Ui.Button("StorageButton", bar.transform, "창고", () => Toggle(PanelKind.Storage), 60f, 28f);
+            Ui.Button("ResidentsButton", bar.transform, "주민", () => Toggle(PanelKind.Residents), 60f, 28f);
             expandButton = Ui.Button("ExpandButton", bar.transform, "마을 확장", OnExpandClicked, 60f, 28f);
         }
 
@@ -179,8 +181,7 @@ namespace ZooZooClub.Client
             closeLayout.minWidth = 96f;
             closeLayout.preferredWidth = 96f;
 
-            panelContent = Ui.Rect("Content", image.transform);
-            Ui.Vertical(panelContent.gameObject, 8f, 0);
+            panelContent = Ui.ScrollView("Scroll", image.transform, 8f);
 
             panelRoot.SetActive(false);
         }
@@ -255,7 +256,12 @@ namespace ZooZooClub.Client
 
         void OnLeveledUp(int level)
         {
-            Toast("레벨 " + level + " 달성!");
+            string text = "레벨 " + level + " 달성!";
+            foreach (var resident in game.Catalog.residents)
+            {
+                if (resident.unlockLevel == level) text += "  " + resident.displayName + "가 마을에 왔어요.";
+            }
+            Toast(text);
         }
 
         void RefreshTopBar()
@@ -407,6 +413,9 @@ namespace ZooZooClub.Client
                 case PanelKind.Storage:
                     BuildStoragePanel();
                     break;
+                case PanelKind.Residents:
+                    BuildResidentsPanel();
+                    break;
                 case PanelKind.Selection:
                     BuildSelectionPanel();
                     break;
@@ -434,6 +443,26 @@ namespace ZooZooClub.Client
             var row = Ui.Rect("Row", parent);
             Ui.Horizontal(row.gameObject, 8f, 0);
             return row;
+        }
+
+        /// <summary>왼쪽에 그림, 오른쪽에 글 여러 줄이 들어가는 줄을 만들고 글을 넣을 곳을 돌려준다.</summary>
+        static RectTransform IconRow(Transform parent, Sprite icon, float iconSize)
+        {
+            var row = Ui.Rect("IconRow", parent);
+            var group = Ui.Horizontal(row.gameObject, 12f, 0);
+            group.childForceExpandWidth = false;
+
+            if (icon != null) Ui.Icon("Icon", row, icon, iconSize);
+
+            var column = Ui.Rect("Column", row);
+            Ui.Vertical(column.gameObject, 4f, 0);
+            column.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+            return column;
+        }
+
+        static string ResidentTitle(ResidentDef resident)
+        {
+            return resident.displayName + " (" + resident.species + ")";
         }
 
         void BuildBuildPanel()
@@ -483,11 +512,13 @@ namespace ZooZooClub.Client
                     continue;
                 }
 
-                var customer = game.Catalog.GetCustomer(order.customerId);
-                string who = customer != null ? customer.displayName + " (" + customer.species + ")" : "손님";
-                Ui.Label("Customer", card, who + "의 주문", 26f, Ui.TextColor);
-                Ui.Label("Items", card, Texts.ItemList(game, order.items, true), 24f, Ui.TextColor);
-                Ui.Label("Reward", card, "보상  코인 " + order.rewardCoins + " · 경험치 " + order.rewardXp, 22f, Ui.MutedColor);
+                var customer = game.Catalog.GetResident(order.customerId);
+                string who = customer != null ? ResidentTitle(customer) : "손님";
+                Sprite face = customer != null ? ArtLibrary.Get("resident_" + customer.id) : null;
+                var info = IconRow(card, face, 84f);
+                Ui.Label("Customer", info, who + "의 주문", 26f, Ui.TextColor);
+                Ui.Label("Items", info, Texts.ItemList(game, order.items, true), 24f, Ui.TextColor);
+                Ui.Label("Reward", info, "보상  코인 " + order.rewardCoins + " · 경험치 " + order.rewardXp, 22f, Ui.MutedColor);
 
                 var row = Row(card);
                 var deliver = Ui.Button("Deliver", row, "납품", () =>
@@ -531,6 +562,44 @@ namespace ZooZooClub.Client
                 {
                     Report(game.SellItem(itemId, 1), null);
                 }, 44f, 20f);
+            }
+        }
+
+        void BuildResidentsPanel()
+        {
+            panelTitle.text = "주민";
+            Line("시설에 배치하면 그 시설의 생산이 빨라져요. 배치는 시설을 눌러서 해요.", true);
+
+            foreach (var resident in game.Catalog.residents)
+            {
+                var card = Card();
+                bool unlocked = game.IsResidentUnlocked(resident.id);
+                string residentId = resident.id;
+
+                var info = IconRow(card, ArtLibrary.Get("resident_" + resident.id), 84f);
+                Ui.Label("Name", info, ResidentTitle(resident), 26f, unlocked ? Ui.TextColor : Ui.MutedColor);
+
+                if (!unlocked)
+                {
+                    Ui.Label("Locked", info, "Lv " + resident.unlockLevel + "에 마을로 와요.", 22f, Ui.MutedColor);
+                    continue;
+                }
+
+                Ui.Label("Bonus", info, "생산 시간 -" + resident.craftSpeedBonusPercent + "%", 22f, Ui.MutedColor);
+
+                var workplace = game.FindObject(game.AssignedObjectOf(resident.id));
+                var workplaceDef = workplace != null ? game.Catalog.GetPlaceable(workplace.defId) : null;
+                if (workplaceDef == null)
+                {
+                    Ui.Label("Status", info, "마을을 산책하는 중", 22f, Ui.TextColor);
+                    continue;
+                }
+
+                Ui.Label("Status", info, workplaceDef.displayName + "에서 일하는 중", 22f, Ui.TextColor);
+                Ui.Button("Rest " + resident.id, card, "쉬게 하기", () =>
+                {
+                    Report(game.UnassignResident(residentId), null);
+                }, 44f, 22f);
             }
         }
 
@@ -611,6 +680,8 @@ namespace ZooZooClub.Client
         {
             int objectId = facility.id;
 
+            BuildWorkerSection(objectId);
+
             Line("대기열 " + facility.queue.Count + " / " + def.queueSlots, true);
             foreach (var job in facility.queue)
             {
@@ -645,13 +716,49 @@ namespace ZooZooClub.Client
                 string outputName = Texts.ItemName(game.Catalog, recipe.outputItemId);
                 string detail = locked
                     ? "Lv " + recipe.unlockLevel + " 필요"
-                    : Texts.ItemList(game, recipe.inputs, true) + " · " + Texts.Duration(recipe.craftSeconds);
+                    : Texts.ItemList(game, recipe.inputs, true) + " · " + Texts.Duration(game.CraftSecondsFor(objectId, recipe));
                 string recipeId = recipe.id;
                 var button = Ui.Button("Craft " + recipe.id, panelContent, outputName + "   " + detail, () =>
                 {
                     Report(game.StartCraft(objectId, recipeId), null);
                 }, 52f, 22f);
                 button.interactable = !locked;
+            }
+        }
+
+        /// <summary>시설 패널 맨 위의 일꾼 영역: 지금 일하는 주민과, 배치할 수 있는 주민 목록.</summary>
+        void BuildWorkerSection(int objectId)
+        {
+            var worker = game.ResidentAt(objectId);
+            if (worker != null)
+            {
+                var card = Card();
+                string workerId = worker.id;
+                var info = IconRow(card, ArtLibrary.Get("resident_" + worker.id), 72f);
+                Ui.Label("Worker", info, ResidentTitle(worker) + " 근무 중", 24f, Ui.TextColor);
+                Ui.Label("Bonus", info, "생산 시간 -" + worker.craftSpeedBonusPercent + "%", 22f, Ui.MutedColor);
+                Ui.Button("Rest " + worker.id, card, "쉬게 하기", () =>
+                {
+                    Report(game.UnassignResident(workerId), null);
+                }, 44f, 22f);
+            }
+            else
+            {
+                Line("일꾼이 없어요. 주민을 배치하면 생산이 빨라져요.", true);
+            }
+
+            foreach (var resident in game.UnlockedResidents())
+            {
+                if (worker != null && resident.id == worker.id) continue;
+
+                string residentId = resident.id;
+                bool busyElsewhere = game.AssignedObjectOf(resident.id) != 0;
+                string text = resident.displayName + (busyElsewhere ? " 데려오기" : " 배치")
+                    + "   -" + resident.craftSpeedBonusPercent + "%";
+                Ui.Button("Assign " + resident.id, panelContent, text, () =>
+                {
+                    Report(game.AssignResident(residentId, objectId), resident.displayName + "가 일을 시작했어요.");
+                }, 44f, 22f);
             }
         }
     }

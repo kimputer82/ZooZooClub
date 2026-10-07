@@ -2,9 +2,12 @@ using System;
 using TMPro;
 using UnityEngine;
 using UButton = UnityEngine.UI.Button;
+using UContentSizeFitter = UnityEngine.UI.ContentSizeFitter;
 using UHorizontal = UnityEngine.UI.HorizontalLayoutGroup;
 using UImage = UnityEngine.UI.Image;
 using ULayoutElement = UnityEngine.UI.LayoutElement;
+using UMask = UnityEngine.UI.Mask;
+using UScrollRect = UnityEngine.UI.ScrollRect;
 using UVertical = UnityEngine.UI.VerticalLayoutGroup;
 
 namespace ZooZooClub.Client
@@ -144,6 +147,62 @@ namespace ZooZooClub.Client
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             return group;
+        }
+
+        /// <summary>
+        /// 세로로 스크롤되는 목록을 만들고, 항목을 넣을 Content를 돌려준다.
+        /// 세로 배치 그룹 안에 넣으면 남는 높이를 모두 차지한다.
+        /// </summary>
+        public static RectTransform ScrollView(string name, Transform parent, float spacing)
+        {
+            var root = Rect(name, parent);
+            var rootLayout = root.gameObject.AddComponent<ULayoutElement>();
+            rootLayout.minHeight = 80f;
+            rootLayout.flexibleHeight = 1f;
+            rootLayout.flexibleWidth = 1f;
+            var scroll = root.gameObject.AddComponent<UScrollRect>();
+
+            // Mask는 Image가 있어야 동작한다. 그림 자체는 보이지 않게 한다.
+            var viewport = Panel("Viewport", root, Color.white);
+            Stretch(viewport.rectTransform, 0f, 0f, 0f, 0f);
+            viewport.gameObject.AddComponent<UMask>().showMaskGraphic = false;
+
+            var content = Rect("Content", viewport.transform);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+            Vertical(content.gameObject, spacing, 0);
+
+            var fitter = content.gameObject.AddComponent<UContentSizeFitter>();
+            fitter.horizontalFit = UContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = UContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.viewport = viewport.rectTransform;
+            scroll.content = content;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = UScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 30f;
+            return content;
+        }
+
+        /// <summary>정해진 크기의 그림 한 칸. 가로로 늘어나지 않는다.</summary>
+        public static UImage Icon(string name, Transform parent, Sprite sprite, float size)
+        {
+            var image = Panel(name, parent, Color.white);
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+
+            var layout = image.gameObject.AddComponent<ULayoutElement>();
+            layout.minWidth = size;
+            layout.preferredWidth = size;
+            layout.minHeight = size;
+            layout.preferredHeight = size;
+            layout.flexibleWidth = 0f;
+            return image;
         }
 
         /// <summary>부모를 가득 채우되 네 변에서 주어진 만큼 안쪽으로 들인다.</summary>

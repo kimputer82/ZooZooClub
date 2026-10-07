@@ -43,7 +43,9 @@ namespace ZooZooClub.Tests
             c.placeables.Add(new PlaceableDef { id = "bakery", kind = PlaceableKind.Facility, width = 2, height = 2, cost = 150, queueSlots = 2, maxCount = 1 });
             c.placeables.Add(new PlaceableDef { id = "tree", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 40, charm = 4 });
 
-            c.customers.Add(new CustomerDef { id = "dog", displayName = "Dog", species = "dog" });
+            c.residents.Add(new ResidentDef { id = "dog", displayName = "Dog", species = "dog", unlockLevel = 1, craftSpeedBonusPercent = 50 });
+            c.residents.Add(new ResidentDef { id = "fox", displayName = "Fox", species = "fox", unlockLevel = 1, craftSpeedBonusPercent = 25 });
+            c.residents.Add(new ResidentDef { id = "bear", displayName = "Bear", species = "bear", unlockLevel = 9, craftSpeedBonusPercent = 30 });
 
             c.levels.Add(new LevelDef { xpToNext = 3, rewardCoins = 50, rewardGems = 1 });
             c.levels.Add(new LevelDef { xpToNext = 1000, rewardCoins = 0, rewardGems = 0 });
@@ -103,7 +105,7 @@ namespace ZooZooClub.Tests
             var shipped = JsonUtility.FromJson<GameCatalog>(asset.text);
             Assert.IsEmpty(shipped.Validate());
             Assert.Greater(shipped.crops.Count, 0);
-            Assert.Greater(shipped.customers.Count, 0);
+            Assert.Greater(shipped.residents.Count, 0);
         }
 
         [Test]
@@ -350,11 +352,73 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void Residents_UnlockByLevel_AndOnlyUnlockedOnesPlaceOrders()
+        {
+            Assert.IsTrue(game.IsResidentUnlocked("dog"));
+            Assert.IsFalse(game.IsResidentUnlocked("bear"));
+            Assert.AreEqual(2, game.UnlockedResidents().Count);
+
+            foreach (var order in game.State.orders)
+            {
+                Assert.AreNotEqual("bear", order.customerId);
+            }
+        }
+
+        [Test]
+        public void AssignResident_ShortensCraftTime()
+        {
+            int bakery = PlaceBakery();
+            var bread = catalog.GetRecipe("bread");
+            Assert.AreEqual(60, game.CraftSecondsFor(bakery, bread));
+
+            Assert.AreEqual(ActionResult.LockedByLevel, game.AssignResident("bear", bakery));
+            Assert.AreEqual(ActionResult.NotFound, game.AssignResident("dog", StarterPlotId));
+            Assert.AreEqual(ActionResult.Ok, game.AssignResident("dog", bakery));
+            Assert.AreEqual("dog", game.ResidentAt(bakery).id);
+            Assert.AreEqual(30, game.CraftSecondsFor(bakery, bread));
+
+            game.State.inventory.Add(new ItemAmount("wheat", 2));
+            Assert.AreEqual(ActionResult.Ok, game.StartCraft(bakery, "bread"));
+            clock.Now += 29;
+            Assert.AreEqual(0, game.ReadyJobCount(bakery));
+            clock.Now += 1;
+            Assert.AreEqual(1, game.ReadyJobCount(bakery));
+        }
+
+        [Test]
+        public void AssignResident_ReplacesWhoeverWasThere_AndUnassignFreesTheSlot()
+        {
+            int bakery = PlaceBakery();
+            game.AssignResident("dog", bakery);
+            Assert.AreEqual(ActionResult.Ok, game.AssignResident("fox", bakery));
+
+            Assert.AreEqual("fox", game.ResidentAt(bakery).id);
+            Assert.AreEqual(0, game.AssignedObjectOf("dog"));
+            Assert.AreEqual(1, game.State.assignments.Count);
+
+            Assert.AreEqual(ActionResult.Ok, game.UnassignResident("fox"));
+            Assert.IsNull(game.ResidentAt(bakery));
+            Assert.AreEqual(ActionResult.NotFound, game.UnassignResident("fox"));
+        }
+
+        [Test]
+        public void RemovingAFacility_SendsItsResidentHome()
+        {
+            int bakery = PlaceBakery();
+            game.AssignResident("dog", bakery);
+
+            Assert.AreEqual(ActionResult.Ok, game.Remove(bakery));
+            Assert.AreEqual(0, game.AssignedObjectOf("dog"));
+            Assert.AreEqual(0, game.State.assignments.Count);
+        }
+
+        [Test]
         public void State_SurvivesJsonRoundTrip()
         {
             GrowAndHarvest("wheat");
             int bakery = PlaceBakery();
             game.StartCraft(bakery, "bread");
+            game.AssignResident("dog", bakery);
 
             string json = JsonUtility.ToJson(game.State);
             var restored = JsonUtility.FromJson<GameState>(json);
@@ -364,6 +428,7 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(game.State.objects.Count, reloaded.State.objects.Count);
             Assert.AreEqual(1, reloaded.FindObject(bakery).queue.Count);
             Assert.AreEqual(game.State.orders.Count, reloaded.State.orders.Count);
+            Assert.AreEqual("dog", reloaded.ResidentAt(bakery).id);
 
             clock.Now += 60;
             Assert.AreEqual(ActionResult.Ok, reloaded.CollectCrafted(bakery));

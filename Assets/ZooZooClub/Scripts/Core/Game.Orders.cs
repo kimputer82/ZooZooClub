@@ -104,9 +104,15 @@ namespace ZooZooClub.Core
                 availableAt = availableAt
             };
 
-            if (Catalog.customers.Count > 0)
+            // 이미 마을에 온 주민만 주문을 낸다.
+            var customers = new List<ResidentDef>();
+            foreach (var resident in Catalog.residents)
             {
-                order.customerId = Catalog.customers[NextRandom(Catalog.customers.Count)].id;
+                if (resident.unlockLevel <= State.level) customers.Add(resident);
+            }
+            if (customers.Count > 0)
+            {
+                order.customerId = customers[NextRandom(customers.Count)].id;
             }
 
             // 레벨이 오를수록 한 주문에 섞이는 물건 종류가 늘어난다(최대 3종).

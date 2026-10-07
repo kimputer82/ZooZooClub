@@ -3,6 +3,8 @@
     "rootNamespace": "ZooZooClub.EditorTools",
     "references": [
         "ZooZooClub.Core",
+        "ZooZooClub.Client",
+        "UnityEngine.UI",
         "Unity.TextMeshPro",
         "UnityEditor.TestRunner",
         "UnityEngine.TestRunner"
