@@ -9,12 +9,17 @@ using ZooZooClub.Core;
 using UButton = UnityEngine.UI.Button;
 using UCanvasScaler = UnityEngine.UI.CanvasScaler;
 using UGraphicRaycaster = UnityEngine.UI.GraphicRaycaster;
+using UImage = UnityEngine.UI.Image;
 using ULayoutElement = UnityEngine.UI.LayoutElement;
 
 namespace ZooZooClub.Client
 {
     /// <summary>
-    /// 화면 UI. 위쪽 상태 표시줄, 아래쪽 메뉴, 오른쪽 패널(건설·주문·창고·선택한 대상)로 이루어진다.
+    /// 화면 UI. 모바일 농장 게임처럼 배치한다.
+    /// - 왼쪽 위: 레벨과 경험치, 오른쪽 위: 코인·보석·창고·매력
+    /// - 오른쪽 아래: 건설·주문·창고·주민 버튼, 왼쪽 아래: 마을 확장 버튼
+    /// - 가운데 창: 건설, 주문, 창고, 주민, 마을 확장, 생산 시설
+    /// - 아래 시트: 밭이나 장식을 눌렀을 때
     /// </summary>
     public sealed class GameHud : MonoBehaviour
     {
@@ -25,18 +30,25 @@ namespace ZooZooClub.Client
             Orders,
             Storage,
             Residents,
+            Expand,
             Selection
         }
 
         Game game;
         WorldView world;
 
+        // 늘 보이는 것
         TextMeshProUGUI levelText;
+        TextMeshProUGUI xpText;
+        RectTransform xpFill;
         TextMeshProUGUI coinsText;
         TextMeshProUGUI gemsText;
         TextMeshProUGUI storageText;
         TextMeshProUGUI charmText;
-        UButton expandButton;
+        GameObject menuRoot;
+        GameObject expandRoot;
+        GameObject ordersBadge;
+        TextMeshProUGUI ordersBadgeText;
 
         GameObject toastRoot;
         TextMeshProUGUI toastText;
@@ -45,12 +57,23 @@ namespace ZooZooClub.Client
         GameObject hintRoot;
         TextMeshProUGUI hintText;
 
-        GameObject panelRoot;
-        TextMeshProUGUI panelTitle;
-        RectTransform panelContent;
+        // 가운데 창
+        GameObject dimRoot;
+        RectTransform windowRect;
+        TextMeshProUGUI windowTitle;
+        RectTransform windowHeader;
+        ULayoutElement windowHeaderLayout;
+        RectTransform windowContent;
+        RectTransform windowFooter;
+
+        // 아래 시트
+        GameObject sheetRoot;
+        RectTransform sheetInfo;
+        RectTransform sheetBody;
 
         PanelKind panel;
         int selectedId;
+        int buildTab;
         string signature = "";
         bool rebuildNeeded;
         float nextTick;
@@ -69,7 +92,7 @@ namespace ZooZooClub.Client
             world.EmptyClicked += OnEmptyClicked;
             world.Message += Toast;
 
-            RefreshTopBar();
+            RefreshHud();
         }
 
         void OnDestroy()
@@ -112,112 +135,253 @@ namespace ZooZooClub.Client
                 eventSystem.AddComponent<InputSystemUIInputModule>();
             }
 
+            // 뒤에 만든 것이 위에 그려진다.
             Transform root = canvasGo.transform;
-            BuildTopBar(root);
-            BuildBottomBar(root);
-            BuildSidePanel(root);
-            BuildToast(root);
+            BuildLevelBadge(root);
+            BuildCurrencies(root);
+            BuildMenus(root);
             BuildHint(root);
+            BuildSheet(root);
+            BuildWindow(root);
+            BuildToast(root);
         }
 
-        void BuildTopBar(Transform root)
+        void BuildLevelBadge(Transform root)
         {
-            var bar = Ui.Panel("TopBar", root, Ui.BarColor);
-            var rect = bar.rectTransform;
-            rect.anchorMin = new Vector2(0f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(0f, 72f);
-            Ui.Horizontal(bar.gameObject, 16f, 18);
+            var badge = Ui.Rect("LevelBadge", root);
+            Ui.Put(badge, 0f, 1f, 24f, -20f, 380f, 84f);
 
-            levelText = Ui.Label("Level", bar.transform, "", 28f, Ui.TextColor);
-            coinsText = Ui.Label("Coins", bar.transform, "", 28f, Ui.TextColor);
-            gemsText = Ui.Label("Gems", bar.transform, "", 28f, Ui.TextColor);
-            storageText = Ui.Label("Storage", bar.transform, "", 28f, Ui.TextColor);
-            charmText = Ui.Label("Charm", bar.transform, "", 28f, Ui.TextColor);
+            var bar = Ui.Box("XpBar", badge, Ui.CapsuleSprite, Ui.Pill);
+            Ui.Put(bar.rectTransform, 0f, 0.5f, 40f, 0f, 330f, 46f);
+            // 막대의 왼쪽 끝은 별 그림에 가려지므로 그 뒤부터 채운다.
+            var fillArea = Ui.Rect("FillArea", bar.transform);
+            Ui.Stretch(fillArea, 40f, 0f, 0f, 0f);
+            xpFill = BarFill(fillArea, Ui.Green, 5f);
+
+            xpText = Ui.Label("Xp", bar.transform, "", 22f, Color.white, TextAlignmentOptions.Center, true);
+            Ui.Stretch(xpText.rectTransform, 46f, 0f, 12f, 0f);
+
+            var star = Ui.Picture("Star", badge, ArtLibrary.Get("ui_icon_star"));
+            Ui.Put(star.rectTransform, 0f, 0.5f, 0f, 0f, 84f, 84f);
+
+            levelText = Ui.Label("Level", star.transform, "", 30f, Ui.Ink, TextAlignmentOptions.Center, true);
+            Ui.Stretch(levelText.rectTransform, 0f, 0f, 0f, 8f);
         }
 
-        void BuildBottomBar(Transform root)
+        void BuildCurrencies(Transform root)
         {
-            var bar = Ui.Panel("BottomBar", root, Ui.BarColor);
-            var rect = bar.rectTransform;
-            rect.anchorMin = new Vector2(0f, 0f);
-            rect.anchorMax = new Vector2(1f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(0f, 96f);
-            Ui.Horizontal(bar.gameObject, 16f, 18);
+            var row = Ui.Rect("Currencies", root);
+            Ui.Put(row, 1f, 1f, -24f, -32f, 900f, 60f);
+            var group = Ui.Horizontal(row.gameObject, 14f, 0);
+            group.childAlignment = TextAnchor.MiddleRight;
+            group.childForceExpandWidth = false;
 
-            Ui.Button("BuildButton", bar.transform, "건설", () => Toggle(PanelKind.Build), 60f, 28f);
-            Ui.Button("OrdersButton", bar.transform, "주문", () => Toggle(PanelKind.Orders), 60f, 28f);
-            Ui.Button("StorageButton", bar.transform, "창고", () => Toggle(PanelKind.Storage), 60f, 28f);
-            Ui.Button("ResidentsButton", bar.transform, "주민", () => Toggle(PanelKind.Residents), 60f, 28f);
-            expandButton = Ui.Button("ExpandButton", bar.transform, "마을 확장", OnExpandClicked, 60f, 28f);
+            charmText = Capsule(row, "Charm", "ui_icon_heart", 150f);
+            storageText = Capsule(row, "Storage", "ui_icon_box", 190f);
+            gemsText = Capsule(row, "Gems", "ui_icon_gem", 150f);
+            coinsText = Capsule(row, "Coins", "ui_icon_coin", 200f);
         }
 
-        void BuildSidePanel(Transform root)
+        /// <summary>왼쪽에 그림이 걸친 알약 모양 표시. 숫자를 넣을 글자를 돌려준다.</summary>
+        static TextMeshProUGUI Capsule(Transform parent, string name, string iconName, float width)
         {
-            var image = Ui.Panel("SidePanel", root, Ui.PanelColor);
-            var rect = image.rectTransform;
-            rect.anchorMin = new Vector2(1f, 0f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 0.5f);
-            rect.offsetMin = new Vector2(-556f, 112f);
-            rect.offsetMax = new Vector2(-16f, -88f);
-            Ui.Vertical(image.gameObject, 12f, 18);
-            panelRoot = image.gameObject;
+            var root = Ui.Rect(name, parent);
+            Ui.Fixed(root.gameObject, width, 56f);
 
-            var header = Ui.Rect("Header", image.transform);
-            var headerGroup = Ui.Horizontal(header.gameObject, 8f, 0);
-            headerGroup.childForceExpandWidth = false;
+            var background = Ui.Box("Background", root, Ui.CapsuleSprite, Ui.Pill);
+            Ui.Stretch(background.rectTransform, 20f, 5f, 0f, 5f);
 
-            panelTitle = Ui.Label("Title", header, "", 32f, Ui.TextColor);
-            panelTitle.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+            var icon = Ui.Picture("Icon", root, ArtLibrary.Get(iconName));
+            Ui.Put(icon.rectTransform, 0f, 0.5f, 0f, 0f, 56f, 56f);
 
-            var close = Ui.Button("CloseButton", header, "닫기", ClosePanel, 48f, 22f);
-            var closeLayout = close.GetComponent<ULayoutElement>();
-            closeLayout.flexibleWidth = 0f;
-            closeLayout.minWidth = 96f;
-            closeLayout.preferredWidth = 96f;
-
-            panelContent = Ui.ScrollView("Scroll", image.transform, 8f);
-
-            panelRoot.SetActive(false);
+            var label = Ui.Label("Text", root, "", 26f, Color.white, TextAlignmentOptions.Center, true);
+            Ui.Stretch(label.rectTransform, 58f, 0f, 16f, 0f);
+            return label;
         }
 
-        void BuildToast(Transform root)
+        void BuildMenus(Transform root)
         {
-            var image = Ui.Panel("Toast", root, new Color(0.1f, 0.1f, 0.12f, 0.9f));
-            image.raycastTarget = false;
-            var rect = image.rectTransform;
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -88f);
-            rect.sizeDelta = new Vector2(760f, 56f);
+            var menu = Ui.Rect("Menu", root);
+            Ui.Put(menu, 1f, 0f, -24f, 18f, 640f, 170f);
+            var group = Ui.Horizontal(menu.gameObject, 14f, 0);
+            group.childAlignment = TextAnchor.LowerRight;
+            group.childForceExpandWidth = false;
+            menuRoot = menu.gameObject;
 
-            toastText = Ui.Label("Text", image.transform, "", 28f, Ui.TextColor, TextAlignmentOptions.Center);
-            Ui.Stretch(toastText.rectTransform, 12f, 4f, 12f, 4f);
-            toastRoot = image.gameObject;
-            toastRoot.SetActive(false);
+            MenuButton(menu, "ResidentsButton", "ui_icon_residents", "주민", Ui.Green, () => Toggle(PanelKind.Residents));
+            MenuButton(menu, "StorageButton", "ui_icon_box", "창고", Ui.Blue, () => Toggle(PanelKind.Storage));
+            var orders = MenuButton(menu, "OrdersButton", "ui_icon_orders", "주문", Ui.Yellow, () => Toggle(PanelKind.Orders));
+            MenuButton(menu, "BuildButton", "ui_icon_build", "건설", Ui.Orange, () => Toggle(PanelKind.Build));
+
+            // 지금 바로 납품할 수 있는 주문 수.
+            var badge = Ui.Picture("Badge", orders, ArtLibrary.Get("ui_dot"));
+            badge.color = Ui.Red;
+            Ui.Put(badge.rectTransform, 1f, 1f, 0f, 2f, 44f, 44f);
+            ordersBadgeText = Ui.Label("Text", badge.transform, "", 24f, Color.white, TextAlignmentOptions.Center, true);
+            Ui.Stretch(ordersBadgeText.rectTransform, 0f, 0f, 0f, 0f);
+            ordersBadge = badge.gameObject;
+            ordersBadge.SetActive(false);
+
+            var expand = Ui.Rect("ExpandMenu", root);
+            Ui.Put(expand, 0f, 0f, 24f, 18f, 140f, 170f);
+            var expandGroup = Ui.Horizontal(expand.gameObject, 0f, 0);
+            expandGroup.childAlignment = TextAnchor.LowerLeft;
+            expandGroup.childForceExpandWidth = false;
+            expandRoot = expand.gameObject;
+
+            MenuButton(expand, "ExpandButton", "ui_icon_expand", "확장", Ui.Cream, () => Toggle(PanelKind.Expand));
+        }
+
+        /// <summary>둥근 그림 버튼과 그 아래 이름표. 버튼 오브젝트의 이름이 buttonName이 된다.</summary>
+        static RectTransform MenuButton(Transform parent, string buttonName, string iconName, string text,
+            Color color, Action onClick)
+        {
+            var slot = Ui.Rect(buttonName + "Slot", parent);
+            Ui.Fixed(slot.gameObject, 136f, 164f);
+
+            var button = Ui.ButtonBox(buttonName, slot, null, color, onClick);
+            var image = (UImage)button.targetGraphic;
+            image.sprite = ArtLibrary.Get("ui_circle");
+            Ui.Put(image.rectTransform, 0.5f, 1f, 0f, 0f, 124f, 132f);
+
+            var icon = Ui.Picture("Icon", button.transform, ArtLibrary.Get(iconName));
+            Ui.Put(icon.rectTransform, 0.5f, 0.5f, 0f, 4f, 76f, 76f);
+
+            var label = Ui.Chip("Label", slot, null, text, Ui.Pill, 40f, 22f);
+            Ui.Put((RectTransform)label.transform.parent, 0.5f, 0f, 0f, 0f, 112f, 40f);
+            return slot;
         }
 
         void BuildHint(Transform root)
         {
-            var image = Ui.Panel("Hint", root, new Color(0.1f, 0.1f, 0.12f, 0.85f));
-            image.raycastTarget = false;
-            var rect = image.rectTransform;
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f);
-            rect.anchoredPosition = new Vector2(0f, 112f);
-            rect.sizeDelta = new Vector2(900f, 52f);
+            var hint = Ui.Rect("Hint", root);
+            Ui.Put(hint, 0.5f, 0f, 0f, 24f, 1120f, 64f);
+            var group = Ui.Horizontal(hint.gameObject, 12f, 0);
+            group.childAlignment = TextAnchor.MiddleCenter;
+            group.childForceExpandWidth = false;
 
-            hintText = Ui.Label("Text", image.transform, "", 26f, Ui.TextColor, TextAlignmentOptions.Center);
-            Ui.Stretch(hintText.rectTransform, 12f, 4f, 12f, 4f);
-            hintRoot = image.gameObject;
+            hintText = Ui.Chip("Text", hint, null, "", Ui.Pill, 60f, 24f);
+            Ui.Fixed(hintText.transform.parent.gameObject, 880f, 60f);
+
+            var cancel = Ui.Button("CancelButton", hint, "그만두기", () => world.CancelMode(), 60f, 24f, Ui.Red);
+            Ui.Fixed(cancel.gameObject, 200f, 60f);
+
+            hintRoot = hint.gameObject;
             hintRoot.SetActive(false);
+        }
+
+        void BuildSheet(Transform root)
+        {
+            var sheet = Ui.Box("Sheet", root, Ui.PanelSprite, Color.white);
+            sheet.raycastTarget = true;
+            Ui.Put(sheet.rectTransform, 0.5f, 0f, 0f, 16f, 1210f, 300f);
+            sheetRoot = sheet.gameObject;
+
+            CloseButton(sheet.transform);
+
+            var body = Ui.Rect("Body", sheet.transform);
+            // 오른쪽 위의 닫기 버튼과 겹치지 않게 오른쪽을 더 비운다.
+            Ui.Stretch(body, 32f, 38f, 52f, 28f);
+            var group = Ui.Horizontal(body.gameObject, 20f, 0);
+            group.childAlignment = TextAnchor.UpperLeft;
+            group.childForceExpandWidth = false;
+            group.childForceExpandHeight = true;
+
+            sheetInfo = Ui.Rect("Info", body);
+            Ui.Fixed(sheetInfo.gameObject, 290f, 0f).flexibleHeight = 1f;
+            Ui.Vertical(sheetInfo.gameObject, 6f, 0);
+
+            sheetBody = Ui.Rect("Options", body);
+            var bodyLayout = sheetBody.gameObject.AddComponent<ULayoutElement>();
+            bodyLayout.flexibleWidth = 1f;
+            bodyLayout.flexibleHeight = 1f;
+            Ui.Vertical(sheetBody.gameObject, 8f, 0);
+
+            sheetRoot.SetActive(false);
+        }
+
+        void BuildWindow(Transform root)
+        {
+            // 창 뒤를 어둡게 가리고, 바깥을 누르면 창을 닫는다.
+            var dim = Ui.Panel("Dim", root, Ui.Dim);
+            Ui.Stretch(dim.rectTransform, 0f, 0f, 0f, 0f);
+            var dimButton = dim.gameObject.AddComponent<UButton>();
+            dimButton.transition = UnityEngine.UI.Selectable.Transition.None;
+            dimButton.onClick.AddListener(ClosePanel);
+            dimRoot = dim.gameObject;
+
+            var window = Ui.Box("Window", root, Ui.PanelSprite, Color.white);
+            window.raycastTarget = true;
+            windowRect = window.rectTransform;
+            Ui.Put(windowRect, 0.5f, 0.5f, 0f, 0f, 1240f, 760f);
+
+            windowTitle = Ui.Label("Title", window.transform, "", 40f, Ui.Ink, TextAlignmentOptions.Center, true);
+            var titleRect = windowTitle.rectTransform;
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.anchoredPosition = new Vector2(0f, -22f);
+            titleRect.sizeDelta = new Vector2(-180f, 56f);
+
+            CloseButton(window.transform);
+
+            var body = Ui.Rect("Body", window.transform);
+            Ui.Stretch(body, 36f, 46f, 36f, 92f);
+            Ui.Vertical(body.gameObject, 14f, 0);
+
+            windowHeader = Ui.Rect("Header", body);
+            windowHeaderLayout = Ui.Fixed(windowHeader.gameObject, 0f, 60f);
+            var headerGroup = Ui.Horizontal(windowHeader.gameObject, 12f, 0);
+            headerGroup.childForceExpandWidth = false;
+
+            windowContent = Ui.ScrollView("Scroll", body, 14f);
+
+            windowFooter = Ui.Rect("Footer", body);
+            Ui.Fixed(windowFooter.gameObject, 0f, 64f);
+            var footerGroup = Ui.Horizontal(windowFooter.gameObject, 12f, 0);
+            footerGroup.childForceExpandWidth = false;
+
+            dimRoot.SetActive(false);
+            windowRect.gameObject.SetActive(false);
+        }
+
+        void CloseButton(Transform parent)
+        {
+            var close = Ui.ButtonBox("CloseButton", parent, null, Color.white, ClosePanel);
+            var image = (UImage)close.targetGraphic;
+            image.sprite = ArtLibrary.Get("ui_close");
+            Ui.Put(image.rectTransform, 1f, 1f, 14f, 14f, 72f, 77f);
+        }
+
+        void BuildToast(Transform root)
+        {
+            toastText = Ui.Chip("Toast", root, null, "", Ui.Pill, 60f, 26f);
+            toastRoot = toastText.transform.parent.gameObject;
+            Ui.Put((RectTransform)toastRoot.transform, 0.5f, 1f, 0f, -108f, 860f, 60f);
+            toastRoot.SetActive(false);
+        }
+
+        // ---------- 막대 ----------
+
+        /// <summary>알약 모양 바탕 안에 채워지는 부분을 만든다. 얼마나 찼는지는 SetBar로 정한다.</summary>
+        static RectTransform BarFill(Transform bar, Color color, float inset)
+        {
+            var fill = Ui.Box("Fill", bar, Ui.CapsuleSprite, color);
+            var rect = fill.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 0.5f);
+            rect.offsetMin = new Vector2(inset, inset);
+            rect.offsetMax = new Vector2(-inset, -inset);
+            return rect;
+        }
+
+        static void SetBar(RectTransform fill, float amount)
+        {
+            amount = Mathf.Clamp01(amount);
+            if (fill.gameObject.activeSelf != amount > 0.001f) fill.gameObject.SetActive(amount > 0.001f);
+            // 너무 짧으면 알약 모양이 찌그러지므로 최소 길이를 둔다.
+            fill.anchorMax = new Vector2(Mathf.Max(amount, 0.14f), 1f);
         }
 
         // ---------- 갱신 ----------
@@ -232,16 +396,20 @@ namespace ZooZooClub.Client
                 RebuildPanel();
             }
 
-            bool hinting = world.InPlacementMode;
-            if (hintRoot.activeSelf != hinting) hintRoot.SetActive(hinting);
-            if (hinting) hintText.text = world.ModeHint;
+            // 놓을 곳을 고르는 동안과 창이나 시트가 떠 있는 동안에는 모서리 버튼을 치운다.
+            bool placing = world.InPlacementMode;
+            bool showMenus = !placing && panel == PanelKind.None;
+            if (hintRoot.activeSelf != placing) hintRoot.SetActive(placing);
+            if (placing) hintText.text = world.ModeHint;
+            if (menuRoot.activeSelf != showMenus) menuRoot.SetActive(showMenus);
+            if (expandRoot.activeSelf != showMenus) expandRoot.SetActive(showMenus);
 
             if (toastRoot.activeSelf && Time.unscaledTime >= toastUntil) toastRoot.SetActive(false);
 
             if (Time.unscaledTime < nextTick) return;
             nextTick = Time.unscaledTime + 0.5f;
 
-            RefreshTopBar();
+            RefreshHud();
             foreach (var ticker in tickers) ticker();
 
             // 시간이 흘러서 패널의 모양이 달라져야 하면(작물이 다 자람, 새 주문 도착 등) 다시 만든다.
@@ -250,7 +418,7 @@ namespace ZooZooClub.Client
 
         void OnGameChanged()
         {
-            RefreshTopBar();
+            RefreshHud();
             rebuildNeeded = true;
         }
 
@@ -264,28 +432,34 @@ namespace ZooZooClub.Client
             Toast(text);
         }
 
-        void RefreshTopBar()
+        void RefreshHud()
         {
             var state = game.State;
-            levelText.text = game.XpToNextLevel > 0
-                ? "Lv " + state.level + "  (" + state.xp + "/" + game.XpToNextLevel + ")"
-                : "Lv " + state.level + "  (최고)";
-            coinsText.text = "코인 " + state.coins;
-            gemsText.text = "보석 " + state.gems;
-            storageText.text = "창고 " + game.StoredTotal + "/" + state.storageCapacity;
-            charmText.text = "매력 " + game.TotalCharm;
-
-            if (!game.CanExpandFurther)
+            levelText.text = state.level.ToString();
+            if (game.XpToNextLevel > 0)
             {
-                Ui.SetButtonText(expandButton, "마을 확장 (최대)");
-                expandButton.interactable = false;
+                xpText.text = state.xp + " / " + game.XpToNextLevel;
+                SetBar(xpFill, (float)state.xp / game.XpToNextLevel);
             }
             else
             {
-                Ui.SetButtonText(expandButton,
-                    "마을 확장  " + game.LandExpandCost + "코인 · Lv " + game.LandExpandRequiredLevel);
-                expandButton.interactable = true;
+                xpText.text = "최고 레벨";
+                SetBar(xpFill, 1f);
             }
+
+            coinsText.text = state.coins.ToString("N0");
+            gemsText.text = state.gems.ToString("N0");
+            storageText.text = game.StoredTotal + "/" + state.storageCapacity;
+            storageText.color = game.StoredTotal >= state.storageCapacity ? new Color(1f, 0.72f, 0.66f) : Color.white;
+            charmText.text = game.TotalCharm.ToString();
+
+            int ready = 0;
+            foreach (var order in state.orders)
+            {
+                if (game.IsOrderAvailable(order) && game.HasItems(order.items)) ready++;
+            }
+            if (ordersBadge.activeSelf != ready > 0) ordersBadge.SetActive(ready > 0);
+            if (ready > 0) ordersBadgeText.text = ready.ToString();
         }
 
         public void Toast(string text)
@@ -303,11 +477,6 @@ namespace ZooZooClub.Client
         }
 
         // ---------- 입력 ----------
-
-        void OnExpandClicked()
-        {
-            Report(game.ExpandLand(), "마을이 넓어졌어요!");
-        }
 
         void OnObjectClicked(PlacedObject obj)
         {
@@ -352,7 +521,7 @@ namespace ZooZooClub.Client
             }
             world.CancelMode();
             panel = kind;
-            panelRoot.SetActive(true);
+            windowContent.anchoredPosition = Vector2.zero;
             rebuildNeeded = true;
         }
 
@@ -361,8 +530,41 @@ namespace ZooZooClub.Client
             panel = PanelKind.None;
             selectedId = 0;
             world.SelectedObjectId = 0;
-            panelRoot.SetActive(false);
+            dimRoot.SetActive(false);
+            windowRect.gameObject.SetActive(false);
+            sheetRoot.SetActive(false);
             tickers.Clear();
+        }
+
+        /// <summary>격자 줄 수에 맞춘 창 높이. 너무 길면 화면에 맞게 자르고 안에서 스크롤한다.</summary>
+        static float WindowHeight(int itemCount, int columns, float cellHeight, float headerHeight)
+        {
+            int rows = Mathf.Max(1, (itemCount + columns - 1) / columns);
+            float header = headerHeight > 0f ? headerHeight + 14f : 0f;
+            return Mathf.Min(800f, 148f + header + rows * cellHeight + (rows - 1) * 16f);
+        }
+
+        void ShowWindow(string title, float width, float height)
+        {
+            sheetRoot.SetActive(false);
+            dimRoot.SetActive(true);
+            windowRect.gameObject.SetActive(true);
+            windowRect.sizeDelta = new Vector2(width, height);
+            windowTitle.text = title;
+        }
+
+        void ShowSheet()
+        {
+            dimRoot.SetActive(false);
+            windowRect.gameObject.SetActive(false);
+            sheetRoot.SetActive(true);
+        }
+
+        void ShowHeader(float height)
+        {
+            windowHeaderLayout.minHeight = height;
+            windowHeaderLayout.preferredHeight = height;
+            windowHeader.gameObject.SetActive(true);
         }
 
         // ---------- 패널 ----------
@@ -393,8 +595,14 @@ namespace ZooZooClub.Client
 
         void RebuildPanel()
         {
-            Ui.Clear(panelContent);
             tickers.Clear();
+            Ui.Clear(windowHeader);
+            Ui.Clear(windowContent);
+            Ui.Clear(windowFooter);
+            Ui.Clear(sheetInfo);
+            Ui.Clear(sheetBody);
+            windowHeader.gameObject.SetActive(false);
+            windowFooter.gameObject.SetActive(false);
 
             if (panel == PanelKind.Selection && game.FindObject(selectedId) == null)
             {
@@ -416,6 +624,9 @@ namespace ZooZooClub.Client
                 case PanelKind.Residents:
                     BuildResidentsPanel();
                     break;
+                case PanelKind.Expand:
+                    BuildExpandPanel();
+                    break;
                 case PanelKind.Selection:
                     BuildSelectionPanel();
                     break;
@@ -426,38 +637,19 @@ namespace ZooZooClub.Client
             signature = ComputeSignature();
         }
 
-        TextMeshProUGUI Line(string text, bool muted = false)
+        // ---------- 작은 부품 ----------
+
+        static Sprite Art(string name)
         {
-            return Ui.Label("Line", panelContent, text, 24f, muted ? Ui.MutedColor : Ui.TextColor);
+            return ArtLibrary.Get(name);
         }
 
-        RectTransform Card()
+        /// <summary>물건 그림. 가공품은 item_&lt;id&gt;, 수확물은 작물 그림을 그대로 쓴다.</summary>
+        static Sprite ItemIcon(string itemId)
         {
-            var card = Ui.Panel("Card", panelContent, Ui.CardColor);
-            Ui.Vertical(card.gameObject, 6f, 12);
-            return card.rectTransform;
-        }
-
-        static RectTransform Row(Transform parent)
-        {
-            var row = Ui.Rect("Row", parent);
-            Ui.Horizontal(row.gameObject, 8f, 0);
-            return row;
-        }
-
-        /// <summary>왼쪽에 그림, 오른쪽에 글 여러 줄이 들어가는 줄을 만들고 글을 넣을 곳을 돌려준다.</summary>
-        static RectTransform IconRow(Transform parent, Sprite icon, float iconSize)
-        {
-            var row = Ui.Rect("IconRow", parent);
-            var group = Ui.Horizontal(row.gameObject, 12f, 0);
-            group.childForceExpandWidth = false;
-
-            if (icon != null) Ui.Icon("Icon", row, icon, iconSize);
-
-            var column = Ui.Rect("Column", row);
-            Ui.Vertical(column.gameObject, 4f, 0);
-            column.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
-            return column;
+            Sprite sprite = ArtLibrary.Get("item_" + itemId);
+            if (sprite == null) sprite = ArtLibrary.Get("crop_" + itemId);
+            return sprite;
         }
 
         static string ResidentTitle(ResidentDef resident)
@@ -465,301 +657,645 @@ namespace ZooZooClub.Client
             return resident.displayName + " (" + resident.species + ")";
         }
 
+        static TextMeshProUGUI Text(Transform parent, string text, float size, Color color, bool bold = false,
+            TextAlignmentOptions alignment = TextAlignmentOptions.Center)
+        {
+            return Ui.Label("Text", parent, text, size, color, alignment, bold);
+        }
+
+        /// <summary>가운데로 모이는 가로 줄.</summary>
+        static RectTransform CenterRow(Transform parent, float spacing)
+        {
+            var row = Ui.Rect("Row", parent);
+            var group = Ui.Horizontal(row.gameObject, spacing, 0);
+            group.childAlignment = TextAnchor.MiddleCenter;
+            group.childForceExpandWidth = false;
+            return row;
+        }
+
+        /// <summary>세로로 쌓이는 카드. 내용은 가운데로 모인다.</summary>
+        static RectTransform CardColumn(string name, Transform parent, Color color, float spacing)
+        {
+            var card = Ui.Box(name, parent, Ui.CardSprite, color);
+            var group = Ui.Vertical(card.gameObject, spacing, 14);
+            group.padding.bottom = 20;
+            group.childAlignment = TextAnchor.UpperCenter;
+            return card.rectTransform;
+        }
+
+        /// <summary>"당근 3/5"처럼 물건 그림, 이름, 가진 수/필요한 수를 한 줄로 보여 준다.</summary>
+        void NeedLine(Transform parent, ItemAmount need, float iconSize, float fontSize, bool withName)
+        {
+            var row = CenterRow(parent, 6f);
+            Ui.Icon("Icon", row, ItemIcon(need.itemId), iconSize);
+
+            int have = game.CountOf(need.itemId);
+            string text = (withName ? Texts.ItemName(game.Catalog, need.itemId) + "  " : "")
+                + Ui.ColorTag(have >= need.amount ? Ui.Good : Ui.Bad) + have + "</color>/" + need.amount;
+            Ui.Label("Text", row, text, fontSize, Ui.Ink, TextAlignmentOptions.Left, true);
+        }
+
+        // ---------- 건설 ----------
+
         void BuildBuildPanel()
         {
-            panelTitle.text = "건설";
-            Line("놓을 것을 고른 뒤 땅을 클릭하세요.", true);
-
+            var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
-                bool locked = game.State.level < def.unlockLevel;
-                bool maxed = def.maxCount > 0 && game.CountPlaced(def.id) >= def.maxCount;
-
-                string detail = locked ? "Lv " + def.unlockLevel + " 필요"
-                    : maxed ? "설치 완료"
-                    : def.cost + " 코인";
-                if (def.charm > 0 && !locked) detail += " · 매력 +" + def.charm;
-
-                string defId = def.id;
-                var button = Ui.Button("Build " + def.id, panelContent, def.displayName + "   " + detail, () =>
-                {
-                    ClosePanel();
-                    world.BeginPlacing(defId);
-                }, 52f, 24f);
-                button.interactable = !locked && !maxed;
+                bool isDecor = def.kind == PlaceableKind.Decor;
+                if (isDecor == (buildTab == 1)) shown.Add(def);
             }
+
+            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f));
+            ShowHeader(60f);
+            BuildTab("TabFacility", "밭 · 시설", 0);
+            BuildTab("TabDecor", "장식", 1);
+
+            var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
+            foreach (var def in shown) BuildCard(grid, def);
         }
+
+        void BuildTab(string name, string text, int index)
+        {
+            var tab = Ui.Button(name, windowHeader, text, () =>
+            {
+                buildTab = index;
+                windowContent.anchoredPosition = Vector2.zero;
+                rebuildNeeded = true;
+            }, 60f, 24f, buildTab == index ? Ui.Orange : Ui.Sand);
+            Ui.Fixed(tab.gameObject, 230f, 60f);
+        }
+
+        void BuildCard(Transform grid, PlaceableDef def)
+        {
+            bool locked = game.State.level < def.unlockLevel;
+            bool maxed = def.maxCount > 0 && game.CountPlaced(def.id) >= def.maxCount;
+            string defId = def.id;
+
+            var card = Ui.ButtonBox("Build " + def.id, grid, Ui.CardSprite, Color.white, () =>
+            {
+                ClosePanel();
+                world.BeginPlacing(defId);
+            });
+            card.interactable = !locked && !maxed;
+            Transform inside = card.transform;
+
+            var icon = Ui.Picture("Icon", inside, Art(def.kind == PlaceableKind.Plot ? "plot" : def.id));
+            Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -14f, 176f, 130f);
+
+            var name = Text(inside, def.displayName, 26f, Ui.Ink, true);
+            Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -150f, 204f, 36f);
+
+            string detail = def.kind == PlaceableKind.Decor ? "매력 +" + def.charm
+                : def.kind == PlaceableKind.Facility ? "생산 시설"
+                : "작물을 심는 곳";
+            var detailLabel = Text(inside, detail, 20f, Ui.Muted);
+            Ui.Put(detailLabel.rectTransform, 0.5f, 1f, 0f, -186f, 204f, 28f);
+
+            TextMeshProUGUI price;
+            if (locked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), "Lv " + def.unlockLevel, Ui.Gray, 46f, 22f);
+            else if (maxed) price = Ui.Chip("Price", inside, null, "설치 완료", Ui.Gray, 46f, 22f);
+            else price = Ui.Chip("Price", inside, Art("ui_icon_coin"), def.cost.ToString("N0"), Ui.Yellow, 46f, 24f);
+            Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 22f, 170f, 46f);
+        }
+
+        // ---------- 주문 ----------
 
         void BuildOrdersPanel()
         {
-            panelTitle.text = "주문";
+            ShowWindow("주문", 1240f, WindowHeight(game.State.orders.Count, 4, 430f, 0f));
 
-            foreach (var order in game.State.orders)
-            {
-                var card = Card();
-                int orderId = order.id;
-
-                if (!game.IsOrderAvailable(order))
-                {
-                    var waiting = Ui.Label("Waiting", card, "", 24f, Ui.MutedColor);
-                    long availableAt = order.availableAt;
-                    Action tick = () =>
-                    {
-                        if (waiting != null) waiting.text = "다음 주문까지 " + Texts.Duration(availableAt - game.Now);
-                    };
-                    tick();
-                    tickers.Add(tick);
-                    continue;
-                }
-
-                var customer = game.Catalog.GetResident(order.customerId);
-                string who = customer != null ? ResidentTitle(customer) : "손님";
-                Sprite face = customer != null ? ArtLibrary.Get("resident_" + customer.id) : null;
-                var info = IconRow(card, face, 84f);
-                Ui.Label("Customer", info, who + "의 주문", 26f, Ui.TextColor);
-                Ui.Label("Items", info, Texts.ItemList(game, order.items, true), 24f, Ui.TextColor);
-                Ui.Label("Reward", info, "보상  코인 " + order.rewardCoins + " · 경험치 " + order.rewardXp, 22f, Ui.MutedColor);
-
-                var row = Row(card);
-                var deliver = Ui.Button("Deliver", row, "납품", () =>
-                {
-                    Report(game.DeliverOrder(orderId), "납품 완료!");
-                }, 48f, 24f);
-                deliver.interactable = game.HasItems(order.items);
-
-                Ui.Button("Discard", row, "거절", () =>
-                {
-                    Report(game.DiscardOrder(orderId), null);
-                }, 48f, 24f);
-            }
+            var grid = Ui.Grid("Grid", windowContent, 280f, 430f, 16f, 4);
+            foreach (var order in game.State.orders) OrderCard(grid, order);
         }
 
-        void BuildStoragePanel()
+        void OrderCard(Transform grid, Order order)
         {
-            panelTitle.text = "창고";
-            Line("보관 " + game.StoredTotal + " / " + game.State.storageCapacity);
-            Ui.Button("Upgrade", panelContent, "창고 넓히기   " + game.StorageUpgradeCost + " 코인", () =>
-            {
-                Report(game.UpgradeStorage(), "창고가 넓어졌어요!");
-            }, 52f, 24f);
+            int orderId = order.id;
 
-            if (game.State.inventory.Count == 0)
+            if (!game.IsOrderAvailable(order))
             {
-                Line("창고가 비어 있어요.", true);
+                var waitCard = CardColumn("Waiting", grid, Ui.Sand, 8f);
+                Ui.Spacer(waitCard, 0f, 1f);
+                Ui.Icon("Clock", waitCard, Art("ui_icon_clock"), 84f);
+                Text(waitCard, "다음 주문까지", 22f, Ui.Muted);
+                var waiting = Text(waitCard, "", 32f, Ui.Ink, true);
+                Ui.Spacer(waitCard, 0f, 1f);
+
+                long availableAt = order.availableAt;
+                Action tick = () =>
+                {
+                    if (waiting != null) waiting.text = Texts.Duration(availableAt - game.Now);
+                };
+                tick();
+                tickers.Add(tick);
                 return;
             }
 
+            var card = CardColumn("Order", grid, Color.white, 6f);
+            var customer = game.Catalog.GetResident(order.customerId);
+            Ui.Icon("Face", card, customer != null ? Art("resident_" + customer.id) : null, 104f);
+            Text(card, customer != null ? customer.displayName + "의 주문" : "손님의 주문", 24f, Ui.Ink, true);
+
+            foreach (var need in order.items) NeedLine(card, need, 38f, 22f, true);
+
+            Ui.Spacer(card, 0f, 1f);
+
+            var reward = CenterRow(card, 6f);
+            Ui.Icon("Coin", reward, Art("ui_icon_coin"), 34f);
+            Ui.Label("Coins", reward, order.rewardCoins.ToString("N0"), 24f, Ui.Ink, TextAlignmentOptions.Left, true);
+            Ui.Fixed(Ui.Rect("Gap", reward).gameObject, 14f, 1f);
+            Ui.Icon("Xp", reward, Art("ui_icon_star"), 34f);
+            Ui.Label("XpAmount", reward, order.rewardXp.ToString(), 24f, Ui.Ink, TextAlignmentOptions.Left, true);
+
+            var deliver = Ui.Button("Deliver", card, "납품", () =>
+            {
+                Report(game.DeliverOrder(orderId), "납품 완료!");
+            }, 60f, 26f, Ui.Green);
+            deliver.interactable = game.HasItems(order.items);
+
+            Ui.Button("Discard", card, "거절", () =>
+            {
+                Report(game.DiscardOrder(orderId), null);
+            }, 44f, 20f, Ui.Sand);
+        }
+
+        // ---------- 창고 ----------
+
+        void BuildStoragePanel()
+        {
+            ShowWindow("창고", 1240f, WindowHeight(game.State.inventory.Count, 6, 260f, 64f));
+            ShowHeader(64f);
+
+            int stored = game.StoredTotal;
+            int capacity = game.State.storageCapacity;
+
+            var bar = Ui.Box("Capacity", windowHeader, Ui.CapsuleSprite, Ui.Sand);
+            Ui.Fixed(bar.gameObject, 0f, 54f).flexibleWidth = 1f;
+            var fill = BarFill(bar.transform, stored >= capacity ? Ui.Red : Ui.Blue, 5f);
+            SetBar(fill, capacity > 0 ? (float)stored / capacity : 0f);
+            var barText = Text(bar.transform, "보관  " + stored + " / " + capacity, 24f, Ui.Ink, true);
+            Ui.Stretch(barText.rectTransform, 0f, 0f, 0f, 0f);
+
+            var upgrade = Ui.Button("Upgrade", windowHeader,
+                "창고 넓히기   " + game.StorageUpgradeCost.ToString("N0") + " 코인", () =>
+            {
+                Report(game.UpgradeStorage(), "창고가 넓어졌어요!");
+            }, 62f, 22f, Ui.Green);
+            Ui.Fixed(upgrade.gameObject, 400f, 62f);
+
+            if (game.State.inventory.Count == 0)
+            {
+                Text(windowContent, "\n창고가 비어 있어요.", 26f, Ui.Muted);
+                return;
+            }
+
+            var grid = Ui.Grid("Grid", windowContent, 180f, 260f, 16f, 6);
             foreach (var entry in game.State.inventory)
             {
                 var def = game.Catalog.GetItem(entry.itemId);
                 string itemId = entry.itemId;
                 int value = def != null ? def.value : 0;
 
-                var row = Row(panelContent);
-                var label = Ui.Label("Item", row, Texts.ItemName(game.Catalog, itemId) + "  x" + entry.amount, 24f, Ui.TextColor);
-                label.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 2f;
-                Ui.Button("Sell", row, "1개 판매 (" + value + ")", () =>
+                var card = CardColumn("Item", grid, Color.white, 2f);
+                Ui.Icon("Icon", card, ItemIcon(itemId), 96f);
+                Text(card, Texts.ItemName(game.Catalog, itemId), 22f, Ui.Ink, true);
+                Text(card, "x " + entry.amount, 24f, Ui.Muted, true);
+                Ui.Spacer(card, 0f, 1f);
+                Ui.Button("Sell", card, "판매 +" + value, () =>
                 {
                     Report(game.SellItem(itemId, 1), null);
-                }, 44f, 20f);
+                }, 48f, 20f, Ui.Yellow);
             }
         }
+
+        // ---------- 주민 ----------
 
         void BuildResidentsPanel()
         {
-            panelTitle.text = "주민";
-            Line("시설에 배치하면 그 시설의 생산이 빨라져요. 배치는 시설을 눌러서 해요.", true);
+            ShowWindow("주민", 1240f, WindowHeight(game.Catalog.residents.Count, 5, 410f, 34f));
+            ShowHeader(34f);
+            var hint = Ui.Label("Hint", windowHeader, "시설을 눌러 주민을 배치하면 그 시설의 생산이 빨라져요.",
+                22f, Ui.Muted, TextAlignmentOptions.Center);
+            hint.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
 
+            var grid = Ui.Grid("Grid", windowContent, 220f, 410f, 16f, 5);
             foreach (var resident in game.Catalog.residents)
             {
-                var card = Card();
                 bool unlocked = game.IsResidentUnlocked(resident.id);
                 string residentId = resident.id;
 
-                var info = IconRow(card, ArtLibrary.Get("resident_" + resident.id), 84f);
-                Ui.Label("Name", info, ResidentTitle(resident), 26f, unlocked ? Ui.TextColor : Ui.MutedColor);
+                var card = CardColumn("Resident", grid, unlocked ? Color.white : Ui.Sand, 4f);
+                var face = Ui.Icon("Face", card, Art("resident_" + resident.id), 140f);
+                Text(card, resident.displayName, 28f, unlocked ? Ui.Ink : Ui.Muted, true);
+                Text(card, resident.species, 20f, Ui.Muted);
 
                 if (!unlocked)
                 {
-                    Ui.Label("Locked", info, "Lv " + resident.unlockLevel + "에 마을로 와요.", 22f, Ui.MutedColor);
+                    face.color = new Color(1f, 1f, 1f, 0.4f);
+                    Ui.Spacer(card, 0f, 1f);
+                    Ui.Icon("Lock", card, Art("ui_icon_lock"), 48f);
+                    Text(card, "Lv " + resident.unlockLevel + "에 마을로 와요", 20f, Ui.Muted);
+                    Ui.Spacer(card, 0f, 1f);
                     continue;
                 }
 
-                Ui.Label("Bonus", info, "생산 시간 -" + resident.craftSpeedBonusPercent + "%", 22f, Ui.MutedColor);
+                Text(card, "생산 시간 -" + resident.craftSpeedBonusPercent + "%", 22f, Ui.Good, true);
 
                 var workplace = game.FindObject(game.AssignedObjectOf(resident.id));
                 var workplaceDef = workplace != null ? game.Catalog.GetPlaceable(workplace.defId) : null;
+                Ui.Spacer(card, 0f, 1f);
                 if (workplaceDef == null)
                 {
-                    Ui.Label("Status", info, "마을을 산책하는 중", 22f, Ui.TextColor);
+                    Text(card, "마을을 산책하는 중", 20f, Ui.Muted);
                     continue;
                 }
 
-                Ui.Label("Status", info, workplaceDef.displayName + "에서 일하는 중", 22f, Ui.TextColor);
+                Text(card, workplaceDef.displayName + "에서 일하는 중", 20f, Ui.Ink);
                 Ui.Button("Rest " + resident.id, card, "쉬게 하기", () =>
                 {
                     Report(game.UnassignResident(residentId), null);
-                }, 44f, 22f);
+                }, 50f, 20f, Ui.Yellow);
             }
         }
+
+        // ---------- 마을 확장 ----------
+
+        void BuildExpandPanel()
+        {
+            ShowWindow("마을 확장", 760f, 520f);
+
+            var box = Ui.Rect("Box", windowContent);
+            var group = Ui.Vertical(box.gameObject, 10f, 0);
+            group.childAlignment = TextAnchor.UpperCenter;
+
+            Ui.Icon("Icon", box, Art("ui_icon_expand"), 120f);
+
+            if (!game.CanExpandFurther)
+            {
+                Text(box, "마을이 이미 가장 넓어요.", 28f, Ui.Ink, true);
+                return;
+            }
+
+            var state = game.State;
+            long cost = game.LandExpandCost;
+            int needLevel = game.LandExpandRequiredLevel;
+
+            Text(box, "마을 땅을 한 단계 더 넓혀요.", 28f, Ui.Ink, true);
+            Text(box, "지금 크기  " + state.landWidth + " × " + state.landHeight + " 칸", 22f, Ui.Muted);
+
+            var price = CenterRow(box, 8f);
+            Ui.Icon("Coin", price, Art("ui_icon_coin"), 44f);
+            Ui.Label("Cost", price, cost.ToString("N0"), 32f, state.coins >= cost ? Ui.Ink : Ui.Bad,
+                TextAlignmentOptions.Left, true);
+
+            Text(box, "필요 레벨  Lv " + needLevel, 24f, state.level >= needLevel ? Ui.Good : Ui.Bad, true);
+
+            windowFooter.gameObject.SetActive(true);
+            Ui.Button("ConfirmExpand", windowFooter, "확장하기", () =>
+            {
+                var result = game.ExpandLand();
+                Report(result, "마을이 넓어졌어요!");
+                if (result == ActionResult.Ok) ClosePanel();
+            }, 64f, 28f, Ui.Green);
+        }
+
+        // ---------- 선택한 것 ----------
 
         void BuildSelectionPanel()
         {
             var obj = game.FindObject(selectedId);
             var def = game.Catalog.GetPlaceable(obj.defId);
-            int objectId = obj.id;
-            panelTitle.text = def != null ? def.displayName : obj.defId;
-            if (def == null) return;
-
-            if (def.kind == PlaceableKind.Plot) BuildPlotSection(obj);
-            else if (def.kind == PlaceableKind.Facility) BuildFacilitySection(obj, def);
-            else Line("매력 +" + def.charm, true);
-
-            var row = Row(panelContent);
-            Ui.Button("Move", row, "옮기기", () =>
+            if (def == null)
             {
                 ClosePanel();
-                world.BeginMoving(objectId);
-            }, 48f, 24f);
-
-            long refund = (long)def.cost * game.Catalog.balance.sellBackPercent / 100;
-            Ui.Button("Remove", row, "철거 (+" + refund + " 코인)", () =>
-            {
-                Report(game.Remove(objectId), "철거했어요.");
-            }, 48f, 24f);
-        }
-
-        void BuildPlotSection(PlacedObject plot)
-        {
-            int objectId = plot.id;
-
-            if (!string.IsNullOrEmpty(plot.cropId))
-            {
-                var crop = game.Catalog.GetCrop(plot.cropId);
-                string cropName = crop != null ? crop.displayName : plot.cropId;
-
-                if (game.IsRipe(objectId))
-                {
-                    Line(cropName + " — 다 자랐어요!");
-                    Ui.Button("Harvest", panelContent, "수확", () =>
-                    {
-                        Report(game.Harvest(objectId), null);
-                    }, 52f, 24f);
-                }
-                else
-                {
-                    var growing = Line("");
-                    Action tick = () =>
-                    {
-                        if (growing != null)
-                            growing.text = cropName + " 자라는 중 — " + Texts.Duration(game.SecondsUntilRipe(objectId));
-                    };
-                    tick();
-                    tickers.Add(tick);
-                }
                 return;
             }
 
-            Line("심을 작물을 고르세요.", true);
-            foreach (var crop in game.Catalog.crops)
+            if (def.kind == PlaceableKind.Facility)
             {
-                bool locked = game.State.level < crop.unlockLevel;
-                string detail = locked
-                    ? "Lv " + crop.unlockLevel + " 필요"
-                    : Texts.Duration(crop.growSeconds) + " · 씨앗 " + crop.seedCost + "코인";
-                string cropId = crop.id;
-                var button = Ui.Button("Plant " + crop.id, panelContent, crop.displayName + "   " + detail, () =>
-                {
-                    Report(game.Plant(objectId, cropId), null);
-                }, 52f, 24f);
-                button.interactable = !locked;
+                BuildFacilityWindow(obj, def);
+                return;
             }
+
+            ShowSheet();
+            Ui.Label("Title", sheetInfo, def.displayName, 34f, Ui.Ink, TextAlignmentOptions.Left, true);
+
+            if (def.kind == PlaceableKind.Plot) BuildPlotSheet(obj);
+            else BuildDecorSheet(def);
+
+            Ui.Spacer(sheetInfo, 0f, 1f);
+            var actions = Ui.Rect("Actions", sheetInfo);
+            Ui.Horizontal(actions.gameObject, 8f, 0);
+            MoveAndRemoveButtons(actions, obj.id, def, 54f, 20f);
         }
 
-        void BuildFacilitySection(PlacedObject facility, PlaceableDef def)
+        void MoveAndRemoveButtons(Transform parent, int objectId, PlaceableDef def, float height, float fontSize)
+        {
+            Ui.Button("Move", parent, "옮기기", () =>
+            {
+                ClosePanel();
+                world.BeginMoving(objectId);
+            }, height, fontSize, Ui.Blue);
+
+            long refund = (long)def.cost * game.Catalog.balance.sellBackPercent / 100;
+            Ui.Button("Remove", parent, "철거 +" + refund.ToString("N0"), () =>
+            {
+                Report(game.Remove(objectId), "철거했어요.");
+            }, height, fontSize, Ui.Red);
+        }
+
+        void InfoLine(string text, Color color)
+        {
+            Ui.Label("Line", sheetInfo, text, 22f, color, TextAlignmentOptions.Left);
+        }
+
+        void BuildDecorSheet(PlaceableDef def)
+        {
+            InfoLine("마을을 꾸미는 장식이에요.", Ui.Muted);
+
+            var row = Ui.Rect("Row", sheetBody);
+            var group = Ui.Horizontal(row.gameObject, 24f, 0);
+            group.childForceExpandWidth = false;
+            Ui.Icon("Icon", row, Art(def.id), 170f);
+
+            var column = Ui.Rect("Column", row);
+            Ui.Vertical(column.gameObject, 6f, 0);
+            var heart = CenterRow(column, 8f);
+            heart.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
+            Ui.Icon("Heart", heart, Art("ui_icon_heart"), 44f);
+            Ui.Label("Charm", heart, "매력 +" + def.charm, 30f, Ui.Ink, TextAlignmentOptions.Left, true);
+            Ui.Label("About", column, "매력이 높을수록 마을이 사랑받아요.", 22f, Ui.Muted, TextAlignmentOptions.Left);
+        }
+
+        void BuildPlotSheet(PlacedObject plot)
+        {
+            int objectId = plot.id;
+
+            if (string.IsNullOrEmpty(plot.cropId))
+            {
+                InfoLine("심을 작물을 고르세요.", Ui.Muted);
+
+                var scroll = Ui.ScrollView("Scroll", sheetBody, 8f);
+                var grid = Ui.Grid("Grid", scroll, 150f, 210f, 12f, 5);
+                foreach (var crop in game.Catalog.crops) CropCard(grid, crop, objectId);
+                return;
+            }
+
+            var planted = game.Catalog.GetCrop(plot.cropId);
+            string cropName = planted != null ? planted.displayName : plot.cropId;
+
+            var row = Ui.Rect("Row", sheetBody);
+            var group = Ui.Horizontal(row.gameObject, 24f, 0);
+            group.childForceExpandWidth = false;
+            Ui.Icon("Icon", row, Art("crop_" + plot.cropId), 170f);
+
+            var column = Ui.Rect("Column", row);
+            column.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+            Ui.Vertical(column.gameObject, 8f, 0);
+
+            if (game.IsRipe(objectId))
+            {
+                InfoLine(cropName + "이(가) 다 자랐어요!", Ui.Good);
+                Ui.Label("Ready", column, "수확할 수 있어요.", 28f, Ui.Ink, TextAlignmentOptions.Left, true);
+                var harvest = Ui.Button("Harvest", column, "수확", () =>
+                {
+                    Report(game.Harvest(objectId), null);
+                }, 66f, 28f, Ui.Green);
+                harvest.GetComponent<ULayoutElement>().flexibleWidth = 0f;
+                return;
+            }
+
+            InfoLine(cropName + " 자라는 중", Ui.Muted);
+            Ui.Label("Until", column, "수확까지", 22f, Ui.Muted, TextAlignmentOptions.Left);
+            var remaining = Ui.Label("Time", column, "", 40f, Ui.Ink, TextAlignmentOptions.Left, true);
+
+            var bar = Ui.Box("Progress", column, Ui.CapsuleSprite, Ui.Sand);
+            Ui.Fixed(bar.gameObject, 0f, 36f);
+            var fill = BarFill(bar.transform, Ui.Green, 4f);
+
+            Action tick = () =>
+            {
+                if (remaining == null) return;
+                remaining.text = Texts.Duration(game.SecondsUntilRipe(objectId));
+                SetBar(fill, game.GrowthProgress(objectId));
+            };
+            tick();
+            tickers.Add(tick);
+        }
+
+        void CropCard(Transform grid, CropDef crop, int objectId)
+        {
+            bool locked = game.State.level < crop.unlockLevel;
+            string cropId = crop.id;
+
+            var card = Ui.ButtonBox("Plant " + crop.id, grid, Ui.CardSprite, Color.white, () =>
+            {
+                Report(game.Plant(objectId, cropId), null);
+            });
+            card.interactable = !locked;
+            Transform inside = card.transform;
+
+            var icon = Ui.Picture("Icon", inside, Art("crop_" + crop.id));
+            Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -10f, 120f, 84f);
+
+            var name = Text(inside, crop.displayName, 22f, Ui.Ink, true);
+            Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -96f, 140f, 30f);
+
+            var time = CenterRow(inside, 4f);
+            Ui.Put(time, 0.5f, 1f, 0f, -128f, 140f, 28f);
+            Ui.Icon("Clock", time, Art("ui_icon_clock"), 24f);
+            Ui.Label("Time", time, Texts.Duration(crop.growSeconds), 20f, Ui.Muted, TextAlignmentOptions.Left, true);
+
+            TextMeshProUGUI price;
+            if (locked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), "Lv " + crop.unlockLevel, Ui.Gray, 40f, 20f);
+            else if (crop.seedCost <= 0) price = Ui.Chip("Price", inside, null, "무료", Ui.Green, 40f, 20f);
+            else price = Ui.Chip("Price", inside, Art("ui_icon_coin"), crop.seedCost.ToString(), Ui.Yellow, 40f, 20f);
+            Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 18f, 118f, 40f);
+        }
+
+        // ---------- 생산 시설 ----------
+
+        void BuildFacilityWindow(PlacedObject facility, PlaceableDef def)
         {
             int objectId = facility.id;
-
-            BuildWorkerSection(objectId);
-
-            Line("대기열 " + facility.queue.Count + " / " + def.queueSlots, true);
-            foreach (var job in facility.queue)
-            {
-                var recipe = game.Catalog.GetRecipe(job.recipeId);
-                string name = recipe != null ? Texts.ItemName(game.Catalog, recipe.outputItemId) : job.recipeId;
-                long finishAt = job.finishAt;
-                var line = Line("");
-                Action tick = () =>
-                {
-                    if (line == null) return;
-                    long remaining = finishAt - game.Now;
-                    line.text = remaining <= 0 ? name + " — 완성" : name + " — " + Texts.Duration(remaining);
-                };
-                tick();
-                tickers.Add(tick);
-            }
-
-            if (game.ReadyJobCount(objectId) > 0)
-            {
-                Ui.Button("Collect", panelContent, "완성품 수거", () =>
-                {
-                    Report(game.CollectCrafted(objectId), "완성품을 창고에 넣었어요.");
-                }, 52f, 24f);
-            }
-
-            Line("만들 것을 고르세요.", true);
+            int recipeCount = 0;
             foreach (var recipe in game.Catalog.recipes)
             {
-                if (recipe.facilityId != def.id) continue;
-
-                bool locked = game.State.level < recipe.unlockLevel;
-                string outputName = Texts.ItemName(game.Catalog, recipe.outputItemId);
-                string detail = locked
-                    ? "Lv " + recipe.unlockLevel + " 필요"
-                    : Texts.ItemList(game, recipe.inputs, true) + " · " + Texts.Duration(game.CraftSecondsFor(objectId, recipe));
-                string recipeId = recipe.id;
-                var button = Ui.Button("Craft " + recipe.id, panelContent, outputName + "   " + detail, () =>
-                {
-                    Report(game.StartCraft(objectId, recipeId), null);
-                }, 52f, 22f);
-                button.interactable = !locked;
+                if (recipe.facilityId == def.id) recipeCount++;
             }
+            // 아래쪽 버튼 줄(64 + 간격 14)만큼 더 높인다.
+            ShowWindow(def.displayName, 1240f, Mathf.Min(800f, WindowHeight(recipeCount, 5, 310f, 176f) + 78f));
+
+            ShowHeader(176f);
+            WorkerCard(objectId);
+            QueueCard(facility, def);
+
+            var grid = Ui.Grid("Grid", windowContent, 220f, 310f, 16f, 5);
+            foreach (var recipe in game.Catalog.recipes)
+            {
+                if (recipe.facilityId == def.id) RecipeCard(grid, recipe, objectId);
+            }
+
+            windowFooter.gameObject.SetActive(true);
+            if (game.ReadyJobCount(objectId) > 0)
+            {
+                var collect = Ui.Button("Collect", windowFooter, "완성품 수거", () =>
+                {
+                    Report(game.CollectCrafted(objectId), "완성품을 창고에 넣었어요.");
+                }, 64f, 24f, Ui.Green);
+                Ui.Fixed(collect.gameObject, 300f, 64f);
+            }
+            Ui.Spacer(windowFooter, 1f, 0f);
+
+            var actions = Ui.Rect("Actions", windowFooter);
+            Ui.Fixed(actions.gameObject, 460f, 64f);
+            Ui.Horizontal(actions.gameObject, 12f, 0);
+            MoveAndRemoveButtons(actions, objectId, def, 64f, 22f);
         }
 
-        /// <summary>시설 패널 맨 위의 일꾼 영역: 지금 일하는 주민과, 배치할 수 있는 주민 목록.</summary>
-        void BuildWorkerSection(int objectId)
+        /// <summary>지금 일하는 주민과, 대신 배치할 수 있는 주민들.</summary>
+        void WorkerCard(int objectId)
         {
+            var card = Ui.Box("Worker", windowHeader, Ui.CardSprite, Color.white);
+            Ui.Fixed(card.gameObject, 700f, 176f);
+            var group = Ui.Horizontal(card.gameObject, 8f, 14);
+            group.padding.bottom = 20;
+            group.childForceExpandWidth = false;
+
             var worker = game.ResidentAt(objectId);
+            var info = Ui.Rect("Info", card.transform);
+
             if (worker != null)
             {
-                var card = Card();
                 string workerId = worker.id;
-                var info = IconRow(card, ArtLibrary.Get("resident_" + worker.id), 72f);
-                Ui.Label("Worker", info, ResidentTitle(worker) + " 근무 중", 24f, Ui.TextColor);
-                Ui.Label("Bonus", info, "생산 시간 -" + worker.craftSpeedBonusPercent + "%", 22f, Ui.MutedColor);
-                Ui.Button("Rest " + worker.id, card, "쉬게 하기", () =>
+                Ui.Icon("Face", card.transform, Art("resident_" + worker.id), 96f).transform.SetAsFirstSibling();
+                Ui.Label("Name", info, worker.displayName + " 근무 중", 24f, Ui.Ink, TextAlignmentOptions.Left, true);
+                Ui.Label("Bonus", info, "생산 시간 -" + worker.craftSpeedBonusPercent + "%", 20f, Ui.Good,
+                    TextAlignmentOptions.Left, true);
+                Ui.Button("Rest " + worker.id, info, "쉬게 하기", () =>
                 {
                     Report(game.UnassignResident(workerId), null);
-                }, 44f, 22f);
+                }, 46f, 20f, Ui.Yellow);
             }
             else
             {
-                Line("일꾼이 없어요. 주민을 배치하면 생산이 빨라져요.", true);
+                var empty = Ui.Icon("Face", card.transform, Art("ui_icon_residents"), 96f);
+                empty.color = new Color(1f, 1f, 1f, 0.45f);
+                empty.transform.SetAsFirstSibling();
+                Ui.Label("Name", info, "일꾼 없음", 24f, Ui.Ink, TextAlignmentOptions.Left, true);
+                Ui.Label("Bonus", info, "주민을 배치하면\n생산이 빨라져요.", 20f, Ui.Muted, TextAlignmentOptions.Left);
             }
+
+            Ui.Fixed(info.gameObject, 160f, 0f);
+            Ui.Vertical(info.gameObject, 4f, 0);
+
+            Ui.Spacer(card.transform, 1f, 0f);
 
             foreach (var resident in game.UnlockedResidents())
             {
                 if (worker != null && resident.id == worker.id) continue;
 
                 string residentId = resident.id;
+                string residentName = resident.displayName;
                 bool busyElsewhere = game.AssignedObjectOf(resident.id) != 0;
-                string text = resident.displayName + (busyElsewhere ? " 데려오기" : " 배치")
-                    + "   -" + resident.craftSpeedBonusPercent + "%";
-                Ui.Button("Assign " + resident.id, panelContent, text, () =>
+
+                var assign = Ui.ButtonBox("Assign " + resident.id, card.transform, Ui.CardSprite, Ui.Sand, () =>
                 {
-                    Report(game.AssignResident(residentId, objectId), resident.displayName + "가 일을 시작했어요.");
-                }, 44f, 22f);
+                    Report(game.AssignResident(residentId, objectId), residentName + "가 일을 시작했어요.");
+                });
+                Ui.Fixed(assign.gameObject, 70f, 124f);
+
+                var face = Ui.Picture("Face", assign.transform, Art("resident_" + resident.id));
+                Ui.Put(face.rectTransform, 0.5f, 1f, 0f, -8f, 58f, 58f);
+                var bonus = Text(assign.transform, "-" + resident.craftSpeedBonusPercent + "%", 18f, Ui.Ink, true);
+                Ui.Put(bonus.rectTransform, 0.5f, 0f, 0f, 32f, 68f, 24f);
+                var state = Text(assign.transform, busyElsewhere ? "데려오기" : "배치", 15f, Ui.Muted);
+                Ui.Put(state.rectTransform, 0.5f, 0f, 0f, 12f, 68f, 20f);
             }
+        }
+
+        void QueueCard(PlacedObject facility, PlaceableDef def)
+        {
+            var card = Ui.Box("Queue", windowHeader, Ui.CardSprite, Color.white);
+            Ui.Fixed(card.gameObject, 0f, 176f).flexibleWidth = 1f;
+            var group = Ui.Vertical(card.gameObject, 6f, 14);
+            group.padding.bottom = 20;
+
+            Ui.Label("Title", card.transform, "대기열  " + facility.queue.Count + " / " + def.queueSlots,
+                22f, Ui.Ink, TextAlignmentOptions.Left, true);
+
+            var row = Ui.Rect("Slots", card.transform);
+            var rowGroup = Ui.Horizontal(row.gameObject, 8f, 0);
+            rowGroup.childForceExpandWidth = false;
+
+            for (int i = 0; i < def.queueSlots; i++)
+            {
+                var slot = Ui.Box("Slot", row, Ui.CardSprite, Ui.Sand);
+                Ui.Fixed(slot.gameObject, 110f, 104f);
+
+                if (i >= facility.queue.Count)
+                {
+                    var blank = Text(slot.transform, "빈 칸", 18f, Ui.Muted);
+                    Ui.Stretch(blank.rectTransform, 0f, 6f, 0f, 0f);
+                    continue;
+                }
+
+                var job = facility.queue[i];
+                var recipe = game.Catalog.GetRecipe(job.recipeId);
+                var icon = Ui.Picture("Icon", slot.transform, recipe != null ? ItemIcon(recipe.outputItemId) : null);
+                Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -8f, 58f, 58f);
+
+                var time = Text(slot.transform, "", 20f, Ui.Ink, true);
+                Ui.Put(time.rectTransform, 0.5f, 0f, 0f, 12f, 104f, 26f);
+
+                long finishAt = job.finishAt;
+                Action tick = () =>
+                {
+                    if (time == null) return;
+                    long remaining = finishAt - game.Now;
+                    time.text = remaining <= 0 ? "완성!" : Texts.Duration(remaining);
+                    time.color = remaining <= 0 ? Ui.Good : Ui.Ink;
+                };
+                tick();
+                tickers.Add(tick);
+            }
+        }
+
+        void RecipeCard(Transform grid, RecipeDef recipe, int objectId)
+        {
+            bool locked = game.State.level < recipe.unlockLevel;
+            string recipeId = recipe.id;
+
+            var card = Ui.ButtonBox("Craft " + recipe.id, grid, Ui.CardSprite, Color.white, () =>
+            {
+                Report(game.StartCraft(objectId, recipeId), null);
+            });
+            card.interactable = !locked;
+            Transform inside = card.transform;
+
+            var icon = Ui.Picture("Icon", inside, ItemIcon(recipe.outputItemId));
+            Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -12f, 120f, 100f);
+
+            var name = Text(inside, Texts.ItemName(game.Catalog, recipe.outputItemId), 24f, Ui.Ink, true);
+            Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -116f, 204f, 34f);
+
+            float y = -154f;
+            foreach (var need in recipe.inputs)
+            {
+                var holder = Ui.Rect("Need", inside);
+                Ui.Put(holder, 0.5f, 1f, 0f, y, 204f, 32f);
+                var group = Ui.Vertical(holder.gameObject, 0f, 0);
+                group.childAlignment = TextAnchor.MiddleCenter;
+                NeedLine(holder, need, 30f, 20f, true);
+                y -= 32f;
+            }
+
+            TextMeshProUGUI chip;
+            if (locked) chip = Ui.Chip("Time", inside, Art("ui_icon_lock"), "Lv " + recipe.unlockLevel, Ui.Gray, 44f, 22f);
+            else chip = Ui.Chip("Time", inside, Art("ui_icon_clock"),
+                Texts.Duration(game.CraftSecondsFor(objectId, recipe)), Ui.Blue, 44f, 22f);
+            Ui.Put((RectTransform)chip.transform.parent, 0.5f, 0f, 0f, 22f, 160f, 44f);
         }
     }
 }

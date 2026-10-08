@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,12 +14,59 @@ namespace ZooZooClub.Client
     /// </summary>
     public static class ArtLibrary
     {
+        /// <summary>
+        /// 그림 한 장을 화면에 놓는 방법. Resources/art_layout.json 에서 읽는다.
+        /// width는 화면에서의 가로 폭(격자 한 칸의 폭이 1), lift는 그림의 맨 아래가
+        /// 차지하는 땅의 앞쪽 꼭짓점보다 얼마나 위에 오는지, offsetX는 좌우로 미는 정도다.
+        /// </summary>
+        [Serializable]
+        public class LayoutEntry
+        {
+            public string id;
+            public float width;
+            public float lift;
+            public float offsetX;
+        }
+
+        [Serializable]
+        public class LayoutFile
+        {
+            public List<LayoutEntry> entries = new List<LayoutEntry>();
+        }
+
         static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
+        static Dictionary<string, LayoutEntry> layouts;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
             Cache.Clear();
+            layouts = null;
+        }
+
+        /// <summary>그림의 배치 값. 파일에 적혀 있지 않으면 null.</summary>
+        public static LayoutEntry Layout(string id)
+        {
+            if (layouts == null)
+            {
+                layouts = new Dictionary<string, LayoutEntry>();
+                var asset = Resources.Load<TextAsset>("art_layout");
+                if (asset != null)
+                {
+                    var file = JsonUtility.FromJson<LayoutFile>(asset.text);
+                    if (file != null && file.entries != null)
+                    {
+                        foreach (var entry in file.entries)
+                        {
+                            if (entry != null && !string.IsNullOrEmpty(entry.id)) layouts[entry.id] = entry;
+                        }
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(id)) return null;
+            LayoutEntry found;
+            return layouts.TryGetValue(id, out found) ? found : null;
         }
 
         public static Sprite Get(string name)

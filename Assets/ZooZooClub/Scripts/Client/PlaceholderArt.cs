@@ -34,6 +34,8 @@ namespace ZooZooClub.Client
 
         public static readonly Color GroundA = new Color(0.55f, 0.78f, 0.42f);
         public static readonly Color GroundB = new Color(0.5f, 0.74f, 0.39f);
+        public static readonly Color GroundSeam = new Color(0.44f, 0.68f, 0.35f);
+        public static readonly Color Grass = new Color(0.694f, 0.769f, 0.498f);
         public static readonly Color Soil = new Color(0.55f, 0.38f, 0.24f);
         public static readonly Color FacilityBase = new Color(0.78f, 0.74f, 0.66f);
         public static readonly Color DecorBase = new Color(0.62f, 0.82f, 0.5f);

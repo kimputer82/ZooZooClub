@@ -1,0 +1,31 @@
+{
+  "entries": [
+    {"id": "plot", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "crop_sprout", "width": 0.375, "lift": 0.25, "offsetX": 0.0},
+    {"id": "crop_carrot", "width": 0.812, "lift": 0.25, "offsetX": 0.0},
+    {"id": "crop_wheat", "width": 0.75, "lift": 0.25, "offsetX": 0.0},
+    {"id": "crop_strawberry", "width": 0.812, "lift": 0.25, "offsetX": 0.0},
+    {"id": "crop_corn", "width": 0.656, "lift": 0.25, "offsetX": 0.0},
+    {"id": "crop_pumpkin", "width": 0.844, "lift": 0.25, "offsetX": 0.0},
+    {"id": "bakery", "width": 2.0, "lift": 0.031, "offsetX": -0.117},
+    {"id": "juice_bar", "width": 2.0, "lift": 0.023, "offsetX": 0.016},
+    {"id": "jam_workshop", "width": 2.0, "lift": 0.016, "offsetX": -0.008},
+    {"id": "popcorn_cart", "width": 0.934, "lift": 0.133, "offsetX": 0.162},
+    {"id": "fence", "width": 0.594, "lift": 0.0, "offsetX": -0.203},
+    {"id": "flower_bed", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "tree", "width": 0.875, "lift": 0.25, "offsetX": 0.0},
+    {"id": "bench", "width": 0.996, "lift": 0.129, "offsetX": -0.014},
+    {"id": "street_lamp", "width": 0.344, "lift": 0.25, "offsetX": 0.0},
+    {"id": "fountain", "width": 2.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "resident_bear", "width": 0.434, "lift": 0, "offsetX": 0},
+    {"id": "resident_dog", "width": 0.457, "lift": 0, "offsetX": 0},
+    {"id": "resident_elephant", "width": 0.448, "lift": 0, "offsetX": 0},
+    {"id": "resident_fox", "width": 0.466, "lift": 0, "offsetX": 0},
+    {"id": "resident_rabbit", "width": 0.29, "lift": 0, "offsetX": 0},
+    {"id": "resident_bear_back", "width": 0.369, "lift": 0, "offsetX": 0},
+    {"id": "resident_dog_back", "width": 0.422, "lift": 0, "offsetX": 0},
+    {"id": "resident_elephant_back", "width": 0.412, "lift": 0, "offsetX": 0},
+    {"id": "resident_fox_back", "width": 0.431, "lift": 0, "offsetX": 0},
+    {"id": "resident_rabbit_back", "width": 0.267, "lift": 0, "offsetX": 0}
+  ]
+}

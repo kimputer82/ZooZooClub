@@ -3,7 +3,7 @@
 단순한 도형만으로 동물, 건물, 작물, 장식 그림을 그려 PNG로 저장한다.
 4배 크기로 그린 뒤 줄여서 가장자리를 부드럽게 만든다.
 
-사용법: python3 make_art.py <출력 폴더>
+사용법: python3 make_art.py <출력 폴더> [--force]
 """
 import math
 import os
@@ -386,7 +386,7 @@ def plot():
     return c
 
 
-def main(out_dir):
+def main(out_dir, force=False):
     os.makedirs(out_dir, exist_ok=True)
     jobs = {}
     for kind in ("dog", "rabbit", "bear", "elephant", "fox"):
@@ -404,10 +404,16 @@ def main(out_dir):
     jobs["street_lamp"] = street_lamp()
     jobs["fountain"] = fountain()
     jobs["plot"] = plot()
+    # 이미 있는 그림(직접 그려 넣은 그림 포함)은 덮어쓰지 않는다. 다시 만들려면 --force 를 붙인다.
+    written = 0
     for name, canvas in jobs.items():
-        canvas.save(os.path.join(out_dir, name + ".png"))
-    print(len(jobs), "sprites written to", out_dir)
+        path = os.path.join(out_dir, name + ".png")
+        if os.path.exists(path) and not force:
+            continue
+        canvas.save(path)
+        written += 1
+    print(written, "sprites written to", out_dir, "(" + str(len(jobs) - written) + " kept)")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], "--force" in sys.argv[2:])

@@ -15,7 +15,7 @@ namespace ZooZooClub.EditorTools
     /// 프로젝트의 Logs/ZooBridge/cmd.txt 에 "아이디 명령" 한 줄을 쓰면 실행하고,
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
-    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, boost, clear
+    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, boost, reimport, clear
     /// 플레이 중 점검용: ui <버튼 이름>, cell <x> <y>, dump, state
     /// </summary>
     [InitializeOnLoad]
@@ -137,6 +137,10 @@ namespace ZooZooClub.EditorTools
                     WriteOut(id + " dump: " + DumpUi());
                     break;
 
+                case "residents":
+                    WriteOut(id + " residents: " + DescribeResidents());
+                    break;
+
                 case "state":
                     WriteOut(id + " state: " + DumpState());
                     break;
@@ -170,7 +174,9 @@ namespace ZooZooClub.EditorTools
                         WriteOut(id + " shot skipped: not playing");
                         break;
                     }
-                    ScreenCapture.CaptureScreenshot(Path.Combine(Dir, "shot-" + id + ".png"));
+                    int scale;
+                    if (!int.TryParse(argument, out scale) || scale < 1) scale = 1;
+                    ScreenCapture.CaptureScreenshot(Path.Combine(Dir, "shot-" + id + ".png"), Math.Min(scale, 4));
                     WriteOut(id + " shot requested");
                     break;
 
@@ -182,6 +188,11 @@ namespace ZooZooClub.EditorTools
                 case "delsave":
                     DeleteSave();
                     WriteOut(id + " save deleted");
+                    break;
+
+                case "reimport":
+                    ArtImportSettings.ReimportArt();
+                    WriteOut(id + " art reimported");
                     break;
 
                 case "backup":
@@ -244,6 +255,17 @@ namespace ZooZooClub.EditorTools
                 return "clicked " + x + "," + y;
             }
             return "world not found";
+        }
+
+        /// <summary>주민들의 위치와 상태를 한 줄로 돌려준다.</summary>
+        static string DescribeResidents()
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            foreach (var world in Resources.FindObjectsOfTypeAll<WorldView>())
+            {
+                if (world.gameObject.scene.IsValid()) return world.DescribeResidents();
+            }
+            return "no world";
         }
 
         /// <summary>화면에 켜져 있는 UI의 글자와 버튼 상태를 ui.txt 에 적는다.</summary>
@@ -325,9 +347,20 @@ namespace ZooZooClub.EditorTools
         static string BoostSave()
         {
             if (EditorApplication.isPlaying) return "skipped: stop play mode first";
-            if (!File.Exists(SavePath)) return "skipped: no save file yet";
+            GameState state;
+            if (File.Exists(SavePath))
+            {
+                state = JsonUtility.FromJson<GameState>(File.ReadAllText(SavePath));
+            }
+            else
+            {
+                // 저장 파일이 아직 없으면 새 게임에서 시작한다.
+                var asset = Resources.Load<TextAsset>("catalog");
+                if (asset == null) return "skipped: catalog not found";
+                var catalog = JsonUtility.FromJson<GameCatalog>(asset.text);
+                state = GameState.CreateNew(catalog, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            }
 
-            var state = JsonUtility.FromJson<GameState>(File.ReadAllText(SavePath));
             state.Normalize();
             state.level = Math.Max(state.level, 6);
             state.coins = Math.Max(state.coins, 5000);
