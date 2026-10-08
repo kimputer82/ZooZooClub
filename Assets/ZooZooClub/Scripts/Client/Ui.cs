@@ -35,6 +35,7 @@ namespace ZooZooClub.Client
         public static readonly Color Yellow = Rgb(255, 214, 90);
         public static readonly Color Blue = Rgb(110, 194, 244);
         public static readonly Color Red = Rgb(240, 104, 92);
+        public static readonly Color Purple = Rgb(184, 160, 240);
         public static readonly Color Gray = Rgb(204, 196, 184);
         public static readonly Color Pill = new Color(0.2f, 0.13f, 0.08f, 0.8f);
         public static readonly Color Dim = new Color(0.08f, 0.05f, 0.03f, 0.55f);

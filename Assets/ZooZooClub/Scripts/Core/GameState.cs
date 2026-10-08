@@ -22,12 +22,18 @@ namespace ZooZooClub.Core
         public int x;
         public int y;
 
+        /// <summary>방향(0~3). 뜻은 Rotation 클래스에 적혀 있다. x, y는 어느 방향이든 차지하는 칸의 앞쪽 꼭짓점 칸이다.</summary>
+        public int rotation;
+
         // 밭일 때: 심긴 작물과 심은 시각. 비어 있으면 cropId는 빈 문자열.
         public string cropId = "";
         public long plantedAt;
 
         // 생산 시설일 때: 진행 중이거나 완료 후 수거를 기다리는 작업.
         public List<CraftJob> queue = new List<CraftJob>();
+
+        // 방어 시설일 때: 살 때 정해진 등급. 비어 있으면 가장 낮은 등급으로 친다.
+        public string gradeId = "";
     }
 
     [Serializable]
@@ -68,6 +74,15 @@ namespace ZooZooClub.Core
         public List<Order> orders = new List<Order>();
         public List<ResidentAssignment> assignments = new List<ResidentAssignment>();
 
+        // 침략: 다음 침략이 오는 시각(0이면 아직 정해지지 않음)과 지금까지 치른 침략 횟수.
+        public long nextRaidAt;
+        public int raidWave;
+
+        // 문제 풀기: 맞힌 횟수, 최근에 나온 문제(같은 문제가 연달아 나오지 않게), 틀린 뒤 다시 풀 수 있는 시각.
+        public int quizSolved;
+        public List<string> quizRecent = new List<string>();
+        public long quizLockedUntil;
+
         public static GameState CreateNew(GameCatalog catalog, long now)
         {
             if (catalog == null) throw new ArgumentNullException("catalog");
@@ -107,10 +122,14 @@ namespace ZooZooClub.Core
             if (objects == null) objects = new List<PlacedObject>();
             if (orders == null) orders = new List<Order>();
             if (assignments == null) assignments = new List<ResidentAssignment>();
+            if (quizRecent == null) quizRecent = new List<string>();
+            if (raidWave < 0) raidWave = 0;
 
             foreach (var obj in objects)
             {
                 if (obj.cropId == null) obj.cropId = "";
+                if (obj.gradeId == null) obj.gradeId = "";
+                if (obj.rotation < 0 || obj.rotation >= Rotation.Count) obj.rotation = 0;
                 if (obj.queue == null) obj.queue = new List<CraftJob>();
                 if (obj.id >= nextObjectId) nextObjectId = obj.id + 1;
             }

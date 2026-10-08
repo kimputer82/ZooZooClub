@@ -55,6 +55,23 @@ namespace ZooZooClub.Client
             }
 
             var catalog = JsonUtility.FromJson<GameCatalog>(asset.text);
+
+            // 문제 은행은 따로 고치기 쉽게 quiz.json에 둔다. 없으면 문제 풀기만 비어 있게 된다.
+            var quizAsset = Resources.Load<TextAsset>("quiz");
+            QuizBank bank = null;
+            if (quizAsset != null)
+            {
+                try
+                {
+                    bank = JsonUtility.FromJson<QuizBank>(quizAsset.text);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("[Zoo] quiz.json 을 읽지 못했습니다: " + e.Message);
+                }
+            }
+            catalog.SetQuiz(bank);
+
             foreach (var error in catalog.Validate())
             {
                 Debug.LogError("[Zoo] catalog: " + error);
@@ -65,6 +82,7 @@ namespace ZooZooClub.Client
             var state = LoadState() ?? GameState.CreateNew(catalog, clock.Now);
 
             Game = new Game(catalog, state, clock);
+            Game.ResumeRaidClock();
             Game.Changed += MarkDirty;
 
             var world = new GameObject("World").AddComponent<WorldView>();
@@ -76,7 +94,8 @@ namespace ZooZooClub.Client
             hud.Init(Game, world);
 
             Debug.Log("[Zoo] started. level=" + state.level + " coins=" + state.coins
-                + " objects=" + state.objects.Count + " orders=" + state.orders.Count);
+                + " objects=" + state.objects.Count + " orders=" + state.orders.Count
+                + " quiz=" + Game.QuizCount);
         }
 
         GameState LoadState()
@@ -118,6 +137,7 @@ namespace ZooZooClub.Client
 
         void Update()
         {
+            if (Game != null) Game.TickRaid(Time.unscaledDeltaTime);
             if (dirty && Time.unscaledTime >= saveAt) Save();
         }
 

@@ -34,13 +34,26 @@
     { "id": "bakery", "displayName": "빵집", "kind": "facility", "width": 2, "height": 2, "cost": 180, "unlockLevel": 2, "queueSlots": 3, "charm": 0, "maxCount": 1 },
     { "id": "juice_bar", "displayName": "주스 가게", "kind": "facility", "width": 2, "height": 2, "cost": 400, "unlockLevel": 3, "queueSlots": 3, "charm": 0, "maxCount": 1 },
     { "id": "jam_workshop", "displayName": "잼 공방", "kind": "facility", "width": 2, "height": 2, "cost": 800, "unlockLevel": 4, "queueSlots": 3, "charm": 0, "maxCount": 1 },
-    { "id": "popcorn_cart", "displayName": "팝콘 수레", "kind": "facility", "width": 1, "height": 2, "cost": 1300, "unlockLevel": 5, "queueSlots": 3, "charm": 0, "maxCount": 1 },
+    { "id": "popcorn_cart", "displayName": "팝콘 수레", "kind": "facility", "width": 1, "height": 2, "cost": 1300, "unlockLevel": 5, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4 },
     { "id": "fence", "displayName": "울타리", "kind": "decor", "width": 1, "height": 1, "cost": 10, "unlockLevel": 1, "queueSlots": 0, "charm": 1, "maxCount": 0 },
     { "id": "flower_bed", "displayName": "꽃밭", "kind": "decor", "width": 1, "height": 1, "cost": 30, "unlockLevel": 1, "queueSlots": 0, "charm": 3, "maxCount": 0 },
     { "id": "tree", "displayName": "나무", "kind": "decor", "width": 1, "height": 1, "cost": 40, "unlockLevel": 1, "queueSlots": 0, "charm": 4, "maxCount": 0 },
-    { "id": "bench", "displayName": "벤치", "kind": "decor", "width": 2, "height": 1, "cost": 60, "unlockLevel": 2, "queueSlots": 0, "charm": 5, "maxCount": 0 },
+    { "id": "bench", "displayName": "벤치", "kind": "decor", "width": 2, "height": 1, "cost": 60, "unlockLevel": 2, "queueSlots": 0, "charm": 5, "maxCount": 0, "rotations": 4 },
     { "id": "street_lamp", "displayName": "가로등", "kind": "decor", "width": 1, "height": 1, "cost": 80, "unlockLevel": 3, "queueSlots": 0, "charm": 6, "maxCount": 0 },
-    { "id": "fountain", "displayName": "분수", "kind": "decor", "width": 2, "height": 2, "cost": 400, "unlockLevel": 5, "queueSlots": 0, "charm": 30, "maxCount": 0 }
+    { "id": "fountain", "displayName": "분수", "kind": "decor", "width": 2, "height": 2, "cost": 400, "unlockLevel": 5, "queueSlots": 0, "charm": 30, "maxCount": 0 },
+    { "id": "guard", "displayName": "경비병", "kind": "defense", "width": 1, "height": 1, "cost": 120, "unlockLevel": 2, "queueSlots": 0, "charm": 0, "maxCount": 0, "attackRange": 1.8, "attackDamage": 8, "attackInterval": 0.6 },
+    { "id": "watchtower", "displayName": "경비탑", "kind": "defense", "width": 1, "height": 1, "cost": 350, "unlockLevel": 3, "queueSlots": 0, "charm": 0, "maxCount": 0, "attackRange": 3.0, "attackDamage": 12, "attackInterval": 1.0 }
+  ],
+  "grades": [
+    { "id": "common", "displayName": "일반", "weight": 60, "damagePercent": 100, "rangePercent": 100, "speedPercent": 100, "color": "#9A9186" },
+    { "id": "uncommon", "displayName": "고급", "weight": 25, "damagePercent": 130, "rangePercent": 110, "speedPercent": 100, "color": "#6CC24A" },
+    { "id": "rare", "displayName": "희귀", "weight": 12, "damagePercent": 170, "rangePercent": 120, "speedPercent": 115, "color": "#4AA8F0" },
+    { "id": "legendary", "displayName": "전설", "weight": 3, "damagePercent": 250, "rangePercent": 140, "speedPercent": 135, "color": "#F0A030" }
+  ],
+  "invaders": [
+    { "id": "raccoon", "displayName": "너구리 도둑", "hp": 30, "speed": 0.9, "stealCoins": 20, "bounty": 4, "xp": 2, "firstWave": 1 },
+    { "id": "wolf", "displayName": "날쌘 늑대", "hp": 24, "speed": 1.5, "stealCoins": 25, "bounty": 5, "xp": 3, "firstWave": 3 },
+    { "id": "boar", "displayName": "멧돼지", "hp": 90, "speed": 0.6, "stealCoins": 50, "bounty": 10, "xp": 5, "firstWave": 5 }
   ],
   "residents": [
     { "id": "dog", "displayName": "몽이", "species": "강아지", "unlockLevel": 1, "craftSpeedBonusPercent": 20 },
@@ -78,6 +91,16 @@
     "orderRewardPercent": 150,
     "orderXpPercent": 30,
     "sellBackPercent": 50,
+    "raidUnlockLevel": 2,
+    "raidIntervalSeconds": 180,
+    "raidWarningSeconds": 30,
+    "raidBaseCount": 2,
+    "raidWavesPerExtra": 2,
+    "raidMaxCount": 12,
+    "raidHpGrowthPercent": 10,
+    "raidHpMaxPercent": 300,
+    "raidSpawnGapSeconds": 1.2,
+    "raidStealSeconds": 3.0,
     "starterObjects": [
       { "defId": "plot", "x": 1, "y": 1 },
       { "defId": "plot", "x": 2, "y": 1 },

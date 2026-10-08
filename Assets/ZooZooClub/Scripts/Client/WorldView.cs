@@ -13,7 +13,7 @@ namespace ZooZooClub.Client
     /// 마우스 입력(선택, 배치, 이동, 화면 끌기, 확대)을 처리한다.
     /// 게임 규칙은 건드리지 않고 Game의 메서드만 호출한다.
     /// </summary>
-    public sealed class WorldView : MonoBehaviour
+    public sealed partial class WorldView : MonoBehaviour
     {
         enum Mode
         {
@@ -27,6 +27,7 @@ namespace ZooZooClub.Client
             public int id;
             public int x;
             public int y;
+            public int rotation;
             public PlaceableDef def;
             public GameObject root;
             public readonly List<SpriteRenderer> bases = new List<SpriteRenderer>();
@@ -111,6 +112,14 @@ namespace ZooZooClub.Client
         bool syncNeeded = true;
         float nextVisualRefresh;
 
+        // 지금 미리 보기로 보여 주는 배치물과 그 위치. 보여 주지 않을 때는 ghostDef가 null.
+        PlaceableDef ghostDef;
+        Vector2Int ghostCell;
+        SpriteRenderer ghostBody;
+
+        // 놓거나 옮기는 중인 배치물의 방향. R 키나 돌리기 버튼으로 바꾼다.
+        int placingRotation;
+
         Mode mode;
         string placingDefId;
         int movingObjectId;
@@ -141,13 +150,14 @@ namespace ZooZooClub.Client
         {
             get
             {
+                string keys = CanRotatePlacement ? "R: 돌리기, 우클릭·Esc: 그만두기" : "우클릭·Esc: 그만두기";
                 if (mode == Mode.Placing)
                 {
                     var def = game.Catalog.GetPlaceable(placingDefId);
                     string name = def != null ? def.displayName : placingDefId;
-                    return name + " 놓을 곳을 클릭하세요  (우클릭 또는 Esc: 그만두기)";
+                    return name + " 놓을 곳을 클릭하세요  (" + keys + ")";
                 }
-                if (mode == Mode.Moving) return "옮길 곳을 클릭하세요  (우클릭 또는 Esc: 취소)";
+                if (mode == Mode.Moving) return "옮길 곳을 클릭하세요  (" + keys + ")";
                 return "";
             }
         }
@@ -161,6 +171,7 @@ namespace ZooZooClub.Client
             objectRoot = NewChild("Objects");
             residentRoot = NewChild("Residents");
             ghostRoot = NewChild("Ghost");
+            InitRaid();
 
             SetUpCamera();
             Sync();
@@ -168,7 +179,11 @@ namespace ZooZooClub.Client
 
         void OnDestroy()
         {
-            if (game != null) game.Changed -= OnGameChanged;
+            if (game != null)
+            {
+                game.Changed -= OnGameChanged;
+                DisposeRaid();
+            }
         }
 
         void OnGameChanged()
@@ -209,14 +224,49 @@ namespace ZooZooClub.Client
             mode = Mode.Placing;
             placingDefId = defId;
             movingObjectId = 0;
+            placingRotation = 0;
         }
 
         public void BeginMoving(int objectId)
         {
-            if (game.FindObject(objectId) == null) return;
+            var obj = game.FindObject(objectId);
+            if (obj == null) return;
             mode = Mode.Moving;
             movingObjectId = objectId;
             placingDefId = null;
+            placingRotation = obj.rotation;
+        }
+
+        /// <summary>지금 놓거나 옮기는 중인 배치물. 없으면 null.</summary>
+        PlaceableDef PlacementDef
+        {
+            get
+            {
+                if (mode == Mode.Placing) return game.Catalog.GetPlaceable(placingDefId);
+                if (mode == Mode.Moving)
+                {
+                    var moving = game.FindObject(movingObjectId);
+                    return moving != null ? game.Catalog.GetPlaceable(moving.defId) : null;
+                }
+                return null;
+            }
+        }
+
+        /// <summary>지금 놓거나 옮기는 중인 것이 방향을 바꿀 수 있는 것인지.</summary>
+        public bool CanRotatePlacement
+        {
+            get
+            {
+                var def = PlacementDef;
+                return def != null && def.rotations > 1;
+            }
+        }
+
+        /// <summary>놓거나 옮기는 중인 배치물을 한 번 돌린다.</summary>
+        public void RotatePlacement()
+        {
+            var def = PlacementDef;
+            if (def != null) placingRotation = Rotation.Next(def, placingRotation);
         }
 
         public void CancelMode()
@@ -275,6 +325,7 @@ namespace ZooZooClub.Client
 
             UpdateResidents(Time.unscaledDeltaTime);
             HandleInput();
+            UpdateRaid(Time.unscaledDeltaTime);
         }
 
         void HandleInput()
@@ -292,6 +343,8 @@ namespace ZooZooClub.Client
             {
                 CancelMode();
             }
+
+            if (mode != Mode.None && keyboard != null && keyboard.rKey.wasPressedThisFrame) RotatePlacement();
 
             if (!overUi)
             {
@@ -345,7 +398,7 @@ namespace ZooZooClub.Client
             if (mode == Mode.Placing)
             {
                 int newId;
-                var result = game.BuyAndPlace(placingDefId, cell.x, cell.y, out newId);
+                var result = game.BuyAndPlace(placingDefId, cell.x, cell.y, out newId, placingRotation);
                 if (result != ActionResult.Ok)
                 {
                     Notify(Texts.Describe(result));
@@ -355,6 +408,13 @@ namespace ZooZooClub.Client
 
                 // 밭과 장식은 이어서 여러 개 놓을 수 있게 배치 상태를 유지한다.
                 var def = game.Catalog.GetPlaceable(placingDefId);
+
+                // 방어 시설은 살 때 등급이 무작위로 정해진다. 무엇이 나왔는지 알려 준다.
+                var grade = game.GradeOf(game.FindObject(newId));
+                if (def != null && grade != null)
+                {
+                    Notify(Texts.GradeStars(game.Catalog, grade) + "  " + grade.displayName + " " + def.displayName + " 등장!");
+                }
                 bool keepPlacing = def != null
                     && def.kind != PlaceableKind.Facility
                     && game.State.coins >= def.cost
@@ -365,7 +425,7 @@ namespace ZooZooClub.Client
 
             if (mode == Mode.Moving)
             {
-                var result = game.Move(movingObjectId, cell.x, cell.y);
+                var result = game.Move(movingObjectId, cell.x, cell.y, placingRotation);
                 if (result == ActionResult.Ok) CancelMode();
                 else Notify(Texts.Describe(result));
                 return;
@@ -394,9 +454,9 @@ namespace ZooZooClub.Client
         {
             foreach (var obj in game.State.objects)
             {
-                var def = game.Catalog.GetPlaceable(obj.defId);
-                if (def == null) continue;
-                if (x >= obj.x && x < obj.x + def.width && y >= obj.y && y < obj.y + def.height) return obj;
+                int width, height;
+                game.GetFootprint(obj, out width, out height);
+                if (x >= obj.x && x < obj.x + width && y >= obj.y && y < obj.y + height) return obj;
             }
             return null;
         }
@@ -422,7 +482,15 @@ namespace ZooZooClub.Client
             foreach (var obj in game.State.objects)
             {
                 ObjectView view;
-                if (!views.TryGetValue(obj.id, out view))
+                if (views.TryGetValue(obj.id, out view) && view.rotation != obj.rotation)
+                {
+                    // 방향이 바뀌면 그림과 차지하는 칸이 달라지므로 새로 만든다.
+                    Destroy(view.root);
+                    views.Remove(obj.id);
+                    view = null;
+                }
+
+                if (view == null)
                 {
                     view = CreateView(obj);
                     if (view == null) continue;
@@ -559,13 +627,18 @@ namespace ZooZooClub.Client
             var def = game.Catalog.GetPlaceable(obj.defId);
             if (def == null) return null;
 
-            var view = new ObjectView { id = obj.id, def = def, x = int.MinValue, y = int.MinValue };
+            var view = new ObjectView
+            {
+                id = obj.id, def = def, x = int.MinValue, y = int.MinValue, rotation = obj.rotation
+            };
             view.root = new GameObject(def.id + " #" + obj.id);
             view.root.transform.SetParent(objectRoot, false);
 
-            // 차지하는 땅(마름모)의 가로 폭. 그림은 이 땅의 앞쪽 꼭짓점(root의 원점)을 기준으로 놓는다.
-            float footprintWidth = (def.width + def.height) * 0.5f;
-            view.center = IsoMath.CellToWorld(def.width * 0.5f, def.height * 0.5f);
+            // 지금 방향에서 차지하는 칸 수. 그림은 이 땅의 앞쪽 꼭짓점(root의 원점)을 기준으로 놓는다.
+            int cellsWide = Rotation.Width(def, obj.rotation);
+            int cellsDeep = Rotation.Height(def, obj.rotation);
+            float footprintWidth = (cellsWide + cellsDeep) * 0.5f;
+            view.center = IsoMath.CellToWorld(cellsWide * 0.5f, cellsDeep * 0.5f);
 
             bool isPlot = def.kind == PlaceableKind.Plot;
             bool isFacility = def.kind == PlaceableKind.Facility;
@@ -575,9 +648,9 @@ namespace ZooZooClub.Client
             if (isPlot) view.baseColor = plotArt != null ? Color.white : PlaceholderArt.Soil;
             else view.baseColor = Color.clear;
 
-            for (int j = 0; j < def.height; j++)
+            for (int j = 0; j < cellsDeep; j++)
             {
-                for (int i = 0; i < def.width; i++)
+                for (int i = 0; i < cellsWide; i++)
                 {
                     var cell = NewSprite("Base", view.root.transform, PlaceholderArt.Diamond);
                     Vector3 corner = IsoMath.CellToWorld(i, j);
@@ -609,19 +682,14 @@ namespace ZooZooClub.Client
             }
             else
             {
-                Sprite art = ArtLibrary.Get(def.id);
-                var layout = ArtLibrary.Layout(def.id);
-                view.body = NewSprite("Body", view.root.transform, art);
+                view.body = NewSprite("Body", view.root.transform, null);
 
-                float width = layout != null ? layout.width : footprintWidth * (isFacility ? 0.92f : 0.7f);
-                float lift = layout != null ? layout.lift : (isFacility ? 0.04f : 0.1f);
-                float offsetX = layout != null ? layout.offsetX : 0f;
-                Vector3 ground = new Vector3(view.center.x + offsetX, lift, 0f);
-
-                if (art != null)
+                var grade = game.GradeOf(obj);
+                float lift;
+                float top;
+                if (FitObjectArt(view.body, def, grade != null ? grade.id : null, obj.rotation, out lift, out top))
                 {
-                    ArtLibrary.Fit(view.body, art, ground, width);
-                    labelY = lift + ArtLibrary.FittedHeight(art, width) + 0.16f;
+                    labelY = top + 0.16f;
                 }
                 else
                 {
@@ -641,6 +709,42 @@ namespace ZooZooClub.Client
             return view;
         }
 
+        /// <summary>
+        /// 배치물의 그림을 골라 renderer에 놓는다(부모의 원점이 차지하는 땅의 앞쪽 꼭짓점일 때).
+        /// 방어 시설은 등급마다(&lt;id&gt;_&lt;등급&gt;), 뒤를 보는 방향은 뒷모습 그림(…_back)을 쓰고, 없으면 기본 그림으로 대신한다.
+        /// 옆을 보는 방향은 그림을 좌우로 뒤집는다. 그림이 없으면 false.
+        /// lift는 그림의 맨 아래 높이, top은 맨 위 높이.
+        /// </summary>
+        bool FitObjectArt(SpriteRenderer renderer, PlaceableDef def, string gradeId, int rotation,
+            out float lift, out float top)
+        {
+            string artName = ArtLibrary.Variant(def.id, gradeId);
+            if (Rotation.ShowsBack(rotation)) artName = ArtLibrary.Variant(artName, "back");
+            Sprite art = ArtLibrary.Get(artName);
+            var layout = ArtLibrary.LayoutFor(artName, def.id);
+
+            bool isFacility = def.kind == PlaceableKind.Facility;
+            float footprintWidth = (def.width + def.height) * 0.5f;
+            float width = layout != null ? layout.width : footprintWidth * (isFacility ? 0.92f : 0.7f);
+            float offsetX = layout != null ? layout.offsetX : 0f;
+            lift = layout != null ? layout.lift : (isFacility ? 0.04f : 0.1f);
+            top = lift;
+
+            // 그림은 돌리기 전 모양(가로 def.width, 세로 def.height) 기준으로 그려져 있다.
+            // 옆 방향은 앞쪽 꼭짓점을 지나는 세로선을 기준으로 좌우를 뒤집은 것이다.
+            float x = (def.width - def.height) * 0.25f + offsetX;
+            bool mirrored = Rotation.Mirrored(rotation);
+            if (mirrored) x = -x;
+
+            renderer.flipX = mirrored;
+            renderer.color = Color.white;
+            if (art == null) return false;
+
+            ArtLibrary.Fit(renderer, art, new Vector3(x, lift, 0f), width);
+            top = lift + ArtLibrary.FittedHeight(art, width);
+            return true;
+        }
+
         void RefreshVisual(ObjectView view)
         {
             var obj = game.FindObject(view.id);
@@ -658,6 +762,7 @@ namespace ZooZooClub.Client
 
             if (view.def.kind == PlaceableKind.Plot) RefreshPlot(view, obj);
             else if (view.def.kind == PlaceableKind.Facility) RefreshFacility(view, obj);
+            else if (view.def.kind == PlaceableKind.Defense) RefreshDefense(view, obj);
         }
 
         void RefreshPlot(ObjectView view, PlacedObject obj)
@@ -705,6 +810,15 @@ namespace ZooZooClub.Client
             }
 
             view.label.text = ripe ? "수확!" : Texts.Duration(game.SecondsUntilRipe(obj.id));
+        }
+
+        /// <summary>방어 시설 위에 등급을 별로 보여 준다.</summary>
+        void RefreshDefense(ObjectView view, PlacedObject obj)
+        {
+            var grade = game.GradeOf(obj);
+            view.label.text = grade != null
+                ? Texts.GradeColorTag(grade) + Texts.GradeStars(game.Catalog, grade) + "</color>"
+                : "";
         }
 
         void RefreshFacility(ObjectView view, PlacedObject obj)
@@ -843,11 +957,11 @@ namespace ZooZooClub.Client
 
             foreach (var obj in game.State.objects)
             {
-                var def = game.Catalog.GetPlaceable(obj.defId);
-                if (def == null) continue;
-                for (int j = 0; j < def.height; j++)
+                int objectWidth, objectHeight;
+                game.GetFootprint(obj, out objectWidth, out objectHeight);
+                for (int j = 0; j < objectHeight; j++)
                 {
-                    for (int i = 0; i < def.width; i++)
+                    for (int i = 0; i < objectWidth; i++)
                     {
                         int x = obj.x + i;
                         int y = obj.y + j;
@@ -1075,10 +1189,40 @@ namespace ZooZooClub.Client
                 return;
             }
 
-            bool valid = game.CanPlace(defId, cell.x, cell.y, ignoreId);
+            ghostDef = def;
+            ghostCell = cell;
+
+            int rotation = Rotation.Normalize(def, placingRotation);
+            int cellsWide = Rotation.Width(def, rotation);
+            int cellsDeep = Rotation.Height(def, rotation);
+
+            bool valid = game.CanPlace(defId, cell.x, cell.y, ignoreId, rotation);
             Color color = valid ? new Color(0.3f, 1f, 0.45f, 0.65f) : new Color(1f, 0.3f, 0.3f, 0.65f);
 
-            int needed = def.width * def.height;
+            // 놓일 모습을 반투명하게 미리 보여 준다. 방향을 돌리면 그림도 따라 바뀐다.
+            if (ghostBody == null)
+            {
+                ghostBody = NewSprite("GhostBody", ghostRoot, null);
+                ghostBody.sortingOrder = GhostOrder + 1;
+            }
+            string gradeId = null;
+            if (mode == Mode.Moving)
+            {
+                var movingGrade = game.GradeOf(game.FindObject(movingObjectId));
+                if (movingGrade != null) gradeId = movingGrade.id;
+            }
+            float ghostLift;
+            float ghostTop;
+            ghostBody.transform.localPosition = Vector3.zero;
+            ghostBody.enabled = def.kind != PlaceableKind.Plot
+                && FitObjectArt(ghostBody, def, gradeId, rotation, out ghostLift, out ghostTop);
+            if (ghostBody.enabled)
+            {
+                ghostBody.transform.localPosition += IsoMath.CellToWorld(cell.x, cell.y);
+                ghostBody.color = valid ? new Color(1f, 1f, 1f, 0.8f) : new Color(1f, 0.6f, 0.6f, 0.7f);
+            }
+
+            int needed = cellsWide * cellsDeep;
             while (ghostCells.Count < needed)
             {
                 var ghost = NewSprite("GhostCell", ghostRoot, PlaceholderArt.Diamond);
@@ -1087,9 +1231,9 @@ namespace ZooZooClub.Client
             }
 
             int index = 0;
-            for (int j = 0; j < def.height; j++)
+            for (int j = 0; j < cellsDeep; j++)
             {
-                for (int i = 0; i < def.width; i++)
+                for (int i = 0; i < cellsWide; i++)
                 {
                     var ghost = ghostCells[index++];
                     ghost.enabled = true;
@@ -1102,6 +1246,8 @@ namespace ZooZooClub.Client
 
         void HideGhost()
         {
+            ghostDef = null;
+            if (ghostBody != null) ghostBody.enabled = false;
             foreach (var ghost in ghostCells) ghost.enabled = false;
         }
     }

@@ -11,6 +11,7 @@ namespace ZooZooClub.Client
     ///
     /// 이름 규칙: 시설과 장식은 카탈로그의 id 그대로(bakery, tree ...),
     /// 작물은 crop_&lt;id&gt;, 새싹은 crop_sprout, 주민은 resident_&lt;id&gt;, 밭은 plot.
+    /// 방어 시설은 등급마다 그림이 다르다: &lt;id&gt;_&lt;등급 id&gt; (예: guard_rare). 없으면 &lt;id&gt; 그림을 쓴다.
     /// </summary>
     public static class ArtLibrary
     {
@@ -79,6 +80,23 @@ namespace ZooZooClub.Client
             sprite = Resources.Load<Sprite>("Art/" + name);
             Cache[name] = sprite;
             return sprite;
+        }
+
+        /// <summary>
+        /// 변형 그림의 이름. baseName_variant 그림이 있으면 그 이름을, 없으면 baseName을 돌려준다.
+        /// 방어 시설의 등급별 그림을 고를 때 쓴다.
+        /// </summary>
+        public static string Variant(string baseName, string variant)
+        {
+            if (string.IsNullOrEmpty(variant)) return baseName;
+            string name = baseName + "_" + variant;
+            return Get(name) != null ? name : baseName;
+        }
+
+        /// <summary>그림의 배치 값. 변형 그림에 따로 적힌 값이 없으면 기본 그림의 값을 쓴다.</summary>
+        public static LayoutEntry LayoutFor(string name, string baseName)
+        {
+            return Layout(name) ?? Layout(baseName);
         }
 
         /// <summary>

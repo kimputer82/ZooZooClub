@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEditor;
@@ -15,8 +16,8 @@ namespace ZooZooClub.EditorTools
     /// 프로젝트의 Logs/ZooBridge/cmd.txt 에 "아이디 명령" 한 줄을 쓰면 실행하고,
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
-    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, boost, reimport, clear
-    /// 플레이 중 점검용: ui <버튼 이름>, cell <x> <y>, dump, state
+    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear
+    /// 플레이 중 점검용: ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -141,6 +142,14 @@ namespace ZooZooClub.EditorTools
                     WriteOut(id + " residents: " + DescribeResidents());
                     break;
 
+                case "raid":
+                    WriteOut(id + " raid: " + Raid(argument));
+                    break;
+
+                case "grade":
+                    WriteOut(id + " grade: " + SetGrade(argument));
+                    break;
+
                 case "state":
                     WriteOut(id + " state: " + DumpState());
                     break;
@@ -207,6 +216,14 @@ namespace ZooZooClub.EditorTools
                     WriteOut(id + " boost " + BoostSave());
                     break;
 
+                case "stash":
+                    WriteOut(id + " stash: " + StashSave());
+                    break;
+
+                case "unstash":
+                    WriteOut(id + " unstash: " + UnstashSave());
+                    break;
+
                 case "clear":
                     File.WriteAllText(ConsolePath, "");
                     WriteOut(id + " console cleared");
@@ -255,6 +272,57 @@ namespace ZooZooClub.EditorTools
                 return "clicked " + x + "," + y;
             }
             return "world not found";
+        }
+
+        /// <summary>
+        /// "raid start"는 침략을 지금 시작하고, "raid"만 쓰면 지금 상황을 한 줄로 돌려준다:
+        /// 진행 여부, 몇 번째인지, 다음 침략까지 남은 시간, 침략자마다 "종류:x,y:체력".
+        /// </summary>
+        /// <summary>
+        /// 점검용: 놓인 방어 시설의 등급을 정해 준다. 그림은 플레이를 다시 시작하면 바뀐다.
+        /// 진행 중인 저장을 건드리지 않도록 stash로 치워 둔 뒤에만 쓴다.
+        /// </summary>
+        static string SetGrade(string argument)
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var session = GameSession.Instance;
+            if (session == null || session.Game == null) return "no game";
+
+            var parts = argument.Split(' ');
+            int objectId;
+            if (parts.Length != 2 || !int.TryParse(parts[0], out objectId)) return "usage: grade <objectId> <gradeId>";
+            var obj = session.Game.FindObject(objectId);
+            if (obj == null) return "no object " + objectId;
+            if (session.Game.Catalog.GetGrade(parts[1]) == null) return "no grade " + parts[1];
+
+            obj.gradeId = parts[1];
+            session.Save();
+            return obj.defId + " " + objectId + " is now " + parts[1];
+        }
+
+        static string Raid(string argument)
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var session = GameSession.Instance;
+            if (session == null || session.Game == null) return "no game";
+            var game = session.Game;
+
+            if (argument == "start") game.StartRaidNow();
+
+            var text = new StringBuilder();
+            text.Append("active=").Append(game.RaidActive)
+                .Append(" wave=").Append(game.RaidWave)
+                .Append(" next=").Append(game.SecondsUntilRaid)
+                .Append(" coins=").Append(game.State.coins);
+            foreach (var invader in game.Invaders)
+            {
+                text.Append(' ').Append(invader.def.id).Append(':')
+                    .Append(invader.entered ? "" : "wait:")
+                    .Append(invader.x.ToString("0.0", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(invader.y.ToString("0.0", CultureInfo.InvariantCulture)).Append(':')
+                    .Append(Mathf.CeilToInt(invader.hp));
+            }
+            return text.ToString();
         }
 
         /// <summary>주민들의 위치와 상태를 한 줄로 돌려준다.</summary>
@@ -340,6 +408,30 @@ namespace ZooZooClub.EditorTools
             if (EditorApplication.isPlaying) return "skipped, stop play mode first";
             if (!File.Exists(from)) return "skipped, nothing to copy";
             File.Copy(from, to, true);
+            return "done";
+        }
+
+        /// <summary>
+        /// 점검하는 동안 진행 중인 저장 파일을 잠시 치워 둔다. 점검이 끝나면 unstash로 그대로 되돌린다.
+        /// 이미 치워 둔 것이 있으면 덮어쓰지 않는다.
+        /// </summary>
+        static string StashSave()
+        {
+            if (EditorApplication.isPlaying) return "skipped, stop play mode first";
+            string stash = SavePath + ".stash";
+            if (File.Exists(stash)) return "skipped, a stash already exists";
+            if (!File.Exists(SavePath)) return "skipped, nothing to copy";
+            File.Copy(SavePath, stash, false);
+            return "done";
+        }
+
+        static string UnstashSave()
+        {
+            if (EditorApplication.isPlaying) return "skipped, stop play mode first";
+            string stash = SavePath + ".stash";
+            if (!File.Exists(stash)) return "skipped, no stash";
+            File.Copy(stash, SavePath, true);
+            File.Delete(stash);
             return "done";
         }
 

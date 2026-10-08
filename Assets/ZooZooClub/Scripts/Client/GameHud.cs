@@ -17,9 +17,10 @@ namespace ZooZooClub.Client
     /// <summary>
     /// 화면 UI. 모바일 농장 게임처럼 배치한다.
     /// - 왼쪽 위: 레벨과 경험치, 오른쪽 위: 코인·보석·창고·매력
-    /// - 오른쪽 아래: 건설·주문·창고·주민 버튼, 왼쪽 아래: 마을 확장 버튼
-    /// - 가운데 창: 건설, 주문, 창고, 주민, 마을 확장, 생산 시설
-    /// - 아래 시트: 밭이나 장식을 눌렀을 때
+    /// - 위 가운데: 다음 침략까지 남은 시간
+    /// - 오른쪽 아래: 문제·주민·창고·주문·건설 버튼, 왼쪽 아래: 마을 확장 버튼
+    /// - 가운데 창: 건설, 주문, 창고, 주민, 마을 확장, 문제 풀기, 생산 시설
+    /// - 아래 시트: 밭, 장식, 방어 시설을 눌렀을 때
     /// </summary>
     public sealed class GameHud : MonoBehaviour
     {
@@ -31,6 +32,7 @@ namespace ZooZooClub.Client
             Storage,
             Residents,
             Expand,
+            Quiz,
             Selection
         }
 
@@ -49,6 +51,9 @@ namespace ZooZooClub.Client
         GameObject expandRoot;
         GameObject ordersBadge;
         TextMeshProUGUI ordersBadgeText;
+        GameObject raidChipRoot;
+        UImage raidChipImage;
+        TextMeshProUGUI raidText;
 
         GameObject toastRoot;
         TextMeshProUGUI toastText;
@@ -56,6 +61,7 @@ namespace ZooZooClub.Client
 
         GameObject hintRoot;
         TextMeshProUGUI hintText;
+        GameObject hintRotateButton;
 
         // 가운데 창
         GameObject dimRoot;
@@ -74,6 +80,14 @@ namespace ZooZooClub.Client
         PanelKind panel;
         int selectedId;
         int buildTab;
+
+        // 문제 풀기: 지금 보여 주는 문제, 보기를 섞은 순서(문제에 적힌 보기 번호, 1부터),
+        // 고른 보기 번호(아직 안 골랐으면 0)와 그 결과.
+        QuizDef quizCurrent;
+        readonly List<int> quizOrder = new List<int>();
+        int quizPicked;
+        bool quizCorrect;
+        int quizReward;
         string signature = "";
         bool rebuildNeeded;
         float nextTick;
@@ -88,6 +102,8 @@ namespace ZooZooClub.Client
 
             game.Changed += OnGameChanged;
             game.LeveledUp += OnLeveledUp;
+            game.RaidStarted += OnRaidStarted;
+            game.RaidEnded += OnRaidEnded;
             world.ObjectClicked += OnObjectClicked;
             world.EmptyClicked += OnEmptyClicked;
             world.Message += Toast;
@@ -101,6 +117,8 @@ namespace ZooZooClub.Client
             {
                 game.Changed -= OnGameChanged;
                 game.LeveledUp -= OnLeveledUp;
+                game.RaidStarted -= OnRaidStarted;
+                game.RaidEnded -= OnRaidEnded;
             }
             if (world != null)
             {
@@ -137,8 +155,10 @@ namespace ZooZooClub.Client
 
             // 뒤에 만든 것이 위에 그려진다.
             Transform root = canvasGo.transform;
+            RaidAlert.Create(root, game);
             BuildLevelBadge(root);
             BuildCurrencies(root);
+            BuildRaidChip(root);
             BuildMenus(root);
             BuildHint(root);
             BuildSheet(root);
@@ -199,15 +219,25 @@ namespace ZooZooClub.Client
             return label;
         }
 
+        void BuildRaidChip(Transform root)
+        {
+            raidText = Ui.Chip("RaidChip", root, ArtLibrary.Get("ui_icon_shield"), "", Ui.Pill, 56f, 24f);
+            raidChipRoot = raidText.transform.parent.gameObject;
+            raidChipImage = raidChipRoot.GetComponent<UImage>();
+            Ui.Put((RectTransform)raidChipRoot.transform, 0.5f, 1f, -40f, -34f, 360f, 56f);
+            raidChipRoot.SetActive(false);
+        }
+
         void BuildMenus(Transform root)
         {
             var menu = Ui.Rect("Menu", root);
-            Ui.Put(menu, 1f, 0f, -24f, 18f, 640f, 170f);
+            Ui.Put(menu, 1f, 0f, -24f, 18f, 800f, 170f);
             var group = Ui.Horizontal(menu.gameObject, 14f, 0);
             group.childAlignment = TextAnchor.LowerRight;
             group.childForceExpandWidth = false;
             menuRoot = menu.gameObject;
 
+            MenuButton(menu, "QuizButton", "ui_icon_quiz", "문제", Ui.Purple, () => Toggle(PanelKind.Quiz));
             MenuButton(menu, "ResidentsButton", "ui_icon_residents", "주민", Ui.Green, () => Toggle(PanelKind.Residents));
             MenuButton(menu, "StorageButton", "ui_icon_box", "창고", Ui.Blue, () => Toggle(PanelKind.Storage));
             var orders = MenuButton(menu, "OrdersButton", "ui_icon_orders", "주문", Ui.Yellow, () => Toggle(PanelKind.Orders));
@@ -260,8 +290,13 @@ namespace ZooZooClub.Client
             group.childAlignment = TextAnchor.MiddleCenter;
             group.childForceExpandWidth = false;
 
-            hintText = Ui.Chip("Text", hint, null, "", Ui.Pill, 60f, 24f);
-            Ui.Fixed(hintText.transform.parent.gameObject, 880f, 60f);
+            hintText = Ui.Chip("Text", hint, null, "", Ui.Pill, 60f, 22f);
+            Ui.Fixed(hintText.transform.parent.gameObject, 720f, 60f);
+
+            // 방향을 바꿀 수 있는 것을 놓을 때만 보인다.
+            var rotate = Ui.Button("RotateButton", hint, "돌리기", () => world.RotatePlacement(), 60f, 24f, Ui.Blue);
+            Ui.Fixed(rotate.gameObject, 160f, 60f);
+            hintRotateButton = rotate.gameObject;
 
             var cancel = Ui.Button("CancelButton", hint, "그만두기", () => world.CancelMode(), 60f, 24f, Ui.Red);
             Ui.Fixed(cancel.gameObject, 200f, 60f);
@@ -288,7 +323,7 @@ namespace ZooZooClub.Client
             group.childForceExpandHeight = true;
 
             sheetInfo = Ui.Rect("Info", body);
-            Ui.Fixed(sheetInfo.gameObject, 290f, 0f).flexibleHeight = 1f;
+            Ui.Fixed(sheetInfo.gameObject, 340f, 0f).flexibleHeight = 1f;
             Ui.Vertical(sheetInfo.gameObject, 6f, 0);
 
             sheetBody = Ui.Rect("Options", body);
@@ -400,7 +435,12 @@ namespace ZooZooClub.Client
             bool placing = world.InPlacementMode;
             bool showMenus = !placing && panel == PanelKind.None;
             if (hintRoot.activeSelf != placing) hintRoot.SetActive(placing);
-            if (placing) hintText.text = world.ModeHint;
+            if (placing)
+            {
+                hintText.text = world.ModeHint;
+                bool canRotate = world.CanRotatePlacement;
+                if (hintRotateButton.activeSelf != canRotate) hintRotateButton.SetActive(canRotate);
+            }
             if (menuRoot.activeSelf != showMenus) menuRoot.SetActive(showMenus);
             if (expandRoot.activeSelf != showMenus) expandRoot.SetActive(showMenus);
 
@@ -460,6 +500,53 @@ namespace ZooZooClub.Client
             }
             if (ordersBadge.activeSelf != ready > 0) ordersBadge.SetActive(ready > 0);
             if (ready > 0) ordersBadgeText.text = ready.ToString();
+
+            RefreshRaidChip();
+        }
+
+        void RefreshRaidChip()
+        {
+            bool show = game.RaidActive || game.RaidsUnlocked;
+            if (raidChipRoot.activeSelf != show) raidChipRoot.SetActive(show);
+            if (!show) return;
+
+            if (game.RaidActive)
+            {
+                raidChipImage.color = Ui.Red;
+                raidText.text = "침략 중!  남은 적 " + game.Invaders.Count;
+            }
+            else if (game.RaidImminent)
+            {
+                raidChipImage.color = Ui.Red;
+                raidText.text = "곧 침략!  " + Texts.Duration(game.SecondsUntilRaid);
+            }
+            else
+            {
+                raidChipImage.color = Ui.Pill;
+                raidText.text = "다음 침략  " + Texts.Duration(game.SecondsUntilRaid);
+            }
+        }
+
+        void OnRaidStarted(int wave)
+        {
+            RefreshRaidChip();
+            Toast(wave + "번째 침략! 침략자들이 몰려와요.");
+        }
+
+        void OnRaidEnded(RaidReport report)
+        {
+            RefreshRaidChip();
+            if (report.total == 0) return;
+
+            if (report.escaped == 0)
+            {
+                Toast("침략을 모두 막아 냈어요!  +" + report.bountyCoins.ToString("N0") + " 코인");
+            }
+            else
+            {
+                Toast(report.defeated + "마리 물리치고 " + report.escaped + "마리를 놓쳤어요.  도둑맞은 코인 "
+                    + report.coinsStolen.ToString("N0"));
+            }
         }
 
         public void Toast(string text)
@@ -489,7 +576,14 @@ namespace ZooZooClub.Client
                 string text = crop != null
                     ? Texts.ItemName(game.Catalog, crop.harvestItemId) + " +" + crop.harvestAmount
                     : null;
-                Report(game.Harvest(obj.id), text);
+                var harvested = game.Harvest(obj.id);
+                Report(harvested, text);
+                if (harvested == ActionResult.Ok)
+                {
+                    // 다 자란 밭을 누르면 수확만 한다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
+                    if (panel == PanelKind.Selection) ClosePanel();
+                    return;
+                }
             }
             else if (def.kind == PlaceableKind.Facility && game.ReadyJobCount(obj.id) > 0)
             {
@@ -581,6 +675,11 @@ namespace ZooZooClub.Client
                 builder.Append(obj.cropId).Append('|').Append(game.IsRipe(obj.id)).Append('|');
                 builder.Append(obj.queue.Count).Append('|').Append(game.ReadyJobCount(obj.id));
             }
+            else if (panel == PanelKind.Quiz)
+            {
+                builder.Append(quizCurrent != null ? quizCurrent.id : "-").Append('|').Append(quizPicked).Append('|');
+                builder.Append(game.QuizLockSeconds > 0).Append('|').Append(game.QuizCount);
+            }
             else if (panel == PanelKind.Orders)
             {
                 foreach (var order in game.State.orders)
@@ -627,6 +726,9 @@ namespace ZooZooClub.Client
                 case PanelKind.Expand:
                     BuildExpandPanel();
                     break;
+                case PanelKind.Quiz:
+                    BuildQuizPanel();
+                    break;
                 case PanelKind.Selection:
                     BuildSelectionPanel();
                     break;
@@ -650,6 +752,12 @@ namespace ZooZooClub.Client
             Sprite sprite = ArtLibrary.Get("item_" + itemId);
             if (sprite == null) sprite = ArtLibrary.Get("crop_" + itemId);
             return sprite;
+        }
+
+        /// <summary>소수 첫째 자리까지만 보여 주는 숫자. 1.0은 "1", 1.6은 "1.6".</summary>
+        static string Number(float value)
+        {
+            return value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         static string ResidentTitle(ResidentDef resident)
@@ -702,17 +810,43 @@ namespace ZooZooClub.Client
             var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
-                bool isDecor = def.kind == PlaceableKind.Decor;
-                if (isDecor == (buildTab == 1)) shown.Add(def);
+                int tab = def.kind == PlaceableKind.Decor ? 1 : def.kind == PlaceableKind.Defense ? 2 : 0;
+                if (tab == buildTab) shown.Add(def);
             }
 
-            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f));
+            bool showGrades = buildTab == 2 && game.Catalog.grades.Count > 0;
+            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f) + (showGrades ? 110f : 0f));
             ShowHeader(60f);
             BuildTab("TabFacility", "밭 · 시설", 0);
             BuildTab("TabDecor", "장식", 1);
+            BuildTab("TabDefense", "방어", 2);
+
+            if (showGrades) GradeChances();
 
             var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
             foreach (var def in shown) BuildCard(grid, def);
+        }
+
+        /// <summary>방어 탭 맨 위: 살 때 등급이 무작위로 정해진다는 안내와 등급별 확률.</summary>
+        void GradeChances()
+        {
+            var box = Ui.Box("Grades", windowContent, Ui.CardSprite, Ui.Sand);
+            Ui.Fixed(box.gameObject, 0f, 96f);
+            var group = Ui.Vertical(box.gameObject, 4f, 12);
+            group.padding.bottom = 18;
+            group.childAlignment = TextAnchor.MiddleCenter;
+
+            Text(box.transform, "살 때마다 등급이 무작위로 정해져요. 등급이 높을수록 더 세고 멀리 공격해요.", 22f, Ui.Ink);
+
+            var builder = new StringBuilder();
+            foreach (var grade in game.Catalog.grades)
+            {
+                if (grade == null || grade.weight <= 0) continue;
+                if (builder.Length > 0) builder.Append("      ");
+                builder.Append(Texts.GradeColorTag(grade)).Append(Texts.GradeStars(game.Catalog, grade)).Append("</color> ")
+                    .Append(grade.displayName).Append(' ').Append(Number(game.GradeChancePercent(grade))).Append('%');
+            }
+            Text(box.transform, builder.ToString(), 24f, Ui.Ink, true);
         }
 
         void BuildTab(string name, string text, int index)
@@ -748,6 +882,7 @@ namespace ZooZooClub.Client
 
             string detail = def.kind == PlaceableKind.Decor ? "매력 +" + def.charm
                 : def.kind == PlaceableKind.Facility ? "생산 시설"
+                : def.kind == PlaceableKind.Defense ? "사거리 " + Number(def.attackRange) + " · 공격 " + def.attackDamage
                 : "작물을 심는 곳";
             var detailLabel = Text(inside, detail, 20f, Ui.Muted);
             Ui.Put(detailLabel.rectTransform, 0.5f, 1f, 0f, -186f, 204f, 28f);
@@ -763,9 +898,10 @@ namespace ZooZooClub.Client
 
         void BuildOrdersPanel()
         {
-            ShowWindow("주문", 1240f, WindowHeight(game.State.orders.Count, 4, 430f, 0f));
+            ShowWindow("주문", 1240f, WindowHeight(game.State.orders.Count, 4, 480f, 0f));
 
-            var grid = Ui.Grid("Grid", windowContent, 280f, 430f, 16f, 4);
+            // 물건 세 가지짜리 주문까지 한 카드에 다 들어가는 높이.
+            var grid = Ui.Grid("Grid", windowContent, 280f, 480f, 16f, 4);
             foreach (var order in game.State.orders) OrderCard(grid, order);
         }
 
@@ -794,7 +930,7 @@ namespace ZooZooClub.Client
 
             var card = CardColumn("Order", grid, Color.white, 6f);
             var customer = game.Catalog.GetResident(order.customerId);
-            Ui.Icon("Face", card, customer != null ? Art("resident_" + customer.id) : null, 104f);
+            Ui.Icon("Face", card, customer != null ? Art("resident_" + customer.id) : null, 96f);
             Text(card, customer != null ? customer.displayName + "의 주문" : "손님의 주문", 24f, Ui.Ink, true);
 
             foreach (var need in order.items) NeedLine(card, need, 38f, 22f, true);
@@ -919,6 +1055,138 @@ namespace ZooZooClub.Client
             }
         }
 
+        // ---------- 문제 풀기 ----------
+
+        void BuildQuizPanel()
+        {
+            ShowWindow("문제 풀기", 1040f, 700f);
+
+            if (game.QuizCount == 0)
+            {
+                Text(windowContent, "\n아직 문제가 없어요.\nResources/quiz.json 에 문제를 넣어 주세요.", 28f, Ui.Muted);
+                return;
+            }
+
+            // 보여 줄 문제가 없으면 새로 뽑는다. 틀린 뒤 기다리는 중이면 뽑히지 않는다.
+            if (quizCurrent == null)
+            {
+                quizCurrent = game.DrawQuiz();
+                quizPicked = 0;
+                quizOrder.Clear();
+                if (quizCurrent != null)
+                {
+                    for (int i = 1; i <= quizCurrent.choices.Count; i++) quizOrder.Add(i);
+                    for (int i = quizOrder.Count - 1; i > 0; i--)
+                    {
+                        int j = UnityEngine.Random.Range(0, i + 1);
+                        int swap = quizOrder[i];
+                        quizOrder[i] = quizOrder[j];
+                        quizOrder[j] = swap;
+                    }
+                }
+            }
+
+            ShowHeader(48f);
+            var solved = Ui.Label("Solved", windowHeader, "맞힌 문제 " + game.State.quizSolved + "개", 24f, Ui.Muted,
+                TextAlignmentOptions.Left, true);
+            solved.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+
+            if (quizCurrent == null)
+            {
+                var box = Ui.Rect("Wait", windowContent);
+                var group = Ui.Vertical(box.gameObject, 12f, 0);
+                group.childAlignment = TextAnchor.UpperCenter;
+                Ui.Spacer(box, 0f, 0f).gameObject.GetComponent<ULayoutElement>().minHeight = 40f;
+                Ui.Icon("Clock", box, Art("ui_icon_clock"), 110f);
+                Text(box, "틀렸어요. 잠깐 쉬었다가 다시 풀어요.", 28f, Ui.Ink, true);
+                var waiting = Text(box, "", 40f, Ui.Ink, true);
+                Action waitTick = () =>
+                {
+                    if (waiting != null) waiting.text = Texts.Duration(game.QuizLockSeconds);
+                };
+                waitTick();
+                tickers.Add(waitTick);
+                return;
+            }
+
+            var quiz = quizCurrent;
+            var reward = Ui.Chip("Reward", windowHeader, Art("ui_icon_coin"),
+                "정답 보상  " + game.QuizRewardFor(quiz).ToString("N0"), Ui.Yellow, 48f, 24f);
+            Ui.Fixed(reward.transform.parent.gameObject, 280f, 48f);
+
+            var card = Ui.Box("Question", windowContent, Ui.CardSprite, Color.white);
+            Ui.Fixed(card.gameObject, 0f, 190f);
+            var question = Ui.Label("Text", card.transform, quiz.question, 36f, Ui.Ink, TextAlignmentOptions.Center, true);
+            Ui.Stretch(question.rectTransform, 28f, 22f, 28f, 16f);
+
+            bool answered = quizPicked != 0;
+            var grid = Ui.Grid("Choices", windowContent, 476f, 96f, 16f, 2);
+            for (int i = 0; i < quizOrder.Count; i++)
+            {
+                int number = quizOrder[i];
+                Color color = Ui.Sand;
+                if (answered && number == quiz.answer) color = Ui.Green;
+                else if (answered && number == quizPicked) color = Ui.Red;
+
+                Action onClick = null;
+                if (!answered) onClick = () => AnswerQuiz(number);
+                Ui.Button("Choice " + (i + 1), grid, quiz.choices[number - 1], onClick, 96f, 30f, color);
+            }
+
+            windowFooter.gameObject.SetActive(true);
+            if (!answered)
+            {
+                var hint = Ui.Label("Hint", windowFooter, "알맞은 답을 골라 보세요.", 24f, Ui.Muted, TextAlignmentOptions.Center);
+                hint.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+                return;
+            }
+
+            string resultText = quizCorrect
+                ? "정답이에요!  +" + quizReward.ToString("N0") + " 코인"
+                : "아쉬워요. 정답은 「" + quiz.choices[quiz.answer - 1] + "」";
+            var result = Ui.Label("Result", windowFooter, resultText, 28f, quizCorrect ? Ui.Good : Ui.Bad,
+                TextAlignmentOptions.Left, true);
+            result.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+
+            var next = Ui.Button("NextQuiz", windowFooter, "다음 문제", () =>
+            {
+                quizCurrent = null;
+                quizPicked = 0;
+                rebuildNeeded = true;
+            }, 64f, 26f, Ui.Orange);
+            Ui.Fixed(next.gameObject, 300f, 64f);
+
+            // 틀렸으면 잠깐 기다려야 다음 문제로 넘어갈 수 있다.
+            Action tick = () =>
+            {
+                if (next == null) return;
+                long wait = game.QuizLockSeconds;
+                next.interactable = wait <= 0;
+                Ui.SetButtonText(next, wait > 0 ? "다음 문제 (" + wait + ")" : "다음 문제");
+            };
+            tick();
+            tickers.Add(tick);
+        }
+
+        void AnswerQuiz(int number)
+        {
+            if (quizCurrent == null || quizPicked != 0) return;
+
+            bool correct;
+            int reward;
+            var result = game.AnswerQuiz(quizCurrent.id, number, out correct, out reward);
+            if (result != ActionResult.Ok)
+            {
+                Toast(Texts.Describe(result));
+                return;
+            }
+
+            quizPicked = number;
+            quizCorrect = correct;
+            quizReward = reward;
+            rebuildNeeded = true;
+        }
+
         // ---------- 마을 확장 ----------
 
         void BuildExpandPanel()
@@ -982,6 +1250,7 @@ namespace ZooZooClub.Client
             Ui.Label("Title", sheetInfo, def.displayName, 34f, Ui.Ink, TextAlignmentOptions.Left, true);
 
             if (def.kind == PlaceableKind.Plot) BuildPlotSheet(obj);
+            else if (def.kind == PlaceableKind.Defense) BuildDefenseSheet(obj, def);
             else BuildDecorSheet(def);
 
             Ui.Spacer(sheetInfo, 0f, 1f);
@@ -992,6 +1261,16 @@ namespace ZooZooClub.Client
 
         void MoveAndRemoveButtons(Transform parent, int objectId, PlaceableDef def, float height, float fontSize)
         {
+            if (def.rotations > 1)
+            {
+                Ui.Button("Rotate", parent, "돌리기", () =>
+                {
+                    var result = game.Rotate(objectId);
+                    if (result == ActionResult.InvalidPlacement) Toast("돌릴 자리가 부족해요.");
+                    else Report(result, null);
+                }, height, fontSize, Ui.Yellow);
+            }
+
             Ui.Button("Move", parent, "옮기기", () =>
             {
                 ClosePanel();
@@ -1028,6 +1307,34 @@ namespace ZooZooClub.Client
             Ui.Label("About", column, "매력이 높을수록 마을이 사랑받아요.", 22f, Ui.Muted, TextAlignmentOptions.Left);
         }
 
+        void BuildDefenseSheet(PlacedObject obj, PlaceableDef def)
+        {
+            var grade = game.GradeOf(obj);
+            if (grade != null)
+            {
+                Ui.Label("Grade", sheetInfo, Texts.GradeColorTag(grade) + Texts.GradeStars(game.Catalog, grade)
+                    + "</color> " + grade.displayName + " 등급", 24f, Ui.Ink, TextAlignmentOptions.Left, true);
+            }
+            InfoLine("사거리 안에 들어온 침략자를 알아서 공격해요.", Ui.Muted);
+
+            var row = Ui.Rect("Row", sheetBody);
+            var group = Ui.Horizontal(row.gameObject, 24f, 0);
+            group.childForceExpandWidth = false;
+            Ui.Icon("Icon", row, Art(ArtLibrary.Variant(def.id, grade != null ? grade.id : null)), 170f);
+
+            var column = Ui.Rect("Column", row);
+            Ui.Vertical(column.gameObject, 6f, 0);
+            var title = CenterRow(column, 8f);
+            title.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
+            Ui.Icon("Shield", title, Art("ui_icon_shield"), 44f);
+            Ui.Label("Damage", title, "공격력 " + game.AttackDamageOf(obj), 30f, Ui.Ink, TextAlignmentOptions.Left, true);
+            Ui.Label("Range", column, "사거리 " + Number(game.AttackRangeOf(obj)) + "칸 (바닥의 밝은 원)", 22f, Ui.Ink,
+                TextAlignmentOptions.Left);
+            Ui.Label("Speed", column, game.AttackIntervalOf(obj).ToString("0.##",
+                System.Globalization.CultureInfo.InvariantCulture) + "초마다 한 번 공격", 22f, Ui.Muted,
+                TextAlignmentOptions.Left);
+        }
+
         void BuildPlotSheet(PlacedObject plot)
         {
             int objectId = plot.id;
@@ -1060,7 +1367,10 @@ namespace ZooZooClub.Client
                 Ui.Label("Ready", column, "수확할 수 있어요.", 28f, Ui.Ink, TextAlignmentOptions.Left, true);
                 var harvest = Ui.Button("Harvest", column, "수확", () =>
                 {
-                    Report(game.Harvest(objectId), null);
+                    // 수확하고 나면 시트를 닫는다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
+                    var harvested = game.Harvest(objectId);
+                    Report(harvested, null);
+                    if (harvested == ActionResult.Ok) ClosePanel();
                 }, 66f, 28f, Ui.Green);
                 harvest.GetComponent<ULayoutElement>().flexibleWidth = 0f;
                 return;
@@ -1149,7 +1459,7 @@ namespace ZooZooClub.Client
             Ui.Spacer(windowFooter, 1f, 0f);
 
             var actions = Ui.Rect("Actions", windowFooter);
-            Ui.Fixed(actions.gameObject, 460f, 64f);
+            Ui.Fixed(actions.gameObject, def.rotations > 1 ? 640f : 460f, 64f);
             Ui.Horizontal(actions.gameObject, 12f, 0);
             MoveAndRemoveButtons(actions, objectId, def, 64f, 22f);
         }

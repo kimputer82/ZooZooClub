@@ -13,23 +13,44 @@ namespace ZooZooClub.Core
                 && y + height <= State.landHeight;
         }
 
-        /// <summary>해당 위치에 놓을 수 있는지 확인한다. 옮길 때는 자기 자신을 ignoreObjectId로 넘긴다.</summary>
-        public bool CanPlace(string defId, int x, int y, int ignoreObjectId = 0)
+        /// <summary>놓여 있는 배치물이 지금 방향에서 차지하는 가로·세로 칸 수.</summary>
+        public void GetFootprint(PlacedObject obj, out int width, out int height)
+        {
+            var def = obj != null ? Catalog.GetPlaceable(obj.defId) : null;
+            if (def == null)
+            {
+                width = 0;
+                height = 0;
+                return;
+            }
+            width = Rotation.Width(def, obj.rotation);
+            height = Rotation.Height(def, obj.rotation);
+        }
+
+        /// <summary>
+        /// 해당 위치에 그 방향으로 놓을 수 있는지 확인한다. 옮기거나 돌릴 때는 자기 자신을 ignoreObjectId로 넘긴다.
+        /// </summary>
+        public bool CanPlace(string defId, int x, int y, int ignoreObjectId = 0, int rotation = 0)
         {
             var def = Catalog.GetPlaceable(defId);
             if (def == null) return false;
-            if (!IsInsideLand(x, y, def.width, def.height)) return false;
+
+            rotation = Rotation.Normalize(def, rotation);
+            int width = Rotation.Width(def, rotation);
+            int height = Rotation.Height(def, rotation);
+            if (!IsInsideLand(x, y, width, height)) return false;
 
             foreach (var other in State.objects)
             {
                 if (other.id == ignoreObjectId) continue;
-                var otherDef = Catalog.GetPlaceable(other.defId);
-                if (otherDef == null) continue;
+                int otherWidth, otherHeight;
+                GetFootprint(other, out otherWidth, out otherHeight);
+                if (otherWidth <= 0) continue;
 
-                bool overlaps = x < other.x + otherDef.width
-                    && other.x < x + def.width
-                    && y < other.y + otherDef.height
-                    && other.y < y + def.height;
+                bool overlaps = x < other.x + otherWidth
+                    && other.x < x + width
+                    && y < other.y + otherHeight
+                    && other.y < y + height;
                 if (overlaps) return false;
             }
 
@@ -46,7 +67,7 @@ namespace ZooZooClub.Core
             return count;
         }
 
-        public ActionResult BuyAndPlace(string defId, int x, int y, out int objectId)
+        public ActionResult BuyAndPlace(string defId, int x, int y, out int objectId, int rotation = 0)
         {
             objectId = 0;
             var def = Catalog.GetPlaceable(defId);
@@ -54,7 +75,9 @@ namespace ZooZooClub.Core
             if (State.level < def.unlockLevel) return ActionResult.LockedByLevel;
             if (def.maxCount > 0 && CountPlaced(defId) >= def.maxCount) return ActionResult.MaxReached;
             if (State.coins < def.cost) return ActionResult.NotEnoughCoins;
-            if (!CanPlace(defId, x, y)) return ActionResult.InvalidPlacement;
+
+            rotation = Rotation.Normalize(def, rotation);
+            if (!CanPlace(defId, x, y, 0, rotation)) return ActionResult.InvalidPlacement;
 
             State.coins -= def.cost;
             var obj = new PlacedObject
@@ -62,24 +85,45 @@ namespace ZooZooClub.Core
                 id = State.nextObjectId++,
                 defId = def.id,
                 x = x,
-                y = y
+                y = y,
+                rotation = rotation
             };
+            if (def.kind == PlaceableKind.Defense) obj.gradeId = RollGrade();
             State.objects.Add(obj);
             objectId = obj.id;
+            layoutChanged = true;
             NotifyChanged();
             return ActionResult.Ok;
         }
 
-        public ActionResult Move(int objectId, int x, int y)
+        /// <summary>옮긴다. rotation을 주면 방향도 함께 바꾸고, 주지 않으면(-1) 지금 방향을 지킨다.</summary>
+        public ActionResult Move(int objectId, int x, int y, int rotation = -1)
         {
             var obj = FindObject(objectId);
             if (obj == null) return ActionResult.NotFound;
-            if (!CanPlace(obj.defId, x, y, obj.id)) return ActionResult.InvalidPlacement;
+
+            var def = Catalog.GetPlaceable(obj.defId);
+            int newRotation = rotation < 0 ? obj.rotation : Rotation.Normalize(def, rotation);
+            if (!CanPlace(obj.defId, x, y, obj.id, newRotation)) return ActionResult.InvalidPlacement;
 
             obj.x = x;
             obj.y = y;
+            obj.rotation = newRotation;
+            layoutChanged = true;
             NotifyChanged();
             return ActionResult.Ok;
+        }
+
+        /// <summary>제자리에서 한 번 돌린다. 돌린 모양이 들어갈 자리가 없으면 돌리지 못한다.</summary>
+        public ActionResult Rotate(int objectId)
+        {
+            var obj = FindObject(objectId);
+            if (obj == null) return ActionResult.NotFound;
+
+            var def = Catalog.GetPlaceable(obj.defId);
+            if (def == null || def.rotations <= 1) return ActionResult.NotReady;
+
+            return Move(objectId, obj.x, obj.y, Rotation.Next(def, obj.rotation));
         }
 
         /// <summary>치우고 구매가의 일부를 돌려받는다. 작물이 심겨 있거나 생산 중이면 치울 수 없다.</summary>
@@ -97,6 +141,7 @@ namespace ZooZooClub.Core
 
             ClearAssignmentsFor(obj.id);
             State.objects.Remove(obj);
+            layoutChanged = true;
             NotifyChanged();
             return ActionResult.Ok;
         }
@@ -160,6 +205,7 @@ namespace ZooZooClub.Core
             State.coins -= cost;
             State.landWidth = Math.Min(balance.maxLandSize, State.landWidth + step);
             State.landHeight = Math.Min(balance.maxLandSize, State.landHeight + step);
+            layoutChanged = true;
             NotifyChanged();
             return ActionResult.Ok;
         }

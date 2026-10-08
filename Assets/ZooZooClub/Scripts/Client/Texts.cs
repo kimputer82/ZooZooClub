@@ -26,6 +26,20 @@ namespace ZooZooClub.Client
             }
         }
 
+        /// <summary>등급을 별 개수로 나타낸다. 가장 낮은 등급이 별 하나.</summary>
+        public static string GradeStars(GameCatalog catalog, GradeDef grade)
+        {
+            if (grade == null) return "";
+            return new string('★', System.Math.Max(1, catalog.GradeIndex(grade.id) + 1));
+        }
+
+        /// <summary>글 속에서 등급 색을 입힐 때 쓰는 태그. 닫을 때는 &lt;/color&gt;.</summary>
+        public static string GradeColorTag(GradeDef grade)
+        {
+            string color = grade != null && !string.IsNullOrEmpty(grade.color) ? grade.color : "#FFFFFF";
+            return "<color=" + color + ">";
+        }
+
         public static string Duration(long seconds)
         {
             if (seconds < 0) seconds = 0;

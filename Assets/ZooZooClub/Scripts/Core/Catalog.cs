@@ -60,6 +60,7 @@ namespace ZooZooClub.Core
         public const string Plot = "plot";
         public const string Facility = "facility";
         public const string Decor = "decor";
+        public const string Defense = "defense";
     }
 
     [Serializable]
@@ -75,6 +76,127 @@ namespace ZooZooClub.Core
         public int queueSlots;
         public int charm;
         public int maxCount;
+
+        // 놓을 수 있는 방향의 수. 1이면 돌릴 수 없고, 2면 앞·뒤, 4면 앞·옆·뒤·옆.
+        public int rotations = 1;
+
+        // 방어 시설일 때: 사거리(칸), 한 번 공격의 피해량, 공격 사이 간격(초).
+        public float attackRange;
+        public int attackDamage;
+        public float attackInterval;
+    }
+
+    /// <summary>
+    /// 배치물의 방향. 0은 앞모습, 2는 뒷모습(180도 돌린 것)이고 차지하는 칸이 같다.
+    /// 1과 3은 각각 0과 2를 좌우로 뒤집은 것으로, 가로와 세로 칸 수가 서로 바뀐다.
+    /// </summary>
+    public static class Rotation
+    {
+        public const int Count = 4;
+
+        /// <summary>이 방향일 때 가로·세로 칸 수가 서로 바뀌는지.</summary>
+        public static bool Swaps(int rotation)
+        {
+            return (rotation & 1) == 1;
+        }
+
+        /// <summary>이 방향일 때 그림을 좌우로 뒤집는지.</summary>
+        public static bool Mirrored(int rotation)
+        {
+            return (rotation & 1) == 1;
+        }
+
+        /// <summary>이 방향일 때 뒷모습 그림을 쓰는지.</summary>
+        public static bool ShowsBack(int rotation)
+        {
+            return rotation == 2 || rotation == 3;
+        }
+
+        /// <summary>이 배치물에 쓸 수 있는 방향으로 맞춘다. 쓸 수 없는 값이면 0.</summary>
+        public static int Normalize(PlaceableDef def, int rotation)
+        {
+            if (def == null || def.rotations <= 1) return 0;
+            rotation = ((rotation % Count) + Count) % Count;
+            if (def.rotations < Count && Swaps(rotation)) return 0;
+            return rotation;
+        }
+
+        /// <summary>한 번 돌렸을 때의 방향.</summary>
+        public static int Next(PlaceableDef def, int rotation)
+        {
+            if (def == null || def.rotations <= 1) return 0;
+            rotation = Normalize(def, rotation);
+            return def.rotations >= Count ? (rotation + 1) % Count : (rotation == 0 ? 2 : 0);
+        }
+
+        public static int Width(PlaceableDef def, int rotation)
+        {
+            return Swaps(rotation) ? def.height : def.width;
+        }
+
+        public static int Height(PlaceableDef def, int rotation)
+        {
+            return Swaps(rotation) ? def.width : def.height;
+        }
+    }
+
+    /// <summary>
+    /// 방어 시설의 등급. 살 때 weight에 비례하는 확률로 하나가 정해지고, 등급에 따라 능력치가 달라진다.
+    /// 목록의 순서가 곧 낮은 등급에서 높은 등급 순서다.
+    /// </summary>
+    [Serializable]
+    public class GradeDef
+    {
+        public string id;
+        public string displayName;
+        /// <summary>뽑힐 확률의 비중. 모든 등급의 weight를 더한 값에 대한 비율이 확률이 된다.</summary>
+        public int weight = 1;
+        /// <summary>공격력, 사거리, 공격 빠르기가 기본값의 몇 %인지.</summary>
+        public int damagePercent = 100;
+        public int rangePercent = 100;
+        public int speedPercent = 100;
+        /// <summary>화면에 표시할 색("#RRGGBB").</summary>
+        public string color = "#FFFFFF";
+    }
+
+    /// <summary>주기적으로 쳐들어와 코인을 훔쳐 가는 침략자.</summary>
+    [Serializable]
+    public class InvaderDef
+    {
+        public string id;
+        public string displayName;
+        public int hp;
+        /// <summary>걷는 빠르기(초당 칸 수).</summary>
+        public float speed = 1f;
+        /// <summary>마을 한가운데에 닿으면 훔쳐 가는 코인.</summary>
+        public int stealCoins;
+        /// <summary>물리치면 받는 코인과 경험치.</summary>
+        public int bounty;
+        public int xp;
+        /// <summary>몇 번째 침략부터 나타나는지.</summary>
+        public int firstWave = 1;
+    }
+
+    /// <summary>문제 하나. answer는 choices 가운데 정답이 몇 번째인지(1부터 센다).</summary>
+    [Serializable]
+    public class QuizDef
+    {
+        public string id;
+        public string question;
+        public List<string> choices = new List<string>();
+        public int answer = 1;
+        /// <summary>맞히면 받는 코인. 0이면 문제 은행의 기본값을 쓴다.</summary>
+        public int reward;
+    }
+
+    /// <summary>문제 은행. Resources/quiz.json 에서 읽는다.</summary>
+    [Serializable]
+    public class QuizBank
+    {
+        public int rewardCoins = 30;
+        /// <summary>틀린 뒤 다음 문제를 받을 때까지 기다리는 시간(초).</summary>
+        public int wrongCooldownSeconds = 5;
+        public List<QuizDef> questions = new List<QuizDef>();
     }
 
     /// <summary>마을 주민. 주문을 내는 손님이기도 하고, 시설에 배치하면 생산을 빠르게 해 준다.</summary>
@@ -124,6 +246,21 @@ namespace ZooZooClub.Core
         public int orderRewardPercent = 150;
         public int orderXpPercent = 30;
         public int sellBackPercent = 50;
+
+        // 침략: 이 레벨부터 raidIntervalSeconds마다 침략자가 온다. 오기 raidWarningSeconds 전부터 경고한다.
+        public int raidUnlockLevel = 2;
+        public int raidIntervalSeconds = 180;
+        public int raidWarningSeconds = 30;
+        // 침략자 수는 raidBaseCount에서 시작해 raidWavesPerExtra번마다 하나씩 늘고 raidMaxCount를 넘지 않는다.
+        public int raidBaseCount = 2;
+        public int raidWavesPerExtra = 2;
+        public int raidMaxCount = 12;
+        // 침략이 거듭될수록 침략자 체력이 이만큼(%)씩 늘고 raidHpMaxPercent를 넘지 않는다.
+        public int raidHpGrowthPercent = 10;
+        public int raidHpMaxPercent = 300;
+        public float raidSpawnGapSeconds = 1.2f;
+        // 마을 한가운데에 닿은 침략자가 코인을 훔치는 데 걸리는 시간. 그 안에 물리치면 코인을 지킨다.
+        public float raidStealSeconds = 3f;
         public List<StarterObject> starterObjects = new List<StarterObject>();
     }
 
@@ -135,14 +272,22 @@ namespace ZooZooClub.Core
         public List<RecipeDef> recipes = new List<RecipeDef>();
         public List<PlaceableDef> placeables = new List<PlaceableDef>();
         public List<ResidentDef> residents = new List<ResidentDef>();
+        public List<InvaderDef> invaders = new List<InvaderDef>();
+        public List<GradeDef> grades = new List<GradeDef>();
         public List<LevelDef> levels = new List<LevelDef>();
         public BalanceDef balance = new BalanceDef();
+
+        /// <summary>문제 은행. catalog.json이 아니라 quiz.json에서 따로 읽어 넣는다.</summary>
+        public QuizBank quiz = new QuizBank();
 
         Dictionary<string, ItemDef> itemsById;
         Dictionary<string, CropDef> cropsById;
         Dictionary<string, RecipeDef> recipesById;
         Dictionary<string, PlaceableDef> placeablesById;
         Dictionary<string, ResidentDef> residentsById;
+        Dictionary<string, InvaderDef> invadersById;
+        Dictionary<string, GradeDef> gradesById;
+        Dictionary<string, QuizDef> quizById;
 
         public ItemDef GetItem(string id)
         {
@@ -172,6 +317,47 @@ namespace ZooZooClub.Core
         {
             if (residentsById == null) residentsById = Index(residents, d => d.id);
             return Find(residentsById, id);
+        }
+
+        public InvaderDef GetInvader(string id)
+        {
+            if (invadersById == null) invadersById = Index(invaders, d => d.id);
+            return Find(invadersById, id);
+        }
+
+        public GradeDef GetGrade(string id)
+        {
+            if (gradesById == null) gradesById = Index(grades, d => d.id);
+            return Find(gradesById, id);
+        }
+
+        /// <summary>등급이 몇 번째인지(가장 낮은 등급이 0). 없으면 -1.</summary>
+        public int GradeIndex(string id)
+        {
+            for (int i = 0; i < grades.Count; i++)
+            {
+                if (grades[i] != null && grades[i].id == id) return i;
+            }
+            return -1;
+        }
+
+        public QuizDef GetQuiz(string id)
+        {
+            if (quizById == null) quizById = Index(quiz != null ? quiz.questions : null, d => d.id);
+            return Find(quizById, id);
+        }
+
+        /// <summary>문제 은행을 바꿔 끼운다. id가 비어 있는 문제에는 순서대로 id를 붙인다.</summary>
+        public void SetQuiz(QuizBank bank)
+        {
+            quiz = bank ?? new QuizBank();
+            if (quiz.questions == null) quiz.questions = new List<QuizDef>();
+            for (int i = 0; i < quiz.questions.Count; i++)
+            {
+                var question = quiz.questions[i];
+                if (question != null && string.IsNullOrEmpty(question.id)) question.id = "q" + (i + 1);
+            }
+            quizById = null;
         }
 
         /// <summary>데이터 간 참조가 깨진 곳을 찾아 사람이 읽을 수 있는 오류 목록으로 돌려준다.</summary>
@@ -208,6 +394,34 @@ namespace ZooZooClub.Core
                     errors.Add("placeable '" + placeable.id + "' needs a positive size");
                 if (placeable.kind == PlaceableKind.Facility && placeable.queueSlots <= 0)
                     errors.Add("facility '" + placeable.id + "' needs queueSlots > 0");
+                if (placeable.kind == PlaceableKind.Defense
+                    && (placeable.attackRange <= 0f || placeable.attackDamage <= 0 || placeable.attackInterval <= 0f))
+                    errors.Add("defense '" + placeable.id + "' needs attackRange, attackDamage and attackInterval > 0");
+            }
+
+            foreach (var grade in grades)
+            {
+                if (grade.weight < 0 || grade.damagePercent <= 0 || grade.rangePercent <= 0 || grade.speedPercent <= 0)
+                    errors.Add("grade '" + grade.id + "' needs weight >= 0 and positive percents");
+            }
+
+            foreach (var invader in invaders)
+            {
+                if (invader.hp <= 0 || invader.speed <= 0f)
+                    errors.Add("invader '" + invader.id + "' needs hp and speed > 0");
+            }
+
+            if (quiz != null && quiz.questions != null)
+            {
+                foreach (var question in quiz.questions)
+                {
+                    if (question == null) continue;
+                    int count = question.choices != null ? question.choices.Count : 0;
+                    if (count < 2)
+                        errors.Add("quiz '" + question.id + "' needs at least 2 choices");
+                    else if (question.answer < 1 || question.answer > count)
+                        errors.Add("quiz '" + question.id + "' has answer " + question.answer + " but only " + count + " choices");
+                }
             }
 
             foreach (var resident in residents)

@@ -1,0 +1,16 @@
+{
+  "rewardCoins": 30,
+  "wrongCooldownSeconds": 5,
+  "questions": [
+    {"id": "sample_01", "question": "7 + 8 은 얼마일까요?", "choices": ["13", "14", "15", "16"], "answer": 3, "reward": 0},
+    {"id": "sample_02", "question": "9 × 6 은 얼마일까요?", "choices": ["45", "54", "56", "63"], "answer": 2, "reward": 0},
+    {"id": "sample_03", "question": "100 - 37 은 얼마일까요?", "choices": ["53", "63", "67", "73"], "answer": 2, "reward": 0},
+    {"id": "sample_04", "question": "48 ÷ 6 은 얼마일까요?", "choices": ["6", "7", "8", "9"], "answer": 3, "reward": 0},
+    {"id": "sample_05", "question": "일주일은 며칠일까요?", "choices": ["5일", "6일", "7일", "8일"], "answer": 3, "reward": 0},
+    {"id": "sample_06", "question": "1시간은 몇 분일까요?", "choices": ["30분", "60분", "90분", "100분"], "answer": 2, "reward": 0},
+    {"id": "sample_07", "question": "삼각형의 꼭짓점은 몇 개일까요?", "choices": ["2개", "3개", "4개", "5개"], "answer": 2, "reward": 0},
+    {"id": "sample_08", "question": "다음 중 가장 큰 수는?", "choices": ["0.5", "0.25", "0.75", "0.1"], "answer": 3, "reward": 0},
+    {"id": "sample_09", "question": "2, 4, 6, 8 다음에 올 수는?", "choices": ["9", "10", "11", "12"], "answer": 2, "reward": 0},
+    {"id": "sample_10", "question": "12 × 12 는 얼마일까요? (어려운 문제, 보상 2배)", "choices": ["124", "134", "144", "154"], "answer": 3, "reward": 60}
+  ]
+}
