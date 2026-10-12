@@ -248,9 +248,7 @@ def icon_shield():
 SPRITES = {
     # 경비병과 경비탑은 직접 그린 그림으로 바꿨으므로 여기서 더는 만들지 않는다.
     # (예전 임시 그림이 필요하면 guard(look), watchtower(look)를 직접 부른다.)
-    "invader_raccoon": raccoon,
-    "invader_wolf": wolf,
-    "invader_boar": boar,
+    # 침략자 세 종은 직접 그린 그림으로 바꿨다(invader_<id>_idle, _walk_1~4, _back_idle, _back_walk_1~4).
     "ui_icon_quiz": icon_quiz,
     "ui_icon_shield": icon_shield,
 }

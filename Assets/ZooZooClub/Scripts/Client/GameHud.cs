@@ -55,6 +55,12 @@ namespace ZooZooClub.Client
         UImage raidChipImage;
         TextMeshProUGUI raidText;
 
+        // 화면 왼쪽에 늘 보이는 "일하는 중" 구역: 시설에 배치된 주민의 얼굴과 일터 이름.
+        GameObject workersRoot;
+        string workersSignature;
+        bool hasWorkers;
+        readonly StringBuilder workersBuilder = new StringBuilder();
+
         GameObject toastRoot;
         TextMeshProUGUI toastText;
         float toastUntil;
@@ -159,6 +165,7 @@ namespace ZooZooClub.Client
             BuildLevelBadge(root);
             BuildCurrencies(root);
             BuildRaidChip(root);
+            BuildWorkers(root);
             BuildMenus(root);
             BuildHint(root);
             BuildSheet(root);
@@ -226,6 +233,75 @@ namespace ZooZooClub.Client
             raidChipImage = raidChipRoot.GetComponent<UImage>();
             Ui.Put((RectTransform)raidChipRoot.transform, 0.5f, 1f, -40f, -34f, 360f, 56f);
             raidChipRoot.SetActive(false);
+        }
+
+        void BuildWorkers(Transform root)
+        {
+            var box = Ui.Rect("Workers", root);
+            Ui.Put(box, 0f, 1f, 24f, -122f, 300f, 520f);
+            // 주민 그림이 줄 위아래로 조금씩 걸치므로, 서로 겹치지 않을 만큼 줄 사이를 띄운다.
+            var group = Ui.Vertical(box.gameObject, 20f, 0);
+            group.childForceExpandWidth = false;
+            workersRoot = box.gameObject;
+            workersRoot.SetActive(false);
+        }
+
+        /// <summary>
+        /// "일하는 중" 구역을 지금 배치 상태에 맞춘다. 배치가 달라졌을 때만 다시 만든다.
+        /// </summary>
+        void RefreshWorkers()
+        {
+            workersBuilder.Length = 0;
+            foreach (var resident in game.Catalog.residents)
+            {
+                var workplace = game.FindObject(game.AssignedObjectOf(resident.id));
+                if (workplace == null) continue;
+                workersBuilder.Append(resident.id).Append(':').Append(workplace.id).Append(':')
+                    .Append(workplace.defId).Append(';');
+            }
+
+            string current = workersBuilder.ToString();
+            if (current == workersSignature) return;
+            workersSignature = current;
+            hasWorkers = current.Length > 0;
+
+            Transform list = workersRoot.transform;
+            Ui.Clear(list);
+            if (!hasWorkers) return;
+
+            var title = Ui.Chip("Title", list, null, "일하는 중", Ui.Pill, 40f, 22f);
+            Ui.Fixed(title.transform.parent.gameObject, 150f, 40f);
+
+            foreach (var resident in game.Catalog.residents)
+            {
+                var workplace = game.FindObject(game.AssignedObjectOf(resident.id));
+                if (workplace == null) continue;
+                var workplaceDef = game.Catalog.GetPlaceable(workplace.defId);
+                int objectId = workplace.id;
+
+                // 누르면 그 시설의 창이 열린다.
+                var row = Ui.ButtonBox("Worker " + resident.id, list, Ui.CapsuleSprite, Ui.Pill,
+                    () => OpenObject(objectId));
+                Ui.Fixed(row.gameObject, 280f, 64f);
+
+                // 얼굴 그림은 알약 모양 바탕보다 조금 크게, 위아래로 걸치게 둔다.
+                var face = Ui.Picture("Face", row.transform, Art("resident_" + resident.id));
+                Ui.Put(face.rectTransform, 0f, 0.5f, 6f, 0f, 80f, 80f);
+
+                var place = Ui.Label("Place", row.transform,
+                    workplaceDef != null ? workplaceDef.displayName : workplace.defId,
+                    24f, Color.white, TextAlignmentOptions.Left, true);
+                Ui.Stretch(place.rectTransform, 94f, 0f, 16f, 0f);
+            }
+        }
+
+        /// <summary>놓여 있는 것을 고른 것처럼 그 창이나 시트를 연다.</summary>
+        void OpenObject(int objectId)
+        {
+            if (game.FindObject(objectId) == null) return;
+            selectedId = objectId;
+            world.SelectedObjectId = objectId;
+            Open(PanelKind.Selection);
         }
 
         void BuildMenus(Transform root)
@@ -443,6 +519,8 @@ namespace ZooZooClub.Client
             }
             if (menuRoot.activeSelf != showMenus) menuRoot.SetActive(showMenus);
             if (expandRoot.activeSelf != showMenus) expandRoot.SetActive(showMenus);
+            bool showWorkers = showMenus && hasWorkers;
+            if (workersRoot.activeSelf != showWorkers) workersRoot.SetActive(showWorkers);
 
             if (toastRoot.activeSelf && Time.unscaledTime >= toastUntil) toastRoot.SetActive(false);
 
@@ -502,6 +580,7 @@ namespace ZooZooClub.Client
             if (ready > 0) ordersBadgeText.text = ready.ToString();
 
             RefreshRaidChip();
+            RefreshWorkers();
         }
 
         void RefreshRaidChip()

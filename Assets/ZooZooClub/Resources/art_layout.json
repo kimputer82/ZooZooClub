@@ -30,9 +30,12 @@
     {"id": "raid_safe", "width": 0.62, "lift": 0.095, "offsetX": -0.02},
     {"id": "guard", "width": 0.586, "lift": 0.2, "offsetX": -0.01},
     {"id": "watchtower", "width": 0.641, "lift": 0.062, "offsetX": 0},
-    {"id": "invader_raccoon", "width": 0.498, "lift": 0, "offsetX": 0},
+    {"id": "invader_raccoon", "width": 0.568, "lift": 0, "offsetX": 0},
+    {"id": "invader_raccoon_back", "width": 0.539, "lift": 0, "offsetX": 0},
     {"id": "invader_wolf", "width": 0.498, "lift": 0, "offsetX": 0},
-    {"id": "invader_boar", "width": 0.586, "lift": 0, "offsetX": 0},
+    {"id": "invader_wolf_back", "width": 0.445, "lift": 0, "offsetX": 0},
+    {"id": "invader_boar", "width": 0.574, "lift": 0, "offsetX": 0},
+    {"id": "invader_boar_back", "width": 0.551, "lift": 0, "offsetX": 0},
     {"id": "bench_back", "width": 0.973, "lift": 0.129, "offsetX": -0.014},
     {"id": "popcorn_cart_back", "width": 0.914, "lift": 0.133, "offsetX": 0.164}
   ]
