@@ -16,8 +16,8 @@ namespace ZooZooClub.EditorTools
     /// 프로젝트의 Logs/ZooBridge/cmd.txt 에 "아이디 명령" 한 줄을 쓰면 실행하고,
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
-    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear
-    /// 플레이 중 점검용: ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
+    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
+    /// 플레이 중 점검용: login <이름>, logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -146,6 +146,18 @@ namespace ZooZooClub.EditorTools
                     WriteOut(id + " raid: " + Raid(argument));
                     break;
 
+                case "login":
+                    WriteOut(id + " login: " + LogIn(argument));
+                    break;
+
+                case "logout":
+                    WriteOut(id + " logout: " + LogOut());
+                    break;
+
+                case "quiz":
+                    WriteOut(id + " quiz: " + QuizExcelImporter.ImportNow());
+                    break;
+
                 case "grade":
                     WriteOut(id + " grade: " + SetGrade(argument));
                     break;
@@ -241,6 +253,25 @@ namespace ZooZooClub.EditorTools
         static readonly string StateDumpPath = Path.Combine(Dir, "state.json");
 
         /// <summary>이름이 같은 켜져 있는 버튼을 찾아 누른 것처럼 동작시킨다.</summary>
+        static string LogIn(string name)
+        {
+            if (!EditorApplication.isPlaying) return "skipped, not playing";
+            var session = GameSession.Instance;
+            if (session == null) return "no session";
+            string error = session.Login(name);
+            return error ?? ("ok, save=" + Path.GetFileName(session.SavePath));
+        }
+
+        static string LogOut()
+        {
+            if (!EditorApplication.isPlaying) return "skipped, not playing";
+            var session = GameSession.Instance;
+            if (session == null) return "no session";
+            if (session.Game == null) return "not logged in";
+            session.Logout();
+            return "ok";
+        }
+
         static string ClickButton(string name)
         {
             if (!EditorApplication.isPlaying) return "skipped, not playing";
@@ -381,9 +412,17 @@ namespace ZooZooClub.EditorTools
 
         // ---------- 저장 파일 (테스트용) ----------
 
+        /// <summary>
+        /// 개발 도구가 다루는 저장 파일: 마지막으로 들어온 이름의 저장 파일.
+        /// 아직 아무도 들어온 적이 없으면 이름별 저장이 생기기 전의 옛 파일.
+        /// </summary>
         static string SavePath
         {
-            get { return Path.Combine(Application.persistentDataPath, "save.json"); }
+            get
+            {
+                string path = SaveFiles.PathFor(SaveFiles.LastName);
+                return path ?? SaveFiles.LegacyPath;
+            }
         }
 
         [MenuItem("ZooZooClub/저장 파일 삭제 (새 게임)")]

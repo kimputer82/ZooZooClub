@@ -58,6 +58,8 @@ namespace ZooZooClub.Core
     public class GameState
     {
         public int version = 1;
+        /// <summary>이 마을 주인의 이름(로그인할 때 적은 이름).</summary>
+        public string playerName = "";
         public long createdAt;
         public long coins;
         public int gems;
@@ -123,6 +125,7 @@ namespace ZooZooClub.Core
             if (orders == null) orders = new List<Order>();
             if (assignments == null) assignments = new List<ResidentAssignment>();
             if (quizRecent == null) quizRecent = new List<string>();
+            if (playerName == null) playerName = "";
             if (raidWave < 0) raidWave = 0;
 
             foreach (var obj in objects)

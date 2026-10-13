@@ -55,6 +55,12 @@ namespace ZooZooClub.Client
         UImage raidChipImage;
         TextMeshProUGUI raidText;
 
+        /// <summary>학생이 "나가기"를 눌렀다. 저장하고 로그인 화면으로 돌아가는 일은 GameSession이 한다.</summary>
+        public event Action LogoutRequested;
+
+        // 레벨 표시 아래: 지금 들어와 있는 학생의 이름과 나가기.
+        GameObject playerRoot;
+
         // 화면 왼쪽에 늘 보이는 "일하는 중" 구역: 시설에 배치된 주민의 얼굴과 일터 이름.
         GameObject workersRoot;
         string workersSignature;
@@ -165,6 +171,7 @@ namespace ZooZooClub.Client
             BuildLevelBadge(root);
             BuildCurrencies(root);
             BuildRaidChip(root);
+            BuildPlayer(root);
             BuildWorkers(root);
             BuildMenus(root);
             BuildHint(root);
@@ -235,10 +242,31 @@ namespace ZooZooClub.Client
             raidChipRoot.SetActive(false);
         }
 
+        void BuildPlayer(Transform root)
+        {
+            var button = Ui.ButtonBox("LogoutButton", root, Ui.CapsuleSprite, Ui.Pill, () =>
+            {
+                if (LogoutRequested != null) LogoutRequested();
+            });
+            Ui.Put((RectTransform)button.transform, 0f, 1f, 24f, -112f, 320f, 52f);
+
+            var name = Ui.Label("Name", button.transform, game.State.playerName, 24f, Color.white,
+                TextAlignmentOptions.Left, true);
+            Ui.Stretch(name.rectTransform, 24f, 0f, 108f, 0f);
+            ShowAsWritten(name, 15f);
+            name.textWrappingMode = TextWrappingModes.NoWrap;
+
+            var exit = Ui.Label("Exit", button.transform, "나가기", 20f, new Color(1f, 1f, 1f, 0.72f),
+                TextAlignmentOptions.Right);
+            Ui.Stretch(exit.rectTransform, 0f, 0f, 22f, 0f);
+
+            playerRoot = button.gameObject;
+        }
+
         void BuildWorkers(Transform root)
         {
             var box = Ui.Rect("Workers", root);
-            Ui.Put(box, 0f, 1f, 24f, -122f, 300f, 520f);
+            Ui.Put(box, 0f, 1f, 24f, -182f, 300f, 520f);
             // 주민 그림이 줄 위아래로 조금씩 걸치므로, 서로 겹치지 않을 만큼 줄 사이를 띄운다.
             var group = Ui.Vertical(box.gameObject, 20f, 0);
             group.childForceExpandWidth = false;
@@ -519,6 +547,7 @@ namespace ZooZooClub.Client
             }
             if (menuRoot.activeSelf != showMenus) menuRoot.SetActive(showMenus);
             if (expandRoot.activeSelf != showMenus) expandRoot.SetActive(showMenus);
+            if (playerRoot.activeSelf != showMenus) playerRoot.SetActive(showMenus);
             bool showWorkers = showMenus && hasWorkers;
             if (workersRoot.activeSelf != showWorkers) workersRoot.SetActive(showWorkers);
 
@@ -1197,6 +1226,7 @@ namespace ZooZooClub.Client
             Ui.Fixed(card.gameObject, 0f, 190f);
             var question = Ui.Label("Text", card.transform, quiz.question, 36f, Ui.Ink, TextAlignmentOptions.Center, true);
             Ui.Stretch(question.rectTransform, 28f, 22f, 28f, 16f);
+            ShowAsWritten(question, 22f);
 
             bool answered = quizPicked != 0;
             var grid = Ui.Grid("Choices", windowContent, 476f, 96f, 16f, 2);
@@ -1209,7 +1239,8 @@ namespace ZooZooClub.Client
 
                 Action onClick = null;
                 if (!answered) onClick = () => AnswerQuiz(number);
-                Ui.Button("Choice " + (i + 1), grid, quiz.choices[number - 1], onClick, 96f, 30f, color);
+                var choiceButton = Ui.Button("Choice " + (i + 1), grid, quiz.choices[number - 1], onClick, 96f, 30f, color);
+                ShowAsWritten(choiceButton.GetComponentInChildren<TextMeshProUGUI>(), 18f);
             }
 
             windowFooter.gameObject.SetActive(true);
@@ -1226,6 +1257,7 @@ namespace ZooZooClub.Client
             var result = Ui.Label("Result", windowFooter, resultText, 28f, quizCorrect ? Ui.Good : Ui.Bad,
                 TextAlignmentOptions.Left, true);
             result.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+            ShowAsWritten(result, 18f);
 
             var next = Ui.Button("NextQuiz", windowFooter, "다음 문제", () =>
             {
@@ -1245,6 +1277,20 @@ namespace ZooZooClub.Client
             };
             tick();
             tickers.Add(tick);
+        }
+
+        /// <summary>
+        /// 선생님이 적은 글(문제, 보기)을 적힌 그대로 보여 주게 한다. 꺾쇠 괄호(수식의 부등호 등)나 역슬래시가
+        /// 꾸밈 명령으로 읽혀 사라지지 않게 하고, 글이 길면 칸에 들어가도록 minSize까지 글자를 줄인다.
+        /// </summary>
+        static void ShowAsWritten(TextMeshProUGUI label, float minSize)
+        {
+            if (label == null) return;
+            label.richText = false;
+            label.parseCtrlCharacters = false;
+            label.enableAutoSizing = true;
+            label.fontSizeMax = label.fontSize;
+            label.fontSizeMin = Mathf.Min(minSize, label.fontSize);
         }
 
         void AnswerQuiz(int number)
