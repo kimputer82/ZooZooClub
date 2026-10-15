@@ -147,17 +147,23 @@ namespace ZooZooClub.Client
             Sprite sprite = ArtLibrary.Get(StartArt);
             if (sprite == null)
             {
-                Ui.Button("StartButton", parent, "시작", () => Submit(input.text), StartFallbackHeight, 38f, Ui.Green);
+                Ui.Button("StartButton", parent, "시작", () => Submit(TypedName), StartFallbackHeight, 38f, Ui.Green);
                 return;
             }
 
             // '시작' 글자가 그림에 들어 있으므로 그림을 통째로 버튼으로 쓴다.
             startHeight = ContentWidth * sprite.rect.height / sprite.rect.width;
-            var button = Ui.ButtonBox("StartButton", parent, sprite, Color.white, () => Submit(input.text));
+            var button = Ui.ButtonBox("StartButton", parent, sprite, Color.white, () => Submit(TypedName));
             var image = (Image)button.targetGraphic;
             image.type = Image.Type.Simple;
             image.preserveAspect = true;
             Ui.Fixed(button.gameObject, 0f, startHeight);
+        }
+
+        /// <summary>지금 이름 칸에 적힌 글. 브라우저에서는 HTML 입력 칸의 값이다.</summary>
+        string TypedName
+        {
+            get { return WebNameInput.Available ? WebNameInput.Value : input.text; }
         }
 
         TMP_InputField BuildInput(Transform parent)
@@ -196,7 +202,22 @@ namespace ZooZooClub.Client
             field.onValueChanged.AddListener(_ => SetError(""));
 
             box.gameObject.SetActive(true);
+
+            // 브라우저에서는 한글 조합이 안 되므로 유니티 입력 칸 대신 같은 자리에 HTML 입력 칸을 얹는다(Update 참고).
+            if (WebNameInput.Available)
+            {
+                field.enabled = false;
+                placeholder.enabled = false;
+                text.enabled = false;
+            }
             return field;
+        }
+
+        void Update()
+        {
+            if (!WebNameInput.Available || input == null) return;
+            WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
+            if (WebNameInput.TakeSubmit()) Submit(TypedName);
         }
 
         /// <summary>화면을 보여 준다. 하던 이름 목록을 새로 채우고 이름 칸을 비운다.</summary>
@@ -204,6 +225,7 @@ namespace ZooZooClub.Client
         {
             gameObject.SetActive(true);
             input.text = "";
+            WebNameInput.Clear();
             SetError("");
 
             Ui.Clear(recentGrid);
@@ -223,8 +245,16 @@ namespace ZooZooClub.Client
             if (any) height += Spacing * 2f + RecentTitleHeight + rows * RecentHeight + (rows - 1) * RecentGap;
             Arrange(height);
 
-            input.Select();
-            input.ActivateInputField();
+            if (WebNameInput.Available)
+            {
+                WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
+                WebNameInput.Focus();
+            }
+            else
+            {
+                input.Select();
+                input.ActivateInputField();
+            }
         }
 
         /// <summary>로고와 창을 한 덩어리로 보고, 화면 위쪽과 동물들 머리 사이의 한가운데에 놓는다.</summary>
@@ -251,6 +281,7 @@ namespace ZooZooClub.Client
 
         public void Hide()
         {
+            WebNameInput.Hide();
             gameObject.SetActive(false);
         }
 
@@ -261,7 +292,9 @@ namespace ZooZooClub.Client
             if (error != null)
             {
                 SetError(error);
-                if (gameObject.activeInHierarchy) input.ActivateInputField();
+                if (!gameObject.activeInHierarchy) return;
+                if (WebNameInput.Available) WebNameInput.Focus();
+                else input.ActivateInputField();
             }
         }
 
