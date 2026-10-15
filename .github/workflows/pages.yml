@@ -1,11 +1,10 @@
 # 저장소의 Web/ 폴더(웹 빌드 결과)를 GitHub Pages로 공개한다.
-# main에 푸시할 때마다 자동으로 올라간다. 저장소 설정 > Pages > Source 를 "GitHub Actions"로 한 번만 바꿔 두면 된다.
+# main에 푸시할 때마다 자동으로 올라간다(1분 정도 걸린다). 저장소 설정 > Pages > Source 를 "GitHub Actions"로 한 번만 바꿔 두면 된다.
 name: Pages
 
 on:
   push:
     branches: [main]
-    paths: ["Web/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:

@@ -73,6 +73,8 @@ namespace ZooZooClub.EditorTools
 
             // GitHub Pages가 밑줄로 시작하는 파일을 건너뛰지 않도록 Jekyll을 끈다.
             File.WriteAllText(Path.Combine(folder, ".nojekyll"), "");
+            // 언제 만든 빌드인지 적어 둔다(배포된 것이 새 빌드인지 확인할 때 주소 뒤에 /version.txt 를 붙여 본다).
+            File.WriteAllText(Path.Combine(folder, "version.txt"), DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "\n");
 
             double megabytes = summary.totalSize / (1024.0 * 1024.0);
             return "빌드 완료: " + folder + " (" + megabytes.ToString("0") + "MB, "
