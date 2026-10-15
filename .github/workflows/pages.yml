@@ -1,10 +1,10 @@
-# 저장소의 Web/ 폴더(웹 빌드 결과)를 GitHub Pages로 공개한다.
-# main에 푸시할 때마다 자동으로 올라간다(1분 정도 걸린다). 저장소 설정 > Pages > Source 를 "GitHub Actions"로 한 번만 바꿔 두면 된다.
+# (지금은 쓰지 않는다) Web/ 폴더만 GitHub Pages로 올리는 워크플로.
+# 현재는 저장소 설정 > Pages > Source 가 "Deploy from a branch"(main, root)라서 저장소 전체가 그대로 올라가고,
+# 게임 주소는 https://kimputer82.github.io/ZooZooClub/Web/ 이다(저장소 맨 위의 index.html이 그리로 넘겨 준다).
+# Source 를 "GitHub Actions"로 바꾸면 이 워크플로를 Actions 탭에서 수동(Run workflow)으로 돌려 쓸 수 있다.
 name: Pages
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

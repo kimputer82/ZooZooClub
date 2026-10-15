@@ -47,6 +47,7 @@ namespace ZooZooClub.Client
         RectTransform logo;
         RectTransform panel;
         TMP_InputField input;
+        TextMeshProUGUI[] unityInputLabels;
         TextMeshProUGUI errorText;
         GameObject recentTitle;
         RectTransform recentGrid;
@@ -207,15 +208,26 @@ namespace ZooZooClub.Client
             if (WebNameInput.Available)
             {
                 field.enabled = false;
-                placeholder.enabled = false;
-                text.enabled = false;
+                unityInputLabels = new[] { placeholder, text };
+                HideUnityInputLabels();
             }
             return field;
+        }
+
+        /// <summary>브라우저에서는 유니티 입력 칸의 글자(안내 글 포함)를 숨긴다. 입력 칸이 글을 바꿀 때 다시 켜지므로 거듭 부른다.</summary>
+        void HideUnityInputLabels()
+        {
+            if (unityInputLabels == null) return;
+            foreach (var label in unityInputLabels)
+            {
+                if (label != null && label.enabled) label.enabled = false;
+            }
         }
 
         void Update()
         {
             if (!WebNameInput.Available || input == null) return;
+            HideUnityInputLabels();
             WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
             if (WebNameInput.TakeSubmit()) Submit(TypedName);
         }
@@ -225,6 +237,7 @@ namespace ZooZooClub.Client
         {
             gameObject.SetActive(true);
             input.text = "";
+            HideUnityInputLabels();
             WebNameInput.Clear();
             SetError("");
 
