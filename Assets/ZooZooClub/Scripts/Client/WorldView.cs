@@ -593,6 +593,9 @@ namespace ZooZooClub.Client
 
             groundWidth = width;
             groundHeight = height;
+
+            // 땅 크기가 정해졌으니 둘레의 배경 그림도 거기에 맞춘다.
+            FitBackdrop();
         }
 
         static SpriteRenderer NewSprite(string name, Transform parent, Sprite sprite)
@@ -1067,32 +1070,25 @@ namespace ZooZooClub.Client
 
             foreach (var view in residents.Values)
             {
-                // 시설에 배치된 주민은 그 시설 위에 얼굴을 작게 띄워 "안에서 일하는 중"임을 보여 준다.
-                // 나머지는 빈 땅을 산책한다.
+                // 시설에 배치된 주민은 건물 안에서 일하는 것으로 보고 마을에서는 보이지 않게 한다.
+                // 누가 어디서 일하는지는 화면 왼쪽의 "일하는 중" 구역에 나온다. 나머지는 빈 땅을 산책한다.
                 int assigned = game.AssignedObjectOf(view.def.id);
-                ObjectView workplace;
-                if (assigned != 0 && views.TryGetValue(assigned, out workplace))
+                if (assigned != 0 && views.ContainsKey(assigned))
                 {
-                    view.working = true;
-                    view.moving = false;
-                    view.root.transform.localScale = new Vector3(0.7f, 0.7f, 1f);
-                    view.root.transform.localPosition = workplace.root.transform.localPosition
-                        + new Vector3(workplace.center.x, workplace.labelY + 0.3f, 0f);
-                    view.facingBack = false;
-                    view.body.transform.localScale = view.front.scale;
-                    view.body.transform.localPosition = view.front.rest
-                        + new Vector3(0f, Mathf.Sin(now * 3f + view.phase) * 0.02f, 0f);
-                    view.body.flipX = false;
-                    view.body.sortingOrder = LabelOrder;
-                    if (view.front.idle != null) view.body.sprite = view.front.idle;
+                    if (!view.working)
+                    {
+                        view.working = true;
+                        view.moving = false;
+                        view.root.SetActive(false);
+                    }
                     continue;
                 }
 
                 if (view.working)
                 {
-                    // 일을 마치고 나오면 원래 있던 자리에서 다시 산책을 시작한다.
+                    // 일을 마치고 나오면 들어가기 전에 있던 자리에서 다시 산책을 시작한다.
                     view.working = false;
-                    view.root.transform.localScale = Vector3.one;
+                    view.root.SetActive(true);
                     view.target = view.cell;
                     view.path.Clear();
                     view.pathIndex = 0;

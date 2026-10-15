@@ -614,6 +614,9 @@ namespace ZooZooClub.Client
 
         void RefreshRaidChip()
         {
+            // 문제를 푸는 동안에는 새 침략이 오지 않는다.
+            game.RaidHold = panel == PanelKind.Quiz;
+
             bool show = game.RaidActive || game.RaidsUnlocked;
             if (raidChipRoot.activeSelf != show) raidChipRoot.SetActive(show);
             if (!show) return;
@@ -652,8 +655,10 @@ namespace ZooZooClub.Client
             }
             else
             {
-                Toast(report.defeated + "마리 물리치고 " + report.escaped + "마리를 놓쳤어요.  도둑맞은 코인 "
-                    + report.coinsStolen.ToString("N0"));
+                string stolen = report.coinsStolen > 0
+                    ? "도둑맞은 코인 " + report.coinsStolen.ToString("N0")
+                    : "금고가 코인을 지켰어요";
+                Toast(report.defeated + "마리 물리치고 " + report.escaped + "마리를 놓쳤어요.  " + stolen);
             }
         }
 

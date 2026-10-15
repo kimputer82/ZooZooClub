@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #abdaf6; overflow: hidden; }
+    #unity-canvas { width: 100%; height: 100%; display: block; }
+    #loading {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: #5c3a21; font-size: 20px;
+    }
+    #bar { width: 320px; height: 20px; border: 3px solid #5c3a21; border-radius: 12px; overflow: hidden; background: #fff7e2; }
+    #fill { height: 100%; width: 0; background: #84ce54; transition: width 0.2s; }
+    #message { font-size: 15px; color: #967658; max-width: 520px; text-align: center; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading">
+    <div>Zoo Zoo Club 불러오는 중…</div>
+    <div id="bar"><div id="fill"></div></div>
+    <div id="message">처음에는 시간이 조금 걸려요. 창을 닫지 말고 기다려 주세요.</div>
+  </div>
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+    var canvas = document.querySelector("#unity-canvas");
+    var config = {
+      arguments: [],
+      dataUrl: "Build/{{{ DATA_FILENAME }}}",
+      frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+      workerUrl: "Build/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+      codeUrl: "Build/{{{ CODE_FILENAME }}}",
+#endif
+#if MEMORY_FILENAME
+      memoryUrl: "Build/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+      symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      matchWebGLToCanvasSize: true
+    };
+
+    createUnityInstance(canvas, config, function (progress) {
+      document.querySelector("#fill").style.width = Math.round(progress * 100) + "%";
+    }).then(function () {
+      document.querySelector("#loading").remove();
+    }).catch(function (message) {
+      document.querySelector("#message").textContent = "불러오지 못했어요: " + message;
+    });
+  </script>
+</body>
+</html>

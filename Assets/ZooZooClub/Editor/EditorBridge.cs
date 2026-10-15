@@ -16,7 +16,7 @@ namespace ZooZooClub.EditorTools
     /// 프로젝트의 Logs/ZooBridge/cmd.txt 에 "아이디 명령" 한 줄을 쓰면 실행하고,
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
-    /// 명령: ping, refresh, test, play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
+    /// 명령: ping, refresh, test, build(윈도우 빌드), buildweb(웹 빌드), play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
     /// 플레이 중 점검용: login <이름>, logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
     /// </summary>
     [InitializeOnLoad]
@@ -177,6 +177,14 @@ namespace ZooZooClub.EditorTools
 
                 case "test":
                     RunTests(id);
+                    break;
+
+                case "build":
+                    WriteOut(id + " build: " + BuildWindows.Build());
+                    break;
+
+                case "buildweb":
+                    WriteOut(id + " buildweb: " + BuildWeb.Build());
                     break;
 
                 case "play":

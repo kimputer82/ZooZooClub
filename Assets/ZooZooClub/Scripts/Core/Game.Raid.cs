@@ -69,6 +69,7 @@ namespace ZooZooClub.Core
         bool raidActive;
         RaidReport raidReport;
         int nextInvaderId = 1;
+        long raidStealAllowance;
 
         // 물체를 놓거나 옮기거나 치우면 true가 된다. 침략자들의 길을 다시 잡아야 한다는 뜻이다.
         bool layoutChanged = true;
@@ -77,6 +78,12 @@ namespace ZooZooClub.Core
         int raidGridWidth;
         int raidGridHeight;
         int raidGoal;
+
+        /// <summary>
+        /// true인 동안에는 새 침략이 시작되지 않고 다음 침략까지의 시간이 경고 시간 아래로 내려가지 않는다.
+        /// 화면 쪽에서 학생이 문제를 푸는 동안 켠다. 이미 시작된 침략은 그대로 진행된다.
+        /// </summary>
+        public bool RaidHold { get; set; }
 
         /// <summary>침략이 시작될 때 몇 번째 침략인지와 함께 호출된다.</summary>
         public event Action<int> RaidStarted;
@@ -180,6 +187,16 @@ namespace ZooZooClub.Core
                     NotifyChanged();
                     return;
                 }
+                if (RaidHold)
+                {
+                    long earliest = Now + Math.Max(0, Catalog.balance.raidWarningSeconds);
+                    if (State.nextRaidAt < earliest)
+                    {
+                        State.nextRaidAt = earliest;
+                        NotifyChanged();
+                    }
+                    return;
+                }
                 if (Now < State.nextRaidAt) return;
                 StartRaid();
             }
@@ -217,7 +234,7 @@ namespace ZooZooClub.Core
             var candidates = new List<InvaderDef>();
             foreach (var def in Catalog.invaders)
             {
-                if (def != null && def.firstWave <= wave) candidates.Add(def);
+                if (def != null && def.firstLevel <= State.level) candidates.Add(def);
             }
             if (candidates.Count == 0)
             {
@@ -227,12 +244,17 @@ namespace ZooZooClub.Core
                 }
             }
 
-            int extra = (wave - 1) / Math.Max(1, balance.raidWavesPerExtra);
-            int count = Math.Max(1, Math.Min(Math.Max(1, balance.raidMaxCount), balance.raidBaseCount + extra));
+            // 세기는 레벨을 따른다. 침략이 열린 레벨에서는 가장 약하고, 레벨이 오를수록 수와 체력이 는다.
+            int tier = Math.Max(0, State.level - balance.raidUnlockLevel);
+            int extra = tier / Math.Max(1, balance.raidLevelsPerExtra);
+            int count = Math.Min(Math.Max(1, balance.raidBaseCount + extra), Math.Max(1, balance.raidMaxCount));
             if (candidates.Count == 0) count = 0;
 
             int hpPercent = Math.Min(Math.Max(100, balance.raidHpMaxPercent),
-                100 + balance.raidHpGrowthPercent * (wave - 1));
+                100 + balance.raidHpGrowthPercent * tier);
+
+            int stealPercent = Math.Max(0, Math.Min(100, balance.raidMaxStealPercent));
+            raidStealAllowance = State.coins * stealPercent / 100;
 
             for (int i = 0; i < count; i++)
             {
@@ -445,7 +467,10 @@ namespace ZooZooClub.Core
                     : 1f;
                 if (invader.stealProgress < 1f) continue;
 
+                // 금고가 지키는 몫은 못 가져간다: 한 번의 침략에 잃는 코인은 시작할 때 가진 코인의 일정 비율까지다.
                 long stolen = Math.Min(State.coins, Math.Max(0, invader.def.stealCoins));
+                stolen = Math.Min(stolen, Math.Max(0, raidStealAllowance));
+                raidStealAllowance -= stolen;
                 State.coins -= stolen;
                 raidReport.escaped++;
                 raidReport.coinsStolen += stolen;

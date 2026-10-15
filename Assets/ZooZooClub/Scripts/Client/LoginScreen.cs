@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,28 +14,48 @@ namespace ZooZooClub.Client
     {
         const int MaxRecentNames = 6;
         const int RecentColumns = 3;
-        const float PanelWidth = 820f;
-        const float PanelBaseHeight = 548f;
 
-        // 아래에 세워 둔 동물들 위쪽 공간의 한가운데에 창을 둔다(화면 높이는 늘 1080으로 본다).
-        const float AnimalBottom = 36f;
-        const float AnimalSize = 170f;
-        const float PanelCenterY = (AnimalBottom + AnimalSize) / 2f;
+        // 화면 높이는 늘 1080으로 본다(아래 Init의 matchWidthOrHeight 참고).
+        const float ScreenHeight = 1080f;
+        const float TopMargin = 24f;
+        // 배경 그림 아래쪽에 서 있는 동물들의 머리 높이. 로고와 창은 이 위쪽 하늘에만 놓는다.
+        const float AnimalTop = 300f;
 
-        static readonly Color Grass = new Color(0.67f, 0.78f, 0.47f);
+        const string BackgroundArt = "login_background";
+        const string LogoArt = "login_logo";
+        const string StartArt = "login_start";
+
+        const float LogoWidth = 860f;
+        const float LogoFallbackHeight = 128f;
+        const float LogoGap = 14f;
+
+        const float PanelWidth = 780f;
+        const float PadSide = 60f;
+        const float PadTop = 40f;
+        const float PadBottom = 50f;
+        const float Spacing = 10f;
+        const float ContentWidth = PanelWidth - PadSide * 2f;
+        const float PromptHeight = 40f;
+        const float InputHeight = 88f;
+        const float ErrorHeight = 30f;
+        const float StartFallbackHeight = 96f;
+        const float RecentTitleHeight = 36f;
+        const float RecentHeight = 56f;
+        const float RecentGap = 12f;
 
         Func<string, string> onLogin;
+        RectTransform logo;
         RectTransform panel;
         TMP_InputField input;
         TextMeshProUGUI errorText;
         GameObject recentTitle;
         RectTransform recentGrid;
+        float startHeight = StartFallbackHeight;
 
         /// <summary>
         /// onLogin은 이름을 받아 들어가기를 시도하고, 안 되면 아이에게 보여 줄 이유를, 되면 null을 돌려준다.
-        /// animalArt는 화면 아래에 세워 둘 그림 이름들이다.
         /// </summary>
-        public void Init(Func<string, string> onLogin, IList<string> animalArt)
+        public void Init(Func<string, string> onLogin)
         {
             this.onLogin = onLogin;
 
@@ -47,93 +66,117 @@ namespace ZooZooClub.Client
             canvas.sortingOrder = 100;
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            // 세로 배치(이름 칸, 하던 이름 목록, 아래의 동물들)가 화면 비율에 따라 겹치지 않도록 높이에 맞춘다.
+            scaler.referenceResolution = new Vector2(1920f, ScreenHeight);
+            // 세로 배치(로고, 이름 칸, 하던 이름 목록, 배경의 동물들)가 화면 비율에 따라 겹치지 않도록 높이에 맞춘다.
             scaler.matchWidthOrHeight = 1f;
             canvasGo.AddComponent<GraphicRaycaster>();
             Transform root = canvasGo.transform;
 
-            // 바탕: 하늘과 풀밭. 뒤의 게임 화면을 가리고 클릭도 막는다.
-            var sky = Ui.Panel("Sky", root, PlaceholderArt.Sky);
-            Ui.Stretch(sky.rectTransform, 0f, 0f, 0f, 0f);
-            var grass = Ui.Panel("Grass", root, Grass);
-            grass.raycastTarget = false;
-            grass.rectTransform.anchorMin = new Vector2(0f, 0f);
-            grass.rectTransform.anchorMax = new Vector2(1f, 0f);
-            grass.rectTransform.pivot = new Vector2(0.5f, 0f);
-            grass.rectTransform.offsetMin = Vector2.zero;
-            grass.rectTransform.offsetMax = new Vector2(0f, 150f);
-
-            BuildAnimals(root, animalArt);
+            BuildBackdrop(root);
+            BuildLogo(root);
             BuildPanel(root);
         }
 
-        void BuildAnimals(Transform root, IList<string> animalArt)
+        /// <summary>바탕. 뒤의 게임 화면을 가리고 클릭도 막는다.</summary>
+        void BuildBackdrop(Transform root)
         {
-            if (animalArt == null) return;
+            // 그림이 없거나 화면을 다 덮지 못할 때 보이는 하늘색.
+            var sky = Ui.Panel("Sky", root, PlaceholderArt.Sky);
+            Ui.Stretch(sky.rectTransform, 0f, 0f, 0f, 0f);
 
-            var row = Ui.Rect("Animals", root);
-            Ui.Put(row, 0.5f, 0f, 0f, AnimalBottom, 1400f, AnimalSize);
-            var group = Ui.Horizontal(row.gameObject, 70f, 0);
-            group.childAlignment = TextAnchor.LowerCenter;
-            group.childForceExpandWidth = false;
+            Sprite sprite = ArtLibrary.Get(BackgroundArt);
+            if (sprite == null) return;
 
-            foreach (string art in animalArt)
+            var picture = Ui.Panel("Background", root, Color.white);
+            picture.sprite = sprite;
+            picture.raycastTarget = false;
+            // 화면 비율이 달라도 빈 곳 없이 덮는다. 아래쪽(동물들)을 기준으로 맞추고 넘치는 부분은 위나 옆에서 잘린다.
+            picture.rectTransform.pivot = new Vector2(0.5f, 0f);
+            var fitter = picture.gameObject.AddComponent<AspectRatioFitter>();
+            fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            fitter.aspectRatio = sprite.rect.width / sprite.rect.height;
+        }
+
+        void BuildLogo(Transform root)
+        {
+            Sprite sprite = ArtLibrary.Get(LogoArt);
+            float height = LogoFallbackHeight;
+            if (sprite != null)
             {
-                Sprite sprite = ArtLibrary.Get(art);
-                if (sprite != null) Ui.Icon(art, row, sprite, AnimalSize);
+                height = LogoWidth * sprite.rect.height / sprite.rect.width;
+                logo = Ui.Picture("Logo", root, sprite).rectTransform;
             }
+            else
+            {
+                logo = Ui.Label("Logo", root, "Zoo Zoo Club", 96f, Ui.Ink, TextAlignmentOptions.Center, true).rectTransform;
+            }
+            logo.sizeDelta = new Vector2(LogoWidth, height);
         }
 
         void BuildPanel(Transform root)
         {
             var box = Ui.Box("LoginPanel", root, Ui.PanelSprite, Color.white);
             panel = box.rectTransform;
-            Ui.Put(panel, 0.5f, 0.5f, 0f, PanelCenterY, PanelWidth, PanelBaseHeight);
 
             var content = Ui.Rect("Content", panel);
-            Ui.Stretch(content, 70f, 56f, 70f, 50f);
-            var group = Ui.Vertical(content.gameObject, 14f, 0);
+            Ui.Stretch(content, PadSide, PadBottom, PadSide, PadTop);
+            var group = Ui.Vertical(content.gameObject, Spacing, 0);
             group.childAlignment = TextAnchor.UpperCenter;
 
-            var title = Ui.Label("Title", content, "Zoo Zoo Club", 76f, Ui.Ink, TextAlignmentOptions.Center, true);
-            Ui.Fixed(title.gameObject, 0f, 100f);
-            var prompt = Ui.Label("Prompt", content, "이름을 적고 내 마을로 들어가요", 30f, Ui.Muted, TextAlignmentOptions.Center);
-            Ui.Fixed(prompt.gameObject, 0f, 46f);
+            var prompt = Ui.Label("Prompt", content, "이름을 적고 내 마을로 들어가요", 28f, Ui.Muted, TextAlignmentOptions.Center);
+            Ui.Fixed(prompt.gameObject, 0f, PromptHeight);
 
             input = BuildInput(content);
 
-            errorText = Ui.Label("Error", content, "", 26f, Ui.Bad, TextAlignmentOptions.Center, true);
-            Ui.Fixed(errorText.gameObject, 0f, 38f);
+            errorText = Ui.Label("Error", content, "", 24f, Ui.Bad, TextAlignmentOptions.Center, true);
+            Ui.Fixed(errorText.gameObject, 0f, ErrorHeight);
 
-            Ui.Button("StartButton", content, "시작", () => Submit(input.text), 96f, 38f, Ui.Green);
+            BuildStartButton(content);
 
-            var recentLabel = Ui.Label("RecentTitle", content, "이 컴퓨터에서 하던 친구", 24f, Ui.Muted, TextAlignmentOptions.Center);
-            Ui.Fixed(recentLabel.gameObject, 0f, 56f);
+            var recentLabel = Ui.Label("RecentTitle", content, "이 컴퓨터에서 하던 친구", 22f, Ui.Muted, TextAlignmentOptions.Center);
+            Ui.Fixed(recentLabel.gameObject, 0f, RecentTitleHeight);
             recentLabel.alignment = TextAlignmentOptions.Bottom;
             recentTitle = recentLabel.gameObject;
 
-            float cellWidth = (PanelWidth - 140f - 16f * (RecentColumns - 1)) / RecentColumns;
-            recentGrid = Ui.Grid("Recent", content, cellWidth, 68f, 16f, RecentColumns);
+            float cellWidth = (ContentWidth - RecentGap * (RecentColumns - 1)) / RecentColumns;
+            recentGrid = Ui.Grid("Recent", content, cellWidth, RecentHeight, RecentGap, RecentColumns);
+        }
+
+        void BuildStartButton(Transform parent)
+        {
+            Sprite sprite = ArtLibrary.Get(StartArt);
+            if (sprite == null)
+            {
+                Ui.Button("StartButton", parent, "시작", () => Submit(input.text), StartFallbackHeight, 38f, Ui.Green);
+                return;
+            }
+
+            // '시작' 글자가 그림에 들어 있으므로 그림을 통째로 버튼으로 쓴다.
+            startHeight = ContentWidth * sprite.rect.height / sprite.rect.width;
+            var button = Ui.ButtonBox("StartButton", parent, sprite, Color.white, () => Submit(input.text));
+            var image = (Image)button.targetGraphic;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = true;
+            Ui.Fixed(button.gameObject, 0f, startHeight);
         }
 
         TMP_InputField BuildInput(Transform parent)
         {
             var box = Ui.Box("NameInput", parent, Ui.CardSprite, Color.white);
             box.raycastTarget = true;
-            Ui.Fixed(box.gameObject, 0f, 96f);
+            Ui.Fixed(box.gameObject, 0f, InputHeight);
 
             // 입력 칸은 글자 칸과 안내 글이 다 연결된 뒤에 켜야 한다.
             box.gameObject.SetActive(false);
 
             var area = Ui.Rect("Text Area", box.transform);
-            Ui.Stretch(area, 28f, 12f, 28f, 8f);
+            Ui.Stretch(area, 28f, 10f, 28f, 6f);
             area.gameObject.AddComponent<RectMask2D>();
 
-            var placeholder = Ui.Label("Placeholder", area, "여기에 이름", 40f, new Color(0.59f, 0.46f, 0.35f, 0.55f),
+            var placeholder = Ui.Label("Placeholder", area, "여기에 이름", 38f, new Color(0.59f, 0.46f, 0.35f, 0.55f),
                 TextAlignmentOptions.Center);
             Ui.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
-            var text = Ui.Label("Text", area, "", 40f, Ui.Ink, TextAlignmentOptions.Center, true);
+            var text = Ui.Label("Text", area, "", 38f, Ui.Ink, TextAlignmentOptions.Center, true);
             Ui.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
 
             var field = box.gameObject.AddComponent<TMP_InputField>();
@@ -142,7 +185,7 @@ namespace ZooZooClub.Client
             field.textComponent = text;
             field.placeholder = placeholder;
             if (Ui.Font != null) field.fontAsset = Ui.Font;
-            field.pointSize = 40f;
+            field.pointSize = 38f;
             field.lineType = TMP_InputField.LineType.SingleLine;
             field.characterLimit = PlayerName.MaxLength;
             field.richText = false;
@@ -168,18 +211,42 @@ namespace ZooZooClub.Client
             foreach (string name in names)
             {
                 string picked = name;
-                Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), 68f, 28f, Ui.Sand);
+                Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), RecentHeight, 26f, Ui.Sand);
             }
 
             bool any = names.Count > 0;
             recentTitle.SetActive(any);
             recentGrid.gameObject.SetActive(any);
             int rows = (names.Count + RecentColumns - 1) / RecentColumns;
-            float extra = any ? 70f + rows * 68f + (rows - 1) * 16f + 14f : 0f;
-            panel.sizeDelta = new Vector2(PanelWidth, PanelBaseHeight + extra);
+
+            float height = PadTop + PromptHeight + InputHeight + ErrorHeight + startHeight + Spacing * 3f + PadBottom;
+            if (any) height += Spacing * 2f + RecentTitleHeight + rows * RecentHeight + (rows - 1) * RecentGap;
+            Arrange(height);
 
             input.Select();
             input.ActivateInputField();
+        }
+
+        /// <summary>로고와 창을 한 덩어리로 보고, 화면 위쪽과 동물들 머리 사이의 한가운데에 놓는다.</summary>
+        void Arrange(float panelHeight)
+        {
+            float logoHeight = logo.sizeDelta.y;
+            float total = logoHeight + LogoGap + panelHeight;
+            float ceiling = ScreenHeight - TopMargin;
+            float top = Mathf.Min(ceiling, (ceiling + AnimalTop) / 2f + total / 2f);
+
+            PutBelow(logo, top, LogoWidth, logoHeight);
+            PutBelow(panel, top - logoHeight - LogoGap, PanelWidth, panelHeight);
+        }
+
+        /// <summary>윗변이 화면 바닥에서 top만큼 올라온 곳에 오도록 가운데에 놓는다.</summary>
+        static void PutBelow(RectTransform rect, float top, float width, float height)
+        {
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, top);
+            rect.sizeDelta = new Vector2(width, height);
         }
 
         public void Hide()

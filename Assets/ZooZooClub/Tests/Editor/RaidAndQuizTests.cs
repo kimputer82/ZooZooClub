@@ -34,7 +34,7 @@ namespace ZooZooClub.Tests
                 attackRange = 1.2f, attackDamage = 1, attackInterval = 5f
             });
 
-            c.invaders.Add(new InvaderDef { id = "thief", hp = 10, speed = 2f, stealCoins = 30, bounty = 5, xp = 0, firstWave = 1 });
+            c.invaders.Add(new InvaderDef { id = "thief", hp = 10, speed = 2f, stealCoins = 30, bounty = 5, xp = 0, firstLevel = 1 });
 
             c.levels.Add(new LevelDef { xpToNext = 1000 });
 
@@ -48,7 +48,8 @@ namespace ZooZooClub.Tests
             c.balance.raidIntervalSeconds = 100;
             c.balance.raidWarningSeconds = 10;
             c.balance.raidBaseCount = 3;
-            c.balance.raidWavesPerExtra = 100;
+            c.balance.raidLevelsPerExtra = 100;
+            c.balance.raidMaxStealPercent = 100;
             c.balance.raidMaxCount = 10;
             c.balance.raidHpGrowthPercent = 0;
             c.balance.raidSpawnGapSeconds = 0.5f;
@@ -302,13 +303,88 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
-        public void Raid_MoreInvadersInLaterWaves()
+        public void Raid_StrengthFollowsTheLevelNotTheWaveCount()
         {
-            catalog.balance.raidWavesPerExtra = 1;
+            catalog.balance.raidLevelsPerExtra = 1;
+            catalog.balance.raidHpGrowthPercent = 50;
+            catalog.balance.raidMaxCount = 4;
 
+            // 몇 번을 겪어도 레벨이 그대로면 세기도 그대로다.
             Assert.AreEqual(3, RunRaid().total);
+            Assert.AreEqual(3, RunRaid().total);
+
+            float hpAtLevel3 = 0f;
+            game.State.level = 3;
+            Assert.AreEqual(4, RunRaid(() =>
+            {
+                foreach (var invader in game.Invaders) hpAtLevel3 = Math.Max(hpAtLevel3, invader.maxHp);
+            }).total);
+            Assert.AreEqual(20f, hpAtLevel3);
+
+            // 상한을 넘지 않는다.
+            game.State.level = 9;
             Assert.AreEqual(4, RunRaid().total);
-            Assert.AreEqual(5, RunRaid().total);
+        }
+
+        [Test]
+        public void Raid_InvadersAppearFromTheirLevel()
+        {
+            catalog.invaders.Add(new InvaderDef { id = "big", hp = 10, speed = 2f, stealCoins = 1, firstLevel = 3 });
+            catalog.balance.raidBaseCount = 1;
+
+            for (int i = 0; i < 10; i++)
+            {
+                RunRaid(() =>
+                {
+                    foreach (var invader in game.Invaders) Assert.AreEqual("thief", invader.def.id);
+                });
+            }
+
+            game.State.level = 3;
+            bool sawBig = false;
+            for (int i = 0; i < 30 && !sawBig; i++)
+            {
+                RunRaid(() =>
+                {
+                    foreach (var invader in game.Invaders) sawBig |= invader.def.id == "big";
+                });
+            }
+            Assert.IsTrue(sawBig);
+        }
+
+        [Test]
+        public void Raid_SafeKeepsMostOfTheCoins()
+        {
+            // 도둑 셋이 30씩 노리지만 한 번의 침략에는 가진 코인의 30%까지만 잃는다.
+            catalog.balance.raidMaxStealPercent = 30;
+            game.State.coins = 100;
+
+            var report = RunRaid();
+
+            Assert.AreEqual(3, report.escaped);
+            Assert.AreEqual(30, report.coinsStolen);
+            Assert.AreEqual(70, game.State.coins);
+        }
+
+        [Test]
+        public void RaidHold_DelaysTheNextRaidWhileSolvingAQuiz()
+        {
+            game.TickRaid(0.1f);
+            long scheduled = game.State.nextRaidAt;
+
+            game.RaidHold = true;
+            clock.Now = scheduled + 50;
+            game.TickRaid(0.1f);
+            Assert.IsFalse(game.RaidActive);
+            Assert.AreEqual(clock.Now + 10, game.State.nextRaidAt);
+
+            // 문제 창을 닫으면 경고 시간만큼 지난 뒤에 온다.
+            game.RaidHold = false;
+            game.TickRaid(0.1f);
+            Assert.IsFalse(game.RaidActive);
+            clock.Now += 10;
+            game.TickRaid(0.1f);
+            Assert.IsTrue(game.RaidActive);
         }
 
         [Test]

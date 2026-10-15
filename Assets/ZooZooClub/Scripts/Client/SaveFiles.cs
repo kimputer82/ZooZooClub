@@ -120,6 +120,8 @@ namespace ZooZooClub.Client
 
         static string CustomFolder()
         {
+            // 브라우저에서는 게임 파일 옆이라는 것이 없다.
+            if (WebSave.IsWeb) return null;
             try
             {
                 // 빌드한 게임에서는 실행 파일이 있는 폴더, 에디터에서는 프로젝트 맨 위 폴더.

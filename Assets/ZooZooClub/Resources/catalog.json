@@ -51,9 +51,9 @@
     { "id": "legendary", "displayName": "전설", "weight": 3, "damagePercent": 250, "rangePercent": 140, "speedPercent": 135, "color": "#F0A030" }
   ],
   "invaders": [
-    { "id": "raccoon", "displayName": "너구리 도둑", "hp": 30, "speed": 0.9, "stealCoins": 20, "bounty": 4, "xp": 2, "firstWave": 1 },
-    { "id": "wolf", "displayName": "날쌘 늑대", "hp": 24, "speed": 1.5, "stealCoins": 25, "bounty": 5, "xp": 3, "firstWave": 3 },
-    { "id": "boar", "displayName": "멧돼지", "hp": 90, "speed": 0.6, "stealCoins": 50, "bounty": 10, "xp": 5, "firstWave": 5 }
+    { "id": "raccoon", "displayName": "너구리 도둑", "hp": 30, "speed": 0.9, "stealCoins": 20, "bounty": 10, "xp": 2, "firstLevel": 1 },
+    { "id": "wolf", "displayName": "날쌘 늑대", "hp": 24, "speed": 1.5, "stealCoins": 25, "bounty": 12, "xp": 3, "firstLevel": 3 },
+    { "id": "boar", "displayName": "멧돼지", "hp": 90, "speed": 0.6, "stealCoins": 50, "bounty": 25, "xp": 5, "firstLevel": 5 }
   ],
   "residents": [
     { "id": "dog", "displayName": "몽이", "species": "강아지", "unlockLevel": 1, "craftSpeedBonusPercent": 20 },
@@ -92,13 +92,14 @@
     "orderXpPercent": 30,
     "sellBackPercent": 50,
     "raidUnlockLevel": 2,
-    "raidIntervalSeconds": 180,
+    "raidIntervalSeconds": 240,
     "raidWarningSeconds": 30,
     "raidBaseCount": 2,
-    "raidWavesPerExtra": 2,
-    "raidMaxCount": 12,
+    "raidLevelsPerExtra": 2,
+    "raidMaxCount": 8,
     "raidHpGrowthPercent": 10,
-    "raidHpMaxPercent": 300,
+    "raidHpMaxPercent": 200,
+    "raidMaxStealPercent": 30,
     "raidSpawnGapSeconds": 1.2,
     "raidStealSeconds": 3.0,
     "starterObjects": [

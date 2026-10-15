@@ -173,8 +173,8 @@ namespace ZooZooClub.Core
         /// <summary>물리치면 받는 코인과 경험치.</summary>
         public int bounty;
         public int xp;
-        /// <summary>몇 번째 침략부터 나타나는지.</summary>
-        public int firstWave = 1;
+        /// <summary>마을이 이 레벨이 된 뒤부터 나타난다.</summary>
+        public int firstLevel = 1;
     }
 
     /// <summary>문제 하나. answer는 choices 가운데 정답이 몇 번째인지(1부터 센다).</summary>
@@ -249,15 +249,18 @@ namespace ZooZooClub.Core
 
         // 침략: 이 레벨부터 raidIntervalSeconds마다 침략자가 온다. 오기 raidWarningSeconds 전부터 경고한다.
         public int raidUnlockLevel = 2;
-        public int raidIntervalSeconds = 180;
+        public int raidIntervalSeconds = 240;
         public int raidWarningSeconds = 30;
-        // 침략자 수는 raidBaseCount에서 시작해 raidWavesPerExtra번마다 하나씩 늘고 raidMaxCount를 넘지 않는다.
+        // 침략의 세기는 몇 번째 침략인지가 아니라 마을의 레벨을 따른다(아무리 오래 해도 감당 못 할 만큼 세지지 않는다).
+        // 침략자 수는 raidBaseCount에서 시작해 침략이 열린 레벨보다 raidLevelsPerExtra레벨 오를 때마다 하나씩 늘고 raidMaxCount를 넘지 않는다.
         public int raidBaseCount = 2;
-        public int raidWavesPerExtra = 2;
-        public int raidMaxCount = 12;
-        // 침략이 거듭될수록 침략자 체력이 이만큼(%)씩 늘고 raidHpMaxPercent를 넘지 않는다.
+        public int raidLevelsPerExtra = 2;
+        public int raidMaxCount = 8;
+        // 레벨이 하나 오를 때마다 침략자 체력이 이만큼(%)씩 늘고 raidHpMaxPercent를 넘지 않는다.
         public int raidHpGrowthPercent = 10;
-        public int raidHpMaxPercent = 300;
+        public int raidHpMaxPercent = 200;
+        // 침략 한 번에 잃을 수 있는 코인은 침략이 시작될 때 가진 코인의 이 비율(%)까지다(나머지는 금고가 지킨다).
+        public int raidMaxStealPercent = 30;
         public float raidSpawnGapSeconds = 1.2f;
         // 마을 한가운데에 닿은 침략자가 코인을 훔치는 데 걸리는 시간. 그 안에 물리치면 코인을 지킨다.
         public float raidStealSeconds = 3f;

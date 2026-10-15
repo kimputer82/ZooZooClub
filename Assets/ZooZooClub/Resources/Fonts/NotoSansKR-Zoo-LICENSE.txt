@@ -1,0 +1,4 @@
+NotoSansKR-Zoo.otf 는 Noto Sans CJK KR Regular(Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source')에서
+게임에 필요한 글자(한글 음절 전체, 자모, 기본 라틴 문자와 기호)만 남겨 줄인 글꼴입니다.
+SIL Open Font License 1.1 로 배포됩니다: https://openfontlicense.org/open-font-license-official-text/
+(게임과 함께 자유롭게 쓸 수 있고, 글꼴 자체를 따로 팔 수는 없습니다.)

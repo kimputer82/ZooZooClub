@@ -93,12 +93,9 @@ namespace ZooZooClub.Client
                 eventSystem.AddComponent<InputSystemUIInputModule>();
             }
 
-            var animals = new List<string>();
-            foreach (var resident in catalog.residents) animals.Add("resident_" + resident.id);
-
             login = new GameObject("Login").AddComponent<LoginScreen>();
             login.transform.SetParent(transform, false);
-            login.Init(Login, animals);
+            login.Init(Login);
             login.Show();
 
             Debug.Log("[Zoo] ready. quiz=" + (catalog.quiz != null ? catalog.quiz.questions.Count : 0)
@@ -225,17 +222,19 @@ namespace ZooZooClub.Client
                 if (!File.Exists(SavePath))
                 {
                     File.Move(temp, SavePath);
-                    return;
                 }
-                try
+                else
                 {
-                    File.Replace(temp, SavePath, null);
-                }
-                catch (Exception)
-                {
-                    // 바꿔치기를 지원하지 않는 폴더(일부 공유 폴더 등)에서는 덮어쓴다.
-                    File.Copy(temp, SavePath, true);
-                    File.Delete(temp);
+                    try
+                    {
+                        File.Replace(temp, SavePath, null);
+                    }
+                    catch (Exception)
+                    {
+                        // 바꿔치기를 지원하지 않는 폴더(일부 공유 폴더, 브라우저)에서는 덮어쓴다.
+                        File.Copy(temp, SavePath, true);
+                        File.Delete(temp);
+                    }
                 }
             }
             catch (Exception e)

@@ -37,3 +37,9 @@
 *.fbx binary
 *.dll binary
 *.pdf binary
+
+# 웹 빌드 결과(Web/ 폴더)
+*.unityweb binary
+*.wasm binary
+*.data binary
+*.br binary

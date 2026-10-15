@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.TextCore.LowLevel;
 using UButton = UnityEngine.UI.Button;
 using UColorBlock = UnityEngine.UI.ColorBlock;
 using UContentSizeFitter = UnityEngine.UI.ContentSizeFitter;
@@ -71,9 +72,12 @@ namespace ZooZooClub.Client
             return "<color=#" + ColorUtility.ToHtmlStringRGB(color) + ">";
         }
 
+        /// <summary>게임에 넣어 둔 한글 글꼴(Resources/Fonts). 브라우저처럼 운영체제 글꼴이 없는 곳에서도 쓰인다.</summary>
+        const string BundledFont = "Fonts/NotoSansKR-Zoo";
+
         /// <summary>
-        /// 한글을 그릴 수 있는 글꼴. 지금은 운영체제에 설치된 글꼴을 빌려 쓴다.
-        /// 찾지 못하면 null이고, 그때는 TextMeshPro 기본 글꼴이 쓰인다(한글은 깨져 보인다).
+        /// 한글을 그릴 수 있는 글꼴. 게임에 넣어 둔 글꼴을 먼저 쓰고, 없으면 운영체제에 설치된 글꼴을 빌려 쓴다.
+        /// 둘 다 없으면 null이고, 그때는 TextMeshPro 기본 글꼴이 쓰인다(한글은 깨져 보인다).
         /// </summary>
         public static TMP_FontAsset Font
         {
@@ -81,6 +85,22 @@ namespace ZooZooClub.Client
             {
                 if (fontResolved) return font;
                 fontResolved = true;
+
+                var bundled = Resources.Load<UnityEngine.Font>(BundledFont);
+                if (bundled != null)
+                {
+                    try
+                    {
+                        font = TMP_FontAsset.CreateFontAsset(bundled, 90, 9, GlyphRenderMode.SDFAA, 1024, 1024,
+                            AtlasPopulationMode.Dynamic, true);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning("[Zoo] 넣어 둔 글꼴을 쓰지 못했습니다: " + e.Message);
+                        font = null;
+                    }
+                }
+                if (font != null) return font;
 
                 foreach (var family in KoreanFontFamilies)
                 {
