@@ -234,6 +234,7 @@ namespace ZooZooClub.Client
             var button = image.gameObject.AddComponent<UButton>();
             button.targetGraphic = image;
             StyleButton(button);
+            button.onClick.AddListener(() => Sound.Play(Sound.Click));
             if (onClick != null) button.onClick.AddListener(() => onClick());
 
             var layout = image.gameObject.AddComponent<ULayoutElement>();
@@ -255,6 +256,7 @@ namespace ZooZooClub.Client
             var button = image.gameObject.AddComponent<UButton>();
             button.targetGraphic = image;
             StyleButton(button);
+            button.onClick.AddListener(() => Sound.Play(Sound.Click));
             if (onClick != null) button.onClick.AddListener(() => onClick());
             return button;
         }

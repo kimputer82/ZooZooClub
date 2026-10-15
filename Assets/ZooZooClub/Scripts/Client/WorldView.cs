@@ -406,6 +406,8 @@ namespace ZooZooClub.Client
                     return;
                 }
 
+                Sound.Play(Sound.Build);
+
                 // 밭과 장식은 이어서 여러 개 놓을 수 있게 배치 상태를 유지한다.
                 var def = game.Catalog.GetPlaceable(placingDefId);
 

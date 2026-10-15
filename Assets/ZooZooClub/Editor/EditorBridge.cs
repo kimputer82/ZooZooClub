@@ -221,7 +221,8 @@ namespace ZooZooClub.EditorTools
 
                 case "reimport":
                     ArtImportSettings.ReimportArt();
-                    WriteOut(id + " art reimported");
+                    AudioImportSettings.ReimportAudio();
+                    WriteOut(id + " art and audio reimported");
                     break;
 
                 case "backup":

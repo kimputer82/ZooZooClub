@@ -172,6 +172,7 @@ namespace ZooZooClub.Client
             BuildCurrencies(root);
             BuildRaidChip(root);
             BuildPlayer(root);
+            BuildSoundButton(root);
             BuildWorkers(root);
             BuildMenus(root);
             BuildHint(root);
@@ -261,6 +262,21 @@ namespace ZooZooClub.Client
             Ui.Stretch(exit.rectTransform, 0f, 0f, 22f, 0f);
 
             playerRoot = button.gameObject;
+        }
+
+        /// <summary>이름 표시 오른쪽의 소리 켜기/끄기 버튼. 교실에서 여러 PC가 함께 울리지 않도록 둔다.</summary>
+        void BuildSoundButton(Transform root)
+        {
+            TextMeshProUGUI label = null;
+            var button = Ui.ButtonBox("SoundButton", root, Ui.CapsuleSprite, Ui.Pill, () =>
+            {
+                Sound.Muted = !Sound.Muted;
+                if (label != null) label.text = Sound.Muted ? "소리 꺼짐" : "소리 켜짐";
+            });
+            Ui.Put((RectTransform)button.transform, 0f, 1f, 356f, -112f, 150f, 52f);
+            label = Ui.Label("Text", button.transform, Sound.Muted ? "소리 꺼짐" : "소리 켜짐", 20f, Color.white,
+                TextAlignmentOptions.Center);
+            Ui.Stretch(label.rectTransform, 0f, 0f, 0f, 0f);
         }
 
         void BuildWorkers(Transform root)
@@ -571,6 +587,7 @@ namespace ZooZooClub.Client
 
         void OnLeveledUp(int level)
         {
+            Sound.Play(Sound.Win);
             string text = "레벨 " + level + " 달성!";
             foreach (var resident in game.Catalog.residents)
             {
@@ -641,6 +658,7 @@ namespace ZooZooClub.Client
         void OnRaidStarted(int wave)
         {
             RefreshRaidChip();
+            Sound.Play(Sound.Raid);
             Toast(wave + "번째 침략! 침략자들이 몰려와요.");
         }
 
@@ -651,6 +669,7 @@ namespace ZooZooClub.Client
 
             if (report.escaped == 0)
             {
+                Sound.Play(Sound.Win);
                 Toast("침략을 모두 막아 냈어요!  +" + report.bountyCoins.ToString("N0") + " 코인");
             }
             else
@@ -693,6 +712,7 @@ namespace ZooZooClub.Client
                 Report(harvested, text);
                 if (harvested == ActionResult.Ok)
                 {
+                    Sound.Play(Sound.Harvest);
                     // 다 자란 밭을 누르면 수확만 한다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
                     if (panel == PanelKind.Selection) ClosePanel();
                     return;
@@ -1059,7 +1079,9 @@ namespace ZooZooClub.Client
 
             var deliver = Ui.Button("Deliver", card, "납품", () =>
             {
-                Report(game.DeliverOrder(orderId), "납품 완료!");
+                var delivered = game.DeliverOrder(orderId);
+                Report(delivered, "납품 완료!");
+                if (delivered == ActionResult.Ok) Sound.Play(Sound.Coin);
             }, 60f, 26f, Ui.Green);
             deliver.interactable = game.HasItems(order.items);
 
@@ -1113,7 +1135,9 @@ namespace ZooZooClub.Client
                 Ui.Spacer(card, 0f, 1f);
                 Ui.Button("Sell", card, "판매 +" + value, () =>
                 {
-                    Report(game.SellItem(itemId, 1), null);
+                    var sold = game.SellItem(itemId, 1);
+                    Report(sold, null);
+                    if (sold == ActionResult.Ok) Sound.Play(Sound.Coin);
                 }, 48f, 20f, Ui.Yellow);
             }
         }
@@ -1314,6 +1338,7 @@ namespace ZooZooClub.Client
             quizPicked = number;
             quizCorrect = correct;
             quizReward = reward;
+            Sound.Play(correct ? Sound.Correct : Sound.Wrong);
             rebuildNeeded = true;
         }
 
@@ -1500,7 +1525,11 @@ namespace ZooZooClub.Client
                     // 수확하고 나면 시트를 닫는다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
                     var harvested = game.Harvest(objectId);
                     Report(harvested, null);
-                    if (harvested == ActionResult.Ok) ClosePanel();
+                    if (harvested == ActionResult.Ok)
+                    {
+                        Sound.Play(Sound.Harvest);
+                        ClosePanel();
+                    }
                 }, 66f, 28f, Ui.Green);
                 harvest.GetComponent<ULayoutElement>().flexibleWidth = 0f;
                 return;

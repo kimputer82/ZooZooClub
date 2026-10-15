@@ -93,6 +93,8 @@ namespace ZooZooClub.Client
                 eventSystem.AddComponent<InputSystemUIInputModule>();
             }
 
+            Sound.Ensure(transform);
+
             login = new GameObject("Login").AddComponent<LoginScreen>();
             login.transform.SetParent(transform, false);
             login.Init(Login);
@@ -141,6 +143,9 @@ namespace ZooZooClub.Client
             world.transform.SetParent(transform, false);
             world.Init(Game);
             worldObject = world.gameObject;
+
+            // 브라우저는 클릭 뒤에야 소리를 낼 수 있으므로 배경음은 여기(시작 버튼을 누른 뒤)서 튼다.
+            Sound.PlayMusic();
 
             var hud = new GameObject("Hud").AddComponent<GameHud>();
             hud.transform.SetParent(transform, false);

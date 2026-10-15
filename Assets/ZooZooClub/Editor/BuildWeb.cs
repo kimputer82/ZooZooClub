@@ -74,6 +74,10 @@ namespace ZooZooClub.EditorTools
                 return "빌드 실패(" + summary.result + "): 오류 " + summary.totalErrors + "개. Console 창을 확인해 주세요.";
             }
 
+            // 배경음은 브라우저가 직접 틀 수 있게 페이지 옆에 복사한다(Scripts/Client/Sound.cs 참고).
+            string music = Path.Combine(Application.dataPath, "ZooZooClub/Resources/Audio/" + ZooZooClub.Client.Sound.WebMusicFile);
+            if (File.Exists(music)) File.Copy(music, Path.Combine(folder, ZooZooClub.Client.Sound.WebMusicFile), true);
+
             // GitHub Pages가 밑줄로 시작하는 파일을 건너뛰지 않도록 Jekyll을 끈다.
             File.WriteAllText(Path.Combine(folder, ".nojekyll"), "");
             // 언제 만든 빌드인지 적어 둔다(배포된 것이 새 빌드인지 확인할 때 주소 뒤에 /version.txt 를 붙여 본다).
