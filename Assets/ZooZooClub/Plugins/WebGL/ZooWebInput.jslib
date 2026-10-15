@@ -76,6 +76,13 @@ mergeInto(LibraryManager.library, {
     return buffer;
   },
 
+  // 저장 파일을 브라우저 저장소(IndexedDB)에 바로 옮긴다. 자동 동기화가 있지만, 탭을 닫기 직전에도 남도록 저장할 때마다 부른다.
+  ZooWebSyncSaves: function () {
+    if (typeof FS !== "undefined" && FS.syncfs) {
+      FS.syncfs(false, function (err) { if (err) console.warn("[Zoo] save sync failed: " + err); });
+    }
+  },
+
   ZooWebInputTakeSubmit: function () {
     var flag = window.zooWebInputSubmit ? 1 : 0;
     window.zooWebInputSubmit = false;

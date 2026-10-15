@@ -36,13 +36,20 @@
       companyName: "DefaultCompany",
       productName: "ZooZooClub",
       productVersion: "1.0",
-      matchWebGLToCanvasSize: true
+      matchWebGLToCanvasSize: true,
+      // 저장 파일이 브라우저 저장소(IndexedDB)에 자동으로 남도록 한다.
+      autoSyncPersistentDataPath: true
     };
 
     createUnityInstance(canvas, config, function (progress) {
       document.querySelector("#fill").style.width = Math.round(progress * 100) + "%";
-    }).then(function () {
+    }).then(function (unityInstance) {
       document.querySelector("#loading").remove();
+      // 탭을 닫거나 다른 창으로 가기 직전에 바뀐 것을 저장한다.
+      var saveNow = function () { try { unityInstance.SendMessage("ZooZooClub", "SaveNow"); } catch (e) {} };
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") saveNow(); });
+      window.addEventListener("pagehide", saveNow);
+      window.addEventListener("beforeunload", saveNow);
     }).catch(function (message) {
       document.querySelector("#message").textContent = "불러오지 못했어요: " + message;
     });

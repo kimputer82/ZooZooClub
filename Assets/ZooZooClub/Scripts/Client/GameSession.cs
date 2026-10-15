@@ -241,6 +241,13 @@ namespace ZooZooClub.Client
             {
                 Debug.LogWarning("[Zoo] 저장하지 못했습니다: " + e.Message);
             }
+            WebSave.Flush();
+        }
+
+        /// <summary>바뀐 것이 있으면 지금 저장한다. 브라우저에서는 탭을 닫거나 숨길 때 페이지가 부른다.</summary>
+        public void SaveNow()
+        {
+            if (dirty) Save();
         }
 
         void Update()
@@ -257,6 +264,11 @@ namespace ZooZooClub.Client
         void OnApplicationPause(bool paused)
         {
             if (paused && dirty) Save();
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            if (!focused && dirty) Save();
         }
 
         void OnApplicationQuit()
