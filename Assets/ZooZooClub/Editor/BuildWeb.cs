@@ -47,6 +47,9 @@ namespace ZooZooClub.EditorTools
             PlayerSettings.WebGL.template = "PROJECT:ZooZooClub";
             PlayerSettings.runInBackground = true;
 
+            // 켤 때 나오는 "Made with Unity" 화면은 끈다(Unity 6부터는 무료 라이선스에서도 끌 수 있다).
+            PlayerSettings.SplashScreen.show = false;
+
             var options = new BuildPlayerOptions
             {
                 scenes = scenes.ToArray(),

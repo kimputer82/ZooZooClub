@@ -228,6 +228,8 @@ namespace ZooZooClub.Client
         {
             if (!WebNameInput.Available || input == null) return;
             HideUnityInputLabels();
+            // 유니티 시작 화면(Made with Unity)이 끝나기 전에는 입력 칸이 그 위에 떠 보이므로 기다린다.
+            if (!UnityEngine.Rendering.SplashScreen.isFinished) return;
             WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
             if (WebNameInput.TakeSubmit()) Submit(TypedName);
         }
@@ -260,8 +262,11 @@ namespace ZooZooClub.Client
 
             if (WebNameInput.Available)
             {
-                WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
-                WebNameInput.Focus();
+                if (UnityEngine.Rendering.SplashScreen.isFinished)
+                {
+                    WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
+                    WebNameInput.Focus();
+                }
             }
             else
             {
