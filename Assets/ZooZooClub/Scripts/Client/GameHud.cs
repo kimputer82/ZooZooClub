@@ -352,7 +352,8 @@ namespace ZooZooClub.Client
         void BuildMenus(Transform root)
         {
             var menu = Ui.Rect("Menu", root);
-            Ui.Put(menu, 1f, 0f, -24f, 18f, 800f, 170f);
+            // 버튼 여섯 개(랭킹 포함)가 들어가는 너비: 136 × 6 + 14 × 5.
+            Ui.Put(menu, 1f, 0f, -24f, 18f, 900f, 170f);
             var group = Ui.Horizontal(menu.gameObject, 14f, 0);
             group.childAlignment = TextAnchor.LowerRight;
             group.childForceExpandWidth = false;
