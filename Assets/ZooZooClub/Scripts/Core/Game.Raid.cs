@@ -154,14 +154,14 @@ namespace ZooZooClub.Core
             y = raidGoal / raidGridWidth;
         }
 
-        /// <summary>금고(지킬 곳)를 그 칸으로 옮길 수 있는지. 땅 안의 빈칸(바닥은 괜찮다)이어야 하고 침략 중에는 안 된다.</summary>
+        /// <summary>금고(지킬 곳)를 그 칸으로 옮길 수 있는지. 침략자가 설 수 있는 칸(빈칸, 바닥, 장식)이어야 하고 침략 중에는 안 된다.</summary>
         public bool CanMoveSafeTo(int x, int y)
         {
             if (raidActive) return false;
             if (!IsInsideLand(x, y, 1, 1)) return false;
             foreach (var obj in State.objects)
             {
-                if (!PlaceableKind.BlocksWalking(Catalog.GetPlaceable(obj.defId))) continue;
+                if (!PlaceableKind.BlocksInvaders(Catalog.GetPlaceable(obj.defId))) continue;
                 int width, height;
                 GetFootprint(obj, out width, out height);
                 if (x >= obj.x && x < obj.x + width && y >= obj.y && y < obj.y + height) return false;
@@ -344,7 +344,7 @@ namespace ZooZooClub.Core
 
             foreach (var obj in State.objects)
             {
-                if (!PlaceableKind.BlocksWalking(Catalog.GetPlaceable(obj.defId))) continue;
+                if (!PlaceableKind.BlocksInvaders(Catalog.GetPlaceable(obj.defId))) continue;
                 int objectWidth, objectHeight;
                 GetFootprint(obj, out objectWidth, out objectHeight);
                 for (int j = 0; j < objectHeight; j++)

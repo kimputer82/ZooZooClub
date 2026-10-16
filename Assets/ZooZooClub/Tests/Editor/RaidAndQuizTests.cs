@@ -23,6 +23,8 @@ namespace ZooZooClub.Tests
             var c = new GameCatalog();
 
             c.placeables.Add(new PlaceableDef { id = "fence", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 0 });
+            // 침략자의 길을 막는 것(장식과 바닥은 넘어 다니므로 막지 못한다).
+            c.placeables.Add(new PlaceableDef { id = "wall", kind = PlaceableKind.Facility, width = 1, height = 1, cost = 0, queueSlots = 1 });
             c.placeables.Add(new PlaceableDef
             {
                 id = "tower", kind = PlaceableKind.Defense, width = 1, height = 1, cost = 0,
@@ -220,7 +222,7 @@ namespace ZooZooClub.Tests
         public void Raid_GoalMovesWhenTheCentreIsBuiltOver()
         {
             int goalX, goalY;
-            Place("fence", Land / 2, Land / 2);
+            Place("wall", Land / 2, Land / 2);
 
             game.GetRaidGoal(out goalX, out goalY);
 
@@ -239,13 +241,13 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(1, game.State.safeX);
 
             // 막힌 칸과 땅 밖은 안 된다.
-            Place("fence", 2, 4);
+            Place("wall", 2, 4);
             Assert.AreEqual(ActionResult.InvalidPlacement, game.MoveSafe(2, 4));
             Assert.AreEqual(ActionResult.InvalidPlacement, game.MoveSafe(Land, 0));
             Assert.AreEqual(ActionResult.InvalidPlacement, game.MoveSafe(-1, 0));
 
             // 금고 칸에 무언가를 지으면 바로 옆 빈칸으로 비켜 선다.
-            Place("fence", 1, 4);
+            Place("wall", 1, 4);
             game.GetRaidGoal(out goalX, out goalY);
             Assert.IsFalse(goalX == 1 && goalY == 4);
             Assert.LessOrEqual(Math.Abs(goalX - 1) + Math.Abs(goalY - 4), 1);
@@ -275,7 +277,7 @@ namespace ZooZooClub.Tests
             var fences = new[] { 0, 1, 1, 1, 2, 1, 4, 1, 5, 1, 2, 3, 4, 3, 3, 4 };
             for (int i = 0; i < fences.Length; i += 2)
             {
-                Place("fence", fences[i], fences[i + 1]);
+                Place("wall", fences[i], fences[i + 1]);
                 blocked.Add(fences[i] + fences[i + 1] * Land);
             }
 
@@ -296,17 +298,55 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void Raid_InvadersWalkOverDecorations()
+        {
+            // 금고 둘레를 장식으로 빙 둘러도 침략자는 넘어 들어온다.
+            int goalX, goalY;
+            game.GetRaidGoal(out goalX, out goalY);
+            var fences = new HashSet<int>();
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    Place("fence", goalX + dx, goalY + dy);
+                    fences.Add(goalX + dx + (goalY + dy) * Land);
+                }
+            }
+
+            int x, y;
+            game.GetRaidGoal(out x, out y);
+            Assert.AreEqual(goalX, x);
+            Assert.AreEqual(goalY, y);
+
+            bool crossedFence = false;
+            var report = RunRaid(() =>
+            {
+                foreach (var invader in game.Invaders)
+                {
+                    if (!invader.entered || invader.x < 0f || invader.y < 0f || invader.x >= Land || invader.y >= Land) continue;
+                    crossedFence |= fences.Contains((int)Math.Floor(invader.x) + (int)Math.Floor(invader.y) * Land);
+                }
+            });
+            Assert.IsTrue(crossedFence, "침략자가 장식을 넘어오지 않았다");
+            Assert.Greater(report.escaped, 0);
+
+            // 장식 칸에도 금고를 옮길 수 있다.
+            Assert.AreEqual(ActionResult.Ok, game.MoveSafe(goalX + 1, goalY));
+        }
+
+        [Test]
         public void Raid_WalledOffTown_InvadersStillGetThrough()
         {
             // 땅 가장자리를 울타리로 빙 둘러 막는다. 길이 없어도 침략은 끝나야 한다.
             for (int i = 0; i < Land; i++)
             {
-                Place("fence", i, 0);
-                Place("fence", i, Land - 1);
+                Place("wall", i, 0);
+                Place("wall", i, Land - 1);
                 if (i > 0 && i < Land - 1)
                 {
-                    Place("fence", 0, i);
-                    Place("fence", Land - 1, i);
+                    Place("wall", 0, i);
+                    Place("wall", Land - 1, i);
                 }
             }
 
@@ -321,7 +361,7 @@ namespace ZooZooClub.Tests
             game.StartRaidNow();
             for (int i = 0; i < 20; i++) game.TickRaid(0.05f);
 
-            Place("fence", 2, 2);
+            Place("wall", 2, 2);
             Assert.AreEqual(ActionResult.Ok, game.ExpandLand());
 
             for (int step = 0; step < 5000 && game.RaidActive; step++) game.TickRaid(0.05f);

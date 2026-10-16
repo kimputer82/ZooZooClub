@@ -7,9 +7,9 @@
     {"id": "crop_strawberry", "width": 0.812, "lift": 0.25, "offsetX": 0.0},
     {"id": "crop_corn", "width": 0.656, "lift": 0.25, "offsetX": 0.0},
     {"id": "crop_pumpkin", "width": 0.844, "lift": 0.25, "offsetX": 0.0},
-    {"id": "bakery", "width": 2.0, "lift": 0.031, "offsetX": -0.117},
-    {"id": "juice_bar", "width": 2.0, "lift": 0.023, "offsetX": 0.016},
-    {"id": "jam_workshop", "width": 2.0, "lift": 0.016, "offsetX": -0.008},
+    {"id": "bakery", "width": 1.865, "lift": 0.0, "offsetX": -0.185},
+    {"id": "juice_bar", "width": 2.077, "lift": 0.005, "offsetX": 0.016},
+    {"id": "jam_workshop", "width": 1.73, "lift": 0.0, "offsetX": 0.009},
     {"id": "popcorn_cart", "width": 0.934, "lift": 0.133, "offsetX": 0.162},
     {"id": "fence", "width": 0.594, "lift": 0.0, "offsetX": -0.203},
     {"id": "flower_bed", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
@@ -53,8 +53,8 @@
     {"id": "floor_brick", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
     {"id": "floor_stone", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
     {"id": "floor_marble", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
-    {"id": "bakery_back", "width": 1.9, "lift": 0.02, "offsetX": 0.0},
-    {"id": "juice_bar_back", "width": 1.9, "lift": 0.02, "offsetX": 0.0},
-    {"id": "jam_workshop_back", "width": 1.9, "lift": 0.02, "offsetX": 0.0}
+    {"id": "bakery_back", "width": 1.806, "lift": 0.0, "offsetX": -0.178},
+    {"id": "juice_bar_back", "width": 2.018, "lift": 0.0, "offsetX": 0.126},
+    {"id": "jam_workshop_back", "width": 2.0, "lift": 0.0, "offsetX": -0.117}
   ]
 }

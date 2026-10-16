@@ -28,6 +28,8 @@ namespace ZooZooClub.Tests
             catalog.placeables.Add(bench);
             catalog.placeables.Add(sign);
             catalog.placeables.Add(fence);
+            // 침략자의 길을 막는 2칸짜리 시설(장식은 침략자가 넘어 다녀서 길을 막지 않는다).
+            catalog.placeables.Add(new PlaceableDef { id = "cart", kind = PlaceableKind.Facility, width = 2, height = 1, cost = 0, rotations = 4, queueSlots = 1 });
             catalog.levels.Add(new LevelDef { xpToNext = 1000 });
             catalog.balance.startCoins = 1000;
             catalog.balance.startLandSize = Land;
@@ -164,8 +166,8 @@ namespace ZooZooClub.Tests
         [Test]
         public void RaidGoal_AvoidsCellsCoveredByARotatedObject()
         {
-            // 옆으로 돌린 벤치가 한가운데 칸과 그 위 칸을 덮는다.
-            Place("bench", Land / 2, Land / 2, 1);
+            // 옆으로 돌린 수레가 한가운데 칸과 그 위 칸을 덮는다.
+            Place("cart", Land / 2, Land / 2, 1);
 
             int goalX, goalY;
             game.GetRaidGoal(out goalX, out goalY);

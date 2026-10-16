@@ -82,6 +82,12 @@ namespace ZooZooClub.Core
             return (UsesGround(a) && UsesGround(b)) || (UsesAbove(a) && UsesAbove(b));
         }
 
+        /// <summary>침략자의 길을 막는지. 바닥과 장식은 넘어 다닐 수 있어서 막지 않는다(장식으로 마을을 둘러막지 못하게).</summary>
+        public static bool BlocksInvaders(PlaceableDef def)
+        {
+            return def != null && def.kind != Floor && def.kind != Decor;
+        }
+
         /// <summary>지나가는 길을 막는지. 바닥은 막지 않는다.</summary>
         public static bool BlocksWalking(PlaceableDef def)
         {
