@@ -12,6 +12,8 @@ namespace ZooZooClub.Client
     /// 이름 규칙: 시설과 장식은 카탈로그의 id 그대로(bakery, tree ...),
     /// 작물은 crop_&lt;id&gt;, 새싹은 crop_sprout, 주민은 resident_&lt;id&gt;, 밭은 plot.
     /// 방어 시설은 등급마다 그림이 다르다: &lt;id&gt;_&lt;등급 id&gt; (예: guard_rare). 없으면 &lt;id&gt; 그림을 쓴다.
+    /// 돌릴 수 있는 배치물은 뒷모습 &lt;id&gt;_back, 옆 방향 &lt;id&gt;_side 그림을 둘 수 있다.
+    /// _side 그림이 없으면 옆 방향은 앞모습을 좌우로 뒤집어 보여 준다.
     /// </summary>
     public static class ArtLibrary
     {

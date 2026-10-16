@@ -17,7 +17,7 @@ namespace ZooZooClub.EditorTools
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
     /// 명령: ping, refresh, test, build(윈도우 빌드), buildweb(웹 빌드), play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
-    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
+    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향]
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -164,6 +164,10 @@ namespace ZooZooClub.EditorTools
 
                 case "grade":
                     WriteOut(id + " grade: " + SetGrade(argument));
+                    break;
+
+                case "place":
+                    WriteOut(id + " place: " + Place(argument));
                     break;
 
                 case "state":
@@ -381,6 +385,31 @@ namespace ZooZooClub.EditorTools
             obj.gradeId = parts[1];
             session.Save();
             return obj.defId + " " + objectId + " is now " + parts[1];
+        }
+
+        /// <summary>
+        /// 점검용: place &lt;defId&gt; &lt;x&gt; &lt;y&gt; [방향] 으로 배치물을 사서 놓는다.
+        /// 레벨과 코인이 모자라면 채워 주므로, 점검용 이름으로 들어온 뒤에만 쓴다.
+        /// </summary>
+        static string Place(string argument)
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var session = GameSession.Instance;
+            if (session == null || session.Game == null) return "no game";
+
+            var parts = argument.Split(' ');
+            int x, y, rotation = 0;
+            if (parts.Length < 3 || !int.TryParse(parts[1], out x) || !int.TryParse(parts[2], out y)
+                || (parts.Length > 3 && !int.TryParse(parts[3], out rotation)))
+                return "usage: place <defId> <x> <y> [rotation]";
+
+            var game = session.Game;
+            game.State.level = Math.Max(game.State.level, 10);
+            game.State.coins = Math.Max(game.State.coins, 100000);
+            int objectId;
+            var result = game.BuyAndPlace(parts[0], x, y, out objectId, rotation);
+            session.Save();
+            return parts[0] + " at " + x + "," + y + " rot=" + rotation + " -> " + result + " id=" + objectId;
         }
 
         static string Raid(string argument)

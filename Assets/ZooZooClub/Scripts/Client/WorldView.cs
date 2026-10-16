@@ -725,6 +725,18 @@ namespace ZooZooClub.Client
         {
             string artName = ArtLibrary.Variant(def.id, gradeId);
             if (Rotation.ShowsBack(rotation)) artName = ArtLibrary.Variant(artName, "back");
+            bool mirrored = Rotation.Mirrored(rotation);
+            // 옆 방향 그림(_side)이 따로 있으면 뒤집지 않고 그 그림을 그대로 쓴다.
+            bool sideArt = false;
+            if (mirrored)
+            {
+                string sideName = ArtLibrary.Variant(artName, "side");
+                if (sideName != artName)
+                {
+                    artName = sideName;
+                    sideArt = true;
+                }
+            }
             Sprite art = ArtLibrary.Get(artName);
             var layout = ArtLibrary.LayoutFor(artName, def.id);
 
@@ -737,11 +749,12 @@ namespace ZooZooClub.Client
 
             // 그림은 돌리기 전 모양(가로 def.width, 세로 def.height) 기준으로 그려져 있다.
             // 옆 방향은 앞쪽 꼭짓점을 지나는 세로선을 기준으로 좌우를 뒤집은 것이다.
-            float x = (def.width - def.height) * 0.25f + offsetX;
-            bool mirrored = Rotation.Mirrored(rotation);
+            // _side 그림은 이미 옆 방향으로 그려져 있으므로 offsetX는 뒤집지 않는다.
+            float x = (def.width - def.height) * 0.25f;
             if (mirrored) x = -x;
+            x += mirrored && !sideArt ? -offsetX : offsetX;
 
-            renderer.flipX = mirrored;
+            renderer.flipX = mirrored && !sideArt;
             renderer.color = Color.white;
             if (art == null) return false;
 
