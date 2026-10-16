@@ -1000,7 +1000,8 @@ namespace ZooZooClub.Client
             }
 
             bool showGrades = buildTab == 2 && game.Catalog.grades.Count > 0;
-            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f) + (showGrades ? 110f : 0f));
+            bool showSafe = buildTab == 2 && game.RaidsUnlocked;
+            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f) + (showGrades ? 110f : 0f) + (showSafe ? 84f : 0f));
             ShowHeader(60f);
             BuildTab("TabFacility", "밭 · 시설", 0);
             BuildTab("TabDecor", "장식", 1);
@@ -1008,9 +1009,30 @@ namespace ZooZooClub.Client
             BuildTab("TabFloor", "바닥", 3);
 
             if (showGrades) GradeChances();
+            if (showSafe) SafeRow();
 
             var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
             foreach (var def in shown) BuildCard(grid, def);
+        }
+
+        /// <summary>방어 탭: 침략자들이 노리는 금고(지킬 곳)를 옮기는 버튼.</summary>
+        void SafeRow()
+        {
+            var row = Ui.Rect("SafeRow", windowContent);
+            Ui.Fixed(row.gameObject, 0f, 70f);
+            var group = Ui.Horizontal(row.gameObject, 16f, 0);
+            group.childAlignment = TextAnchor.MiddleCenter;
+            group.childForceExpandWidth = false;
+
+            var move = Ui.Button("MoveSafe", row, "금고 위치 옮기기", () =>
+            {
+                ClosePanel();
+                world.BeginMovingSafe();
+            }, 64f, 24f, Ui.Orange);
+            Ui.Fixed(move.gameObject, 360f, 64f);
+            var hint = Ui.Label("Hint", row, "침략자들은 금고를 노려요. 방어 시설로 지키기 좋은 곳에 두세요.", 22f, Ui.Muted,
+                TextAlignmentOptions.Left);
+            Ui.Fixed(hint.gameObject, 720f, 64f);
         }
 
         /// <summary>방어 탭 맨 위: 살 때 등급이 무작위로 정해진다는 안내와 등급별 확률.</summary>

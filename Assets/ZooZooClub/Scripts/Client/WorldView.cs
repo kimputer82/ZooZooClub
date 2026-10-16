@@ -19,7 +19,9 @@ namespace ZooZooClub.Client
         {
             None,
             Placing,
-            Moving
+            Moving,
+            // 침략자들이 노리는 금고(지킬 곳)를 옮기는 중
+            MovingSafe
         }
 
         sealed class ObjectView
@@ -158,6 +160,7 @@ namespace ZooZooClub.Client
                     return name + " 놓을 곳을 클릭하세요  (" + keys + ")";
                 }
                 if (mode == Mode.Moving) return "옮길 곳을 클릭하세요  (" + keys + ")";
+                if (mode == Mode.MovingSafe) return "금고(지킬 곳)를 옮길 빈칸을 클릭하세요  (" + keys + ")";
                 return "";
             }
         }
@@ -245,6 +248,25 @@ namespace ZooZooClub.Client
             placingDefId = null;
             placingRotation = obj.rotation;
         }
+
+        /// <summary>침략자들이 노리는 금고(지킬 곳)를 옮기기 시작한다. 침략 중에는 옮길 수 없다.</summary>
+        public void BeginMovingSafe()
+        {
+            if (!game.RaidsUnlocked) return;
+            if (game.RaidActive)
+            {
+                Notify("침략 중에는 금고를 옮길 수 없어요.");
+                return;
+            }
+            mode = Mode.MovingSafe;
+            placingDefId = null;
+            movingObjectId = 0;
+            safeHoverActive = false;
+        }
+
+        // 금고를 옮기는 동안 마우스가 가리키는 칸.
+        Vector2Int safeHover;
+        bool safeHoverActive;
 
         /// <summary>지금 놓거나 옮기는 중인 배치물. 없으면 null.</summary>
         PlaceableDef PlacementDef
@@ -392,7 +414,14 @@ namespace ZooZooClub.Client
                 if (!dragging && !pressOverUi && !overUi) Click(ScreenToCell(position));
             }
 
-            if (mode != Mode.None && !overUi) ShowGhost(ScreenToCell(position));
+            if (mode == Mode.MovingSafe)
+            {
+                // 금고는 배치물이 아니므로 유령 그림 대신 금고 표시를 가리키는 칸으로 옮겨 보여 준다.
+                HideGhost();
+                safeHoverActive = !overUi;
+                if (safeHoverActive) safeHover = ScreenToCell(position);
+            }
+            else if (mode != Mode.None && !overUi) ShowGhost(ScreenToCell(position));
             else HideGhost();
         }
 
@@ -405,6 +434,31 @@ namespace ZooZooClub.Client
         void Click(Vector2Int cell)
         {
             if (ReadOnly) return;
+
+            if (mode == Mode.MovingSafe)
+            {
+                var moved = game.MoveSafe(cell.x, cell.y);
+                if (moved == ActionResult.Ok)
+                {
+                    CancelMode();
+                    Sound.Play(Sound.Build);
+                    Notify("금고를 옮겼어요. 이제 침략자들이 이곳을 노려요.");
+                }
+                else Notify(moved == ActionResult.InvalidPlacement ? "금고는 비어 있는 칸에만 놓을 수 있어요." : Texts.Describe(moved));
+                return;
+            }
+
+            // 금고가 보일 때 금고 칸을 누르면 금고를 옮기기 시작한다.
+            if (mode == Mode.None && goalRoot != null && goalRoot.activeSelf && !game.RaidActive)
+            {
+                int goalX, goalY;
+                game.GetRaidGoal(out goalX, out goalY);
+                if (cell.x == goalX && cell.y == goalY)
+                {
+                    BeginMovingSafe();
+                    return;
+                }
+            }
             if (mode == Mode.Placing)
             {
                 int newId;

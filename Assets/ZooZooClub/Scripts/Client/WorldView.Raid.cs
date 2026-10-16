@@ -423,12 +423,23 @@ namespace ZooZooClub.Client
         /// </summary>
         void UpdateGoalMarker(bool planningDefense)
         {
-            bool show = game.RaidsUnlocked && (planningDefense || game.RaidActive || game.RaidImminent);
+            bool movingSafe = mode == Mode.MovingSafe;
+            bool show = game.RaidsUnlocked && (planningDefense || movingSafe || game.RaidActive || game.RaidImminent);
             if (goalRoot.activeSelf != show) goalRoot.SetActive(show);
             if (!show) return;
 
             int goalX, goalY;
             game.GetRaidGoal(out goalX, out goalY);
+            // 옮기는 중이면 가리키는 칸에 금고를 띄워 보여 준다. 놓을 수 없는 칸이면 붉게.
+            Color tint = Color.white;
+            if (movingSafe && safeHoverActive)
+            {
+                goalX = safeHover.x;
+                goalY = safeHover.y;
+                tint = game.CanMoveSafeTo(goalX, goalY) ? new Color(1f, 1f, 1f, 0.85f) : new Color(1f, 0.55f, 0.55f, 0.75f);
+            }
+            goalSafe.color = tint;
+            goalLabel.text = movingSafe ? "여기로 옮길까요?" : "지킬 곳";
             Vector3 world = IsoMath.CellCenter(goalX, goalY);
             goalRoot.transform.localPosition = world;
 

@@ -83,6 +83,9 @@ namespace ZooZooClub.Core
         // 침략: 다음 침략이 오는 시각(0이면 아직 정해지지 않음)과 지금까지 치른 침략 횟수.
         public long nextRaidAt;
         public int raidWave;
+        // 침략자들이 노리는 금고(지킬 곳)를 놓고 싶은 칸. -1이면 마을 한가운데. 그 칸이 막혀 있으면 가장 가까운 빈칸을 쓴다.
+        public int safeX = -1;
+        public int safeY = -1;
 
         // 문제 풀기: 맞힌 횟수, 최근에 나온 문제(같은 문제가 연달아 나오지 않게), 틀린 뒤 다시 풀 수 있는 시각.
         public int quizSolved;

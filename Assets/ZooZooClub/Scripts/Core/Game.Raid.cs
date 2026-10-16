@@ -154,6 +154,33 @@ namespace ZooZooClub.Core
             y = raidGoal / raidGridWidth;
         }
 
+        /// <summary>금고(지킬 곳)를 그 칸으로 옮길 수 있는지. 땅 안의 빈칸(바닥은 괜찮다)이어야 하고 침략 중에는 안 된다.</summary>
+        public bool CanMoveSafeTo(int x, int y)
+        {
+            if (raidActive) return false;
+            if (!IsInsideLand(x, y, 1, 1)) return false;
+            foreach (var obj in State.objects)
+            {
+                if (!PlaceableKind.BlocksWalking(Catalog.GetPlaceable(obj.defId))) continue;
+                int width, height;
+                GetFootprint(obj, out width, out height);
+                if (x >= obj.x && x < obj.x + width && y >= obj.y && y < obj.y + height) return false;
+            }
+            return true;
+        }
+
+        /// <summary>침략자들이 노리는 금고를 그 칸으로 옮긴다.</summary>
+        public ActionResult MoveSafe(int x, int y)
+        {
+            if (raidActive) return ActionResult.Busy;
+            if (!CanMoveSafeTo(x, y)) return ActionResult.InvalidPlacement;
+            State.safeX = x;
+            State.safeY = y;
+            layoutChanged = true;
+            NotifyChanged();
+            return ActionResult.Ok;
+        }
+
         /// <summary>
         /// 저장 파일을 읽은 직후에 부른다. 꺼 둔 동안 지나간 침략은 건너뛰고,
         /// 돌아오자마자 침략당하지 않도록 다음 침략까지 한 주기를 새로 준다.
@@ -331,9 +358,16 @@ namespace ZooZooClub.Core
                 }
             }
 
-            // 침략자들이 노리는 곳: 마을 한가운데에서 가장 가까운 빈칸.
-            raidGoal = GridPath.NearestFree(raidBlocked, width, height, width / 2, height / 2);
-            if (raidGoal < 0) raidGoal = width / 2 + (height / 2) * width;
+            // 침략자들이 노리는 곳: 금고를 옮겨 둔 칸(없으면 마을 한가운데)에서 가장 가까운 빈칸.
+            int wantX = width / 2;
+            int wantY = height / 2;
+            if (State.safeX >= 0 && State.safeY >= 0 && State.safeX < width && State.safeY < height)
+            {
+                wantX = State.safeX;
+                wantY = State.safeY;
+            }
+            raidGoal = GridPath.NearestFree(raidBlocked, width, height, wantX, wantY);
+            if (raidGoal < 0) raidGoal = wantX + wantY * width;
 
             layoutChanged = false;
         }

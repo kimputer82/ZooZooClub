@@ -229,6 +229,34 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void Raid_SafeCanBeMovedToAnEmptyCell()
+        {
+            int goalX, goalY;
+            Assert.AreEqual(ActionResult.Ok, game.MoveSafe(1, 4));
+            game.GetRaidGoal(out goalX, out goalY);
+            Assert.AreEqual(1, goalX);
+            Assert.AreEqual(4, goalY);
+            Assert.AreEqual(1, game.State.safeX);
+
+            // 막힌 칸과 땅 밖은 안 된다.
+            Place("fence", 2, 4);
+            Assert.AreEqual(ActionResult.InvalidPlacement, game.MoveSafe(2, 4));
+            Assert.AreEqual(ActionResult.InvalidPlacement, game.MoveSafe(Land, 0));
+            Assert.AreEqual(ActionResult.InvalidPlacement, game.MoveSafe(-1, 0));
+
+            // 금고 칸에 무언가를 지으면 바로 옆 빈칸으로 비켜 선다.
+            Place("fence", 1, 4);
+            game.GetRaidGoal(out goalX, out goalY);
+            Assert.IsFalse(goalX == 1 && goalY == 4);
+            Assert.LessOrEqual(Math.Abs(goalX - 1) + Math.Abs(goalY - 4), 1);
+
+            // 침략 중에는 옮길 수 없다.
+            game.StartRaidNow();
+            Assert.IsTrue(game.RaidActive);
+            Assert.AreEqual(ActionResult.Busy, game.MoveSafe(0, 0));
+        }
+
+        [Test]
         public void Raid_StealingNeverMakesCoinsNegative()
         {
             game.State.coins = 40;
