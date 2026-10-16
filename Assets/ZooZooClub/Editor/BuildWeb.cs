@@ -75,8 +75,11 @@ namespace ZooZooClub.EditorTools
             }
 
             // 배경음은 브라우저가 직접 틀 수 있게 페이지 옆에 복사한다(Scripts/Client/Sound.cs 참고).
-            string music = Path.Combine(Application.dataPath, "ZooZooClub/Resources/Audio/" + ZooZooClub.Client.Sound.WebMusicFile);
-            if (File.Exists(music)) File.Copy(music, Path.Combine(folder, ZooZooClub.Client.Sound.WebMusicFile), true);
+            foreach (string file in ZooZooClub.Client.Sound.WebMusicFiles)
+            {
+                string music = Path.Combine(Application.dataPath, "ZooZooClub/Resources/Audio/" + file);
+                if (File.Exists(music)) File.Copy(music, Path.Combine(folder, file), true);
+            }
 
             // GitHub Pages가 밑줄로 시작하는 파일을 건너뛰지 않도록 Jekyll을 끈다.
             File.WriteAllText(Path.Combine(folder, ".nojekyll"), "");
