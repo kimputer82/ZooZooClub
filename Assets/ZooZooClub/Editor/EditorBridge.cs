@@ -353,6 +353,14 @@ namespace ZooZooClub.EditorTools
                 button.onClick.Invoke();
                 return name + " clicked";
             }
+            // 버튼이 아니라 두 번 눌러야 하는 조각(창고의 보따리 등)이면 두 번 누른 것으로 친다.
+            foreach (var target in Resources.FindObjectsOfTypeAll<DoubleClick>())
+            {
+                var go = target.gameObject;
+                if (go.name != name || !go.scene.IsValid() || !go.activeInHierarchy) continue;
+                if (target.Action != null) target.Action();
+                return name + " double-clicked";
+            }
             return name + " not found";
         }
 

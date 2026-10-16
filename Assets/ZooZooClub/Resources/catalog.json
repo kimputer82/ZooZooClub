@@ -11,7 +11,10 @@
     { "id": "carrot_juice", "displayName": "당근 주스", "value": 16 },
     { "id": "strawberry_juice", "displayName": "딸기 주스", "value": 36 },
     { "id": "strawberry_jam", "displayName": "딸기잼", "value": 60 },
-    { "id": "popcorn", "displayName": "팝콘", "value": 54 }
+    { "id": "popcorn", "displayName": "팝콘", "value": 54 },
+    { "id": "lucky_bag", "displayName": "보따리", "value": 0 },
+    { "id": "doraji", "displayName": "도라지", "value": 30 },
+    { "id": "sansam", "displayName": "산삼", "value": 300 }
   ],
   "crops": [
     { "id": "carrot", "displayName": "당근", "harvestItemId": "carrot", "harvestAmount": 2, "growSeconds": 20, "seedCost": 0, "harvestXp": 1, "unlockLevel": 1 },
@@ -114,6 +117,12 @@
     "raidStealSeconds": 3.0,
     "gemFinishSeconds": 120,
     "quizGemChancePercent": 3,
+    "bagItemId": "lucky_bag",
+    "harvestBagChancePercent": 3,
+    "bagRewards": [
+      { "itemId": "sansam", "weight": 30 },
+      { "itemId": "doraji", "weight": 70 }
+    ],
     "charmTiers": [
       { "charm": 30, "speedPercent": 5 },
       { "charm": 80, "speedPercent": 10 },

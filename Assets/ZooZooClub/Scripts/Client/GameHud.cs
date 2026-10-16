@@ -750,7 +750,9 @@ namespace ZooZooClub.Client
                 string text = crop != null
                     ? Texts.ItemName(game.Catalog, crop.harvestItemId) + " +" + crop.harvestAmount
                     : null;
-                var harvested = game.Harvest(obj.id);
+                bool foundBag;
+                var harvested = game.Harvest(obj.id, out foundBag);
+                if (foundBag && text != null) text += "   보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요.";
                 Report(harvested, text);
                 if (harvested == ActionResult.Ok)
                 {
@@ -1179,11 +1181,20 @@ namespace ZooZooClub.Client
                 string itemId = entry.itemId;
                 int value = def != null ? def.value : 0;
 
-                var card = CardColumn("Item", grid, Color.white, 2f);
+                bool isBag = game.IsBag(itemId);
+                var card = CardColumn(isBag ? "Bag" : "Item", grid, isBag ? Ui.Yellow : Color.white, 2f);
                 Ui.Icon("Icon", card, ItemIcon(itemId), 96f);
                 Text(card, Texts.ItemName(game.Catalog, itemId), 22f, Ui.Ink, true);
                 Text(card, "x " + entry.amount, 24f, Ui.Muted, true);
                 Ui.Spacer(card, 0f, 1f);
+                if (isBag)
+                {
+                    // 보따리는 팔지 않고, 카드를 두 번 눌러 연다.
+                    card.GetComponent<UImage>().raycastTarget = true;
+                    card.gameObject.AddComponent<DoubleClick>().Action = OpenBag;
+                    Text(card, "두 번 눌러 열기", 20f, Ui.Good, true);
+                    continue;
+                }
                 Ui.Button("Sell", card, "판매 +" + value, () =>
                 {
                     var sold = game.SellItem(itemId, 1);
@@ -1191,6 +1202,25 @@ namespace ZooZooClub.Client
                     if (sold == ActionResult.Ok) Sound.Play(Sound.Coin);
                 }, 48f, 20f, Ui.Yellow);
             }
+        }
+
+        /// <summary>창고의 보따리 하나를 열고 무엇이 나왔는지 알려 준다.</summary>
+        void OpenBag()
+        {
+            string rewardId;
+            var result = game.OpenBag(out rewardId);
+            if (result != ActionResult.Ok)
+            {
+                Toast(Texts.Describe(result));
+                return;
+            }
+            var def = game.Catalog.GetItem(rewardId);
+            int value = def != null ? def.value : 0;
+            // 값비싼 것이 나오면 더 크게 기뻐한다.
+            bool rare = value >= 100;
+            Sound.Play(rare ? Sound.Win : Sound.Coin);
+            string name = Texts.ItemName(game.Catalog, rewardId);
+            Toast((rare ? "와! " : "") + "보따리에서 " + name + Texts.SubjectParticle(name) + " 나왔어요!  (판매 " + value + " 코인)");
         }
 
         // ---------- 주민 ----------
@@ -1693,13 +1723,14 @@ namespace ZooZooClub.Client
 
             if (game.IsRipe(objectId))
             {
-                InfoLine(cropName + "이(가) 다 자랐어요!", Ui.Good);
+                InfoLine(cropName + Texts.SubjectParticle(cropName) + " 다 자랐어요!", Ui.Good);
                 Ui.Label("Ready", column, "수확할 수 있어요.", 28f, Ui.Ink, TextAlignmentOptions.Left, true);
                 var harvest = Ui.Button("Harvest", column, "수확", () =>
                 {
                     // 수확하고 나면 시트를 닫는다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
-                    var harvested = game.Harvest(objectId);
-                    Report(harvested, null);
+                    bool foundBag;
+                    var harvested = game.Harvest(objectId, out foundBag);
+                    Report(harvested, foundBag ? "보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요." : null);
                     if (harvested == ActionResult.Ok)
                     {
                         Sound.Play(Sound.Harvest);

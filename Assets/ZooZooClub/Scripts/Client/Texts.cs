@@ -51,6 +51,15 @@ namespace ZooZooClub.Client
             return (seconds / 60) + ":" + (seconds % 60).ToString("00");
         }
 
+        /// <summary>낱말 뒤에 붙는 "이/가". 마지막 글자에 받침이 있으면 "이", 없으면 "가"(한글이 아니면 "이(가)").</summary>
+        public static string SubjectParticle(string word)
+        {
+            if (string.IsNullOrEmpty(word)) return "이(가)";
+            char last = word[word.Length - 1];
+            if (last < '\uAC00' || last > '\uD7A3') return "이(가)";
+            return (last - 0xAC00) % 28 != 0 ? "이" : "가";
+        }
+
         public static string ItemName(GameCatalog catalog, string itemId)
         {
             var def = catalog.GetItem(itemId);

@@ -301,8 +301,21 @@ namespace ZooZooClub.Core
         public int gemFinishSeconds = 120;
         // 문제를 맞혔을 때 보석 1개를 받을 확률(%).
         public int quizGemChancePercent = 3;
+        // 밭에서 수확할 때 harvestBagChancePercent% 확률로 보따리(bagItemId) 하나를 함께 얻는다.
+        // 창고에서 보따리를 열면 bagRewards 가운데 하나가 weight에 비례한 확률로 나온다.
+        public string bagItemId = "";
+        public int harvestBagChancePercent;
+        public List<BagRewardDef> bagRewards = new List<BagRewardDef>();
         // 마을 매력이 charm 이상이면 모든 시설의 생산 시간이 speedPercent% 줄어든다. 가장 높은 단계 하나만 적용된다.
         public List<CharmTierDef> charmTiers = new List<CharmTierDef>();
+    }
+
+    /// <summary>보따리에서 나올 수 있는 물건. weight에 비례하는 확률로 하나가 나온다.</summary>
+    [Serializable]
+    public class BagRewardDef
+    {
+        public string itemId;
+        public int weight = 1;
     }
 
     /// <summary>마을 매력 단계. 매력이 charm 이상이면 모든 생산 시설의 생산 시간이 speedPercent% 줄어든다.</summary>
@@ -421,6 +434,17 @@ namespace ZooZooClub.Core
                     errors.Add("crop '" + crop.id + "' refers to unknown item '" + crop.harvestItemId + "'");
                 if (crop.growSeconds <= 0)
                     errors.Add("crop '" + crop.id + "' needs growSeconds > 0");
+            }
+
+            if (balance != null && !string.IsNullOrEmpty(balance.bagItemId))
+            {
+                if (GetItem(balance.bagItemId) == null)
+                    errors.Add("bagItemId refers to unknown item '" + balance.bagItemId + "'");
+                foreach (var reward in balance.bagRewards)
+                {
+                    if (reward == null || GetItem(reward.itemId) == null)
+                        errors.Add("bagRewards refers to unknown item '" + (reward != null ? reward.itemId : "null") + "'");
+                }
             }
 
             foreach (var recipe in recipes)

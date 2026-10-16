@@ -22,6 +22,9 @@ namespace ZooZooClub.Tests
             c.items.Add(new ItemDef { id = "carrot", displayName = "Carrot", value = 4 });
             c.items.Add(new ItemDef { id = "wheat", displayName = "Wheat", value = 6 });
             c.items.Add(new ItemDef { id = "bread", displayName = "Bread", value = 20 });
+            c.items.Add(new ItemDef { id = "lucky_bag", displayName = "Bag", value = 0 });
+            c.items.Add(new ItemDef { id = "doraji", displayName = "Doraji", value = 30 });
+            c.items.Add(new ItemDef { id = "sansam", displayName = "Sansam", value = 300 });
 
             c.crops.Add(new CropDef { id = "carrot", harvestItemId = "carrot", harvestAmount = 2, growSeconds = 20, seedCost = 0, harvestXp = 1, unlockLevel = 1 });
             c.crops.Add(new CropDef { id = "wheat", harvestItemId = "wheat", harvestAmount = 2, growSeconds = 45, seedCost = 1, harvestXp = 2, unlockLevel = 1 });
@@ -384,6 +387,63 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(0, game.ReadyJobCount(bakery));
             clock.Now += 1;
             Assert.AreEqual(1, game.ReadyJobCount(bakery));
+        }
+
+        [Test]
+        public void Harvest_SometimesFindsABag_AndOpeningItGivesAReward()
+        {
+            catalog.balance.bagItemId = "lucky_bag";
+            catalog.balance.bagRewards.Add(new BagRewardDef { itemId = "sansam", weight = 30 });
+            catalog.balance.bagRewards.Add(new BagRewardDef { itemId = "doraji", weight = 70 });
+            Assert.IsTrue(game.IsBag("lucky_bag"));
+            Assert.IsFalse(game.IsBag("carrot"));
+
+            // 확률 0%: 보따리가 없다.
+            catalog.balance.harvestBagChancePercent = 0;
+            bool found;
+            Assert.AreEqual(ActionResult.Ok, game.Plant(StarterPlotId, "carrot"));
+            clock.Now += 20;
+            Assert.AreEqual(ActionResult.Ok, game.Harvest(StarterPlotId, out found));
+            Assert.IsFalse(found);
+            Assert.AreEqual(0, game.CountOf("lucky_bag"));
+
+            // 확률 100%: 반드시 하나 얻는다.
+            catalog.balance.harvestBagChancePercent = 100;
+            Assert.AreEqual(ActionResult.Ok, game.Plant(StarterPlotId, "carrot"));
+            clock.Now += 20;
+            Assert.AreEqual(ActionResult.Ok, game.Harvest(StarterPlotId, out found));
+            Assert.IsTrue(found);
+            Assert.AreEqual(1, game.CountOf("lucky_bag"));
+
+            string reward;
+            Assert.AreEqual(ActionResult.Ok, game.OpenBag(out reward));
+            Assert.IsTrue(reward == "sansam" || reward == "doraji");
+            Assert.AreEqual(0, game.CountOf("lucky_bag"));
+            Assert.AreEqual(1, game.CountOf(reward));
+            Assert.AreEqual(ActionResult.NotEnoughItems, game.OpenBag(out reward));
+        }
+
+        [Test]
+        public void OpenBag_FollowsTheWeights()
+        {
+            catalog.balance.bagItemId = "lucky_bag";
+            catalog.balance.bagRewards.Add(new BagRewardDef { itemId = "sansam", weight = 30 });
+            catalog.balance.bagRewards.Add(new BagRewardDef { itemId = "doraji", weight = 70 });
+            game.State.storageCapacity = 10000;
+            game.State.inventory.Add(new ItemAmount("lucky_bag", 2000));
+
+            string reward;
+            for (int i = 0; i < 2000; i++) Assert.AreEqual(ActionResult.Ok, game.OpenBag(out reward));
+            int sansam = game.CountOf("sansam");
+            Assert.AreEqual(2000, sansam + game.CountOf("doraji"));
+            // 30% 언저리(넉넉히 25~35%).
+            Assert.That(sansam, Is.InRange(500, 700));
+
+            // 산삼만 나오게 하면 산삼만 나온다.
+            catalog.balance.bagRewards[1].weight = 0;
+            game.State.inventory.Add(new ItemAmount("lucky_bag", 1));
+            Assert.AreEqual(ActionResult.Ok, game.OpenBag(out reward));
+            Assert.AreEqual("sansam", reward);
         }
 
         [Test]

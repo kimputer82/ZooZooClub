@@ -63,8 +63,61 @@ namespace ZooZooClub.Core
             return SecondsUntilRipe(objectId) == 0;
         }
 
+        /// <summary>이 물건이 보따리(창고에서 열어 보는 것)인지.</summary>
+        public bool IsBag(string itemId)
+        {
+            var balance = Catalog.balance;
+            return balance != null && !string.IsNullOrEmpty(balance.bagItemId) && balance.bagItemId == itemId;
+        }
+
+        /// <summary>
+        /// 창고의 보따리 하나를 연다. bagRewards 가운데 하나가 weight에 비례한 확률로 나와 창고에 들어간다.
+        /// 보따리 한 칸이 빠지고 한 칸이 들어오므로 창고가 가득 차 있어도 열 수 있다.
+        /// </summary>
+        public ActionResult OpenBag(out string rewardItemId)
+        {
+            rewardItemId = null;
+            var balance = Catalog.balance;
+            if (balance == null || string.IsNullOrEmpty(balance.bagItemId)) return ActionResult.NotFound;
+            if (CountOf(balance.bagItemId) < 1) return ActionResult.NotEnoughItems;
+
+            int total = 0;
+            foreach (var reward in balance.bagRewards)
+            {
+                if (reward != null && reward.weight > 0 && Catalog.GetItem(reward.itemId) != null) total += reward.weight;
+            }
+            if (total <= 0) return ActionResult.NotFound;
+
+            int roll = NextRandom(total);
+            foreach (var reward in balance.bagRewards)
+            {
+                if (reward == null || reward.weight <= 0 || Catalog.GetItem(reward.itemId) == null) continue;
+                if (roll < reward.weight)
+                {
+                    rewardItemId = reward.itemId;
+                    break;
+                }
+                roll -= reward.weight;
+            }
+
+            RemoveItem(balance.bagItemId, 1);
+            AddItem(rewardItemId, 1);
+            NotifyChanged();
+            return ActionResult.Ok;
+        }
+
         public ActionResult Harvest(int objectId)
         {
+            bool foundBag;
+            return Harvest(objectId, out foundBag);
+        }
+
+        /// <summary>
+        /// 다 자란 밭을 수확한다. 낮은 확률로 보따리도 함께 얻는다(창고에 자리가 남아 있을 때만).
+        /// </summary>
+        public ActionResult Harvest(int objectId, out bool foundBag)
+        {
+            foundBag = false;
             var plot = FindPlot(objectId);
             if (plot == null || string.IsNullOrEmpty(plot.cropId)) return ActionResult.NotFound;
             if (!IsRipe(objectId)) return ActionResult.NotReady;
@@ -81,6 +134,16 @@ namespace ZooZooClub.Core
             if (FreeStorage < crop.harvestAmount) return ActionResult.StorageFull;
 
             AddItem(crop.harvestItemId, crop.harvestAmount);
+
+            var balance = Catalog.balance;
+            if (balance != null && !string.IsNullOrEmpty(balance.bagItemId) && balance.harvestBagChancePercent > 0
+                && NextRandom(100) < balance.harvestBagChancePercent && FreeStorage >= 1
+                && Catalog.GetItem(balance.bagItemId) != null)
+            {
+                AddItem(balance.bagItemId, 1);
+                foundBag = true;
+            }
+
             plot.cropId = "";
             plot.plantedAt = 0;
             AddXp(crop.harvestXp);
