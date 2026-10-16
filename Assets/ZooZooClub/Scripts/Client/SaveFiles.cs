@@ -25,6 +25,23 @@ namespace ZooZooClub.Client
         class NameOnly
         {
             public string playerName = "";
+            public string roomCode = "";
+        }
+
+        /// <summary>그 이름의 저장에 적힌 방 코드. 저장이 없거나 방 없이 하던 중이면 빈 문자열.</summary>
+        public static string RoomCodeOf(string name)
+        {
+            try
+            {
+                string path = PathFor(name);
+                if (path == null || !File.Exists(path)) return "";
+                var saved = JsonUtility.FromJson<NameOnly>(File.ReadAllText(path));
+                return saved != null && saved.roomCode != null ? saved.roomCode : "";
+            }
+            catch (Exception)
+            {
+                return "";
+            }
         }
 
         /// <summary>이름별 저장 파일을 두는 폴더. 없으면 만든다.</summary>

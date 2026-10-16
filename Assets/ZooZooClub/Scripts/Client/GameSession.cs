@@ -133,9 +133,16 @@ namespace ZooZooClub.Client
             return Login(rawName, roomCode, null);
         }
 
+        /// <summary>이번 접속에서 실제로 연결된 방 코드. 빈 문자열이면 혼자 하는 중(저장에 적힌 방은 기억만 한다).</summary>
+        public string ActiveRoom { get; private set; }
+
+        /// <summary>들어간 직후 화면에 잠깐 보여 줄 말(방이 닫혀 있어 혼자 하기로 들어갔을 때 등).</summary>
+        public string LoginNotice { get; set; }
+
         /// <summary>
         /// roomCode는 정리된 방 코드(없으면 빈 문자열). 방이 있는지는 부르는 쪽에서 미리 확인한다.
         /// cloudJson은 서버에 있던 이 이름의 저장(없으면 null)이며, 이 컴퓨터의 저장보다 새것이면 그것으로 시작한다.
+        /// 방 코드가 비어 있으면 혼자 하지만, 저장에 적혀 있던 방 코드는 지우지 않고 기억해 둔다(다음에 자동으로 다시 들어간다).
         /// </summary>
         public string Login(string rawName, string roomCode, string cloudJson)
         {
@@ -171,8 +178,9 @@ namespace ZooZooClub.Client
             bool isNew = state == null;
             if (isNew) state = GameState.CreateNew(catalog, clock.Now);
             if (string.IsNullOrEmpty(state.playerName) || adopted) state.playerName = name;
-            bool roomChanged = state.roomCode != (roomCode ?? "");
-            state.roomCode = roomCode ?? "";
+            ActiveRoom = roomCode ?? "";
+            bool roomChanged = ActiveRoom.Length > 0 && state.roomCode != ActiveRoom;
+            if (ActiveRoom.Length > 0) state.roomCode = ActiveRoom;
 
             SavePath = path;
             Game = new Game(catalog, state, clock);
@@ -198,17 +206,22 @@ namespace ZooZooClub.Client
             SaveFiles.LastName = name;
 
             // 방에 들어왔으면 내 순위 정보를 올리기 시작한다.
-            if (state.roomCode.Length > 0)
+            if (ActiveRoom.Length > 0)
             {
                 var reporter = hud.gameObject.AddComponent<RankReporter>();
                 reporter.Init(Game);
+            }
+            if (!string.IsNullOrEmpty(LoginNotice))
+            {
+                hud.Toast(LoginNotice);
+                LoginNotice = null;
             }
 
             // 새 마을이나 이어받은 마을은 바로 한 번 저장해서, 다음에 이름 목록에 나오게 한다.
             if (isNew || adopted || roomChanged || fromCloud) Save();
 
             Debug.Log("[Zoo] started. player=" + state.playerName + (isNew ? " (new)" : adopted ? " (adopted)" : "")
-                + (state.roomCode.Length > 0 ? " room=" + state.roomCode : "") + (fromCloud ? " (cloud)" : "")
+                + (ActiveRoom.Length > 0 ? " room=" + ActiveRoom : "") + (fromCloud ? " (cloud)" : "")
                 + " level=" + state.level + " coins=" + state.coins
                 + " objects=" + state.objects.Count + " orders=" + state.orders.Count
                 + " quiz=" + Game.QuizCount);
@@ -230,6 +243,7 @@ namespace ZooZooClub.Client
             worldObject = null;
             Game = null;
             SavePath = null;
+            ActiveRoom = "";
             dirty = false;
 
             login.Show();
@@ -334,7 +348,7 @@ namespace ZooZooClub.Client
 
         void QueueCloudSave(string json)
         {
-            if (Game == null || Game.State.roomCode.Length == 0 || !Online.Enabled) return;
+            if (Game == null || string.IsNullOrEmpty(ActiveRoom) || !Online.Enabled) return;
             if (cloudPending == null) cloudAt = Time.unscaledTime + CloudDelaySeconds;
             cloudPending = json;
         }
@@ -343,7 +357,7 @@ namespace ZooZooClub.Client
         {
             if (cloudPending == null || cloudUploading) return;
             string json = cloudPending;
-            string code = Game != null ? Game.State.roomCode : null;
+            string code = ActiveRoom;
             string name = Game != null ? Game.State.playerName : null;
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(name)) { cloudPending = null; return; }
             cloudPending = null;

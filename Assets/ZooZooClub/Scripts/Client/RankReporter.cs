@@ -48,7 +48,9 @@ namespace ZooZooClub.Client
 
             var state = game.State;
             var entry = new RankEntry { name = state.playerName, level = state.level, xp = state.xp, quizSolved = state.quizSolved };
-            Online.PostPlayer(state.roomCode, entry, error =>
+            string room = GameSession.Instance != null ? GameSession.Instance.ActiveRoom : "";
+            if (string.IsNullOrEmpty(room)) { uploading = false; return; }
+            Online.PostPlayer(room, entry, error =>
             {
                 uploading = false;
                 LastError = error;

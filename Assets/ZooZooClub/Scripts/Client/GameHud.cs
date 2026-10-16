@@ -364,7 +364,7 @@ namespace ZooZooClub.Client
             MenuButton(menu, "StorageButton", "ui_icon_box", "창고", Ui.Blue, () => Toggle(PanelKind.Storage));
             var orders = MenuButton(menu, "OrdersButton", "ui_icon_orders", "주문", Ui.Yellow, () => Toggle(PanelKind.Orders));
             MenuButton(menu, "BuildButton", "ui_icon_build", "건설", Ui.Orange, () => Toggle(PanelKind.Build));
-            if (game.State.roomCode.Length > 0)
+            if (ActiveRoom.Length > 0)
             {
                 MenuButton(menu, "RankButton", "ui_icon_star", "랭킹", Ui.Red, () => Toggle(PanelKind.Rank));
             }
@@ -1357,6 +1357,11 @@ namespace ZooZooClub.Client
 
         // ---------- 랭킹 ----------
 
+        static string ActiveRoom
+        {
+            get { return GameSession.Instance != null ? GameSession.Instance.ActiveRoom ?? "" : ""; }
+        }
+
         List<RankEntry> rankEntries = new List<RankEntry>();
         string rankError;
         int rankVersion;
@@ -1365,7 +1370,7 @@ namespace ZooZooClub.Client
 
         void BuildRankPanel()
         {
-            string code = game.State.roomCode;
+            string code = ActiveRoom;
             ShowWindow("랭킹  ·  방 코드 " + code, 900f, 760f);
             ShowHeader(34f);
             string when = rankError != null ? rankError
@@ -1413,7 +1418,7 @@ namespace ZooZooClub.Client
         {
             rankFetching = true;
             nextRankFetch = Time.unscaledTime + Online.RankRefreshSeconds;
-            Online.FetchPlayers(game.State.roomCode, (entries, error) =>
+            Online.FetchPlayers(ActiveRoom, (entries, error) =>
             {
                 rankFetching = false;
                 if (this == null) return;

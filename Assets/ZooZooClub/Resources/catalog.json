@@ -35,7 +35,7 @@
     { "id": "juice_bar", "displayName": "주스 가게", "kind": "facility", "width": 2, "height": 2, "cost": 400, "unlockLevel": 3, "queueSlots": 3, "charm": 0, "maxCount": 1 },
     { "id": "jam_workshop", "displayName": "잼 공방", "kind": "facility", "width": 2, "height": 2, "cost": 800, "unlockLevel": 4, "queueSlots": 3, "charm": 0, "maxCount": 1 },
     { "id": "popcorn_cart", "displayName": "팝콘 수레", "kind": "facility", "width": 1, "height": 2, "cost": 1300, "unlockLevel": 5, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4 },
-    { "id": "fence", "displayName": "울타리", "kind": "decor", "width": 1, "height": 1, "cost": 10, "unlockLevel": 1, "queueSlots": 0, "charm": 1, "maxCount": 0 },
+    { "id": "fence", "displayName": "울타리", "kind": "decor", "width": 1, "height": 1, "cost": 10, "unlockLevel": 1, "queueSlots": 0, "charm": 1, "maxCount": 0, "rotations": 2, "mirror": true },
     { "id": "flower_bed", "displayName": "꽃밭", "kind": "decor", "width": 1, "height": 1, "cost": 30, "unlockLevel": 1, "queueSlots": 0, "charm": 3, "maxCount": 0 },
     { "id": "tree", "displayName": "나무", "kind": "decor", "width": 1, "height": 1, "cost": 40, "unlockLevel": 1, "queueSlots": 0, "charm": 4, "maxCount": 0 },
     { "id": "bench", "displayName": "벤치", "kind": "decor", "width": 2, "height": 1, "cost": 60, "unlockLevel": 2, "queueSlots": 0, "charm": 5, "maxCount": 0, "rotations": 4 },

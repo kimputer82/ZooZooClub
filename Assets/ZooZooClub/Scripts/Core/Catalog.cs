@@ -79,6 +79,8 @@ namespace ZooZooClub.Core
 
         // 놓을 수 있는 방향의 수. 1이면 돌릴 수 없고, 2면 앞·뒤, 4면 앞·옆·뒤·옆.
         public int rotations = 1;
+        // true면 뒷모습 대신 좌우로 뒤집은 모습과 번갈아 놓는다(울타리처럼 한 칸짜리이고 뒷모습 그림이 없는 것). rotations는 2로 둔다.
+        public bool mirror;
 
         // 방어 시설일 때: 사거리(칸), 한 번 공격의 피해량, 공격 사이 간격(초).
         public float attackRange;
@@ -117,8 +119,10 @@ namespace ZooZooClub.Core
         {
             if (def == null || def.rotations <= 1) return 0;
             rotation = ((rotation % Count) + Count) % Count;
-            if (def.rotations < Count && Swaps(rotation)) return 0;
-            return rotation;
+            if (def.rotations >= Count) return rotation;
+            // 두 방향뿐일 때: 뒤집기 방식이면 0과 1, 아니면 0과 2만 쓴다.
+            if (def.mirror) return rotation == 1 || rotation == 3 ? 1 : 0;
+            return Swaps(rotation) ? 0 : rotation;
         }
 
         /// <summary>한 번 돌렸을 때의 방향.</summary>
@@ -126,7 +130,9 @@ namespace ZooZooClub.Core
         {
             if (def == null || def.rotations <= 1) return 0;
             rotation = Normalize(def, rotation);
-            return def.rotations >= Count ? (rotation + 1) % Count : (rotation == 0 ? 2 : 0);
+            if (def.rotations >= Count) return (rotation + 1) % Count;
+            if (def.mirror) return rotation == 0 ? 1 : 0;
+            return rotation == 0 ? 2 : 0;
         }
 
         public static int Width(PlaceableDef def, int rotation)

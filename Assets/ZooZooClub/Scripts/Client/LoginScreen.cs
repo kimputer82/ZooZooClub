@@ -133,7 +133,7 @@ namespace ZooZooClub.Client
             Ui.Fixed(prompt.gameObject, 0f, PromptHeight);
 
             nameEntry = new TextEntry("Name", content, "여기에 이름", PlayerName.MaxLength, InputHeight, 38f, false, () => SetError(""));
-            codeEntry = new TextEntry("Code", content, "방 코드 (선생님이 알려 준 것, 없으면 비워 둬요)", 8, CodeHeight, 24f, false, () => SetError(""));
+            codeEntry = new TextEntry("Code", content, "방 코드 (처음 한 번만 적으면 다음엔 자동으로 들어가요)", 8, CodeHeight, 24f, false, () => SetError(""));
 
             errorText = Ui.Label("Error", content, "", 24f, Ui.Bad, TextAlignmentOptions.Center, true);
             Ui.Fixed(errorText.gameObject, 0f, ErrorHeight);
@@ -248,26 +248,37 @@ namespace ZooZooClub.Client
         {
             if (onLogin == null || busy) return;
 
-            string codeText = codeEntry.Value;
-            if (string.IsNullOrWhiteSpace(codeText))
-            {
-                Finish(onLogin(name, "", null));
-                return;
-            }
-
-            string code = RoomCode.Normalize(codeText);
-            if (code == null)
-            {
-                SetError("방 코드는 영문과 숫자 4~8자예요.");
-                return;
-            }
-
             // 이름이 이상하면 서버에 물어보기 전에 알려 준다.
             string nameError;
-            if (PlayerName.Clean(name, out nameError) == null)
+            string cleanName = PlayerName.Clean(name, out nameError);
+            if (cleanName == null)
             {
                 SetError(nameError);
                 return;
+            }
+
+            string codeText = codeEntry.Value;
+            string code;
+            bool remembered = false;
+            if (string.IsNullOrWhiteSpace(codeText))
+            {
+                // 코드를 안 적었으면 전에 들어갔던 방으로 자동으로 다시 들어간다.
+                code = SaveFiles.RoomCodeOf(cleanName);
+                remembered = !string.IsNullOrEmpty(code);
+                if (!remembered)
+                {
+                    Finish(onLogin(cleanName, "", null));
+                    return;
+                }
+            }
+            else
+            {
+                code = RoomCode.Normalize(codeText);
+                if (code == null)
+                {
+                    SetError("방 코드는 영문과 숫자 4~8자예요.");
+                    return;
+                }
             }
 
             busy = true;
@@ -275,15 +286,24 @@ namespace ZooZooClub.Client
             Online.CheckRoom(code, (room, error) =>
             {
                 if (!gameObject.activeInHierarchy) { busy = false; return; }
-                if (error != null) { busy = false; Finish(error); return; }
+                if (error != null)
+                {
+                    busy = false;
+                    if (!remembered) { Finish(error); return; }
+                    // 전에 들어갔던 방이 닫혔거나 서버가 안 되면 혼자 하기로 들어간다(방 코드는 기억해 둔다).
+                    var session = GameSession.Instance;
+                    if (session != null) session.LoginNotice = "방 " + code + "에 들어가지 못해 혼자 하기로 들어왔어요. (" + error + ")";
+                    Finish(onLogin(cleanName, "", null));
+                    return;
+                }
                 SetError("저장을 불러오는 중…");
                 // 서버에 이 이름의 저장이 있으면 가져와서, 이 컴퓨터의 저장과 견주어 더 새것을 쓴다.
-                Online.FetchSave(code, name, (json, saveError) =>
+                Online.FetchSave(code, cleanName, (json, saveError) =>
                 {
                     busy = false;
                     if (!gameObject.activeInHierarchy) return;
                     if (saveError != null) { Finish(saveError); return; }
-                    Finish(onLogin(name, code, json));
+                    Finish(onLogin(cleanName, code, json));
                 });
             });
         }

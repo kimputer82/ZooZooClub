@@ -172,5 +172,18 @@ namespace ZooZooClub.Tests
 
             Assert.IsFalse(goalX == Land / 2 && (goalY == Land / 2 || goalY == Land / 2 + 1));
         }
-    }
+    
+        [Test]
+        public void Mirror_TogglesBetweenFrontAndFlipped()
+        {
+            var fence = new PlaceableDef { id = "fence", width = 1, height = 1, rotations = 2, mirror = true };
+            Assert.AreEqual(1, Rotation.Next(fence, 0));
+            Assert.AreEqual(0, Rotation.Next(fence, 1));
+            Assert.AreEqual(1, Rotation.Normalize(fence, 3));
+            Assert.AreEqual(0, Rotation.Normalize(fence, 2));
+            Assert.IsTrue(Rotation.Mirrored(1));
+            Assert.IsFalse(Rotation.ShowsBack(1));
+            Assert.AreEqual(1, Rotation.Width(fence, 1));
+        }
+}
 }
