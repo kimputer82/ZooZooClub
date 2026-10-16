@@ -1439,9 +1439,15 @@ namespace ZooZooClub.Client
                 var name = Ui.Label("Name", row.transform, entry.name + (mine ? "  (나)" : ""), 28f, Ui.Ink, TextAlignmentOptions.Left, true);
                 Ui.Put(name.rectTransform, 0f, 0.5f, 118f, 0f, 380f, 48f);
                 var level = Ui.Label("Level", row.transform, "Lv " + entry.level, 28f, Ui.Good, TextAlignmentOptions.Center, true);
-                Ui.Put(level.rectTransform, 1f, 0.5f, -230f, 0f, 120f, 48f);
+                Ui.Put(level.rectTransform, 1f, 0.5f, -330f, 0f, 120f, 48f);
                 var detail = Ui.Label("Detail", row.transform, "문제 " + entry.quizSolved + "개", 22f, Ui.Muted, TextAlignmentOptions.Right);
-                Ui.Put(detail.rectTransform, 1f, 0.5f, -20f, 0f, 200f, 48f);
+                Ui.Put(detail.rectTransform, 1f, 0.5f, -150f, 0f, 170f, 48f);
+                if (!mine)
+                {
+                    string friend = entry.name;
+                    var visit = Ui.Button("Visit " + i, row.transform, "구경", () => VisitFriend(friend), 44f, 22f, Ui.Blue);
+                    Ui.Put((RectTransform)visit.transform, 1f, 0.5f, -12f, 0f, 120f, 44f);
+                }
             }
             if (rankEntries.Count == 0 && rankError == null)
             {
@@ -1452,6 +1458,34 @@ namespace ZooZooClub.Client
             tickers.Add(() =>
             {
                 if (panel == PanelKind.Rank && !rankFetching && Time.unscaledTime >= nextRankFetch) FetchRank();
+            });
+        }
+
+        bool visitFetching;
+
+        /// <summary>같은 방 친구의 서버 저장을 받아 와서 그 마을을 구경하러 간다.</summary>
+        void VisitFriend(string friend)
+        {
+            if (visitFetching) return;
+            if (game.RaidActive)
+            {
+                Toast("침략을 막는 중에는 구경 갈 수 없어요.");
+                return;
+            }
+            Sound.Play(Sound.Click);
+            visitFetching = true;
+            Toast(friend + "의 마을로 가는 중…");
+            Online.FetchSave(ActiveRoom, friend, (json, error) =>
+            {
+                visitFetching = false;
+                if (this == null) return;
+                if (error != null) { Toast(error); return; }
+                if (json == null) { Toast(friend + "의 마을이 아직 서버에 올라오지 않았어요."); return; }
+                var session = GameSession.Instance;
+                if (session == null) return;
+                ClosePanel();
+                string visitError = session.Visit(json);
+                if (visitError != null) Toast(visitError);
             });
         }
 

@@ -162,6 +162,15 @@ namespace ZooZooClub.Client
             }
         }
 
+        /// <summary>true면 보기만 하는 월드(친구 마을 구경). 눌러도 아무 일도 일어나지 않는다.</summary>
+        public bool ReadOnly { get; set; }
+
+        /// <summary>카메라를 이 마을 한가운데로 다시 맞춘다. 구경을 마치고 돌아올 때 쓴다.</summary>
+        public void FocusCamera()
+        {
+            SetUpCamera();
+        }
+
         public void Init(Game game)
         {
             this.game = game;
@@ -395,6 +404,7 @@ namespace ZooZooClub.Client
 
         void Click(Vector2Int cell)
         {
+            if (ReadOnly) return;
             if (mode == Mode.Placing)
             {
                 int newId;

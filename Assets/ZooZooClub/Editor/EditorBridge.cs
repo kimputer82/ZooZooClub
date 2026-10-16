@@ -17,7 +17,7 @@ namespace ZooZooClub.EditorTools
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
     /// 명령: ping, refresh, test, build(윈도우 빌드), buildweb(웹 빌드), play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
-    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향], give <아이템|gems|coins> <수>
+    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향], give <아이템|gems|coins> <수>, visit <이름>, home
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -168,6 +168,15 @@ namespace ZooZooClub.EditorTools
 
                 case "place":
                     WriteOut(id + " place: " + Place(argument));
+                    break;
+
+                case "visit":
+                    WriteOut(id + " visit: " + VisitLocal(argument));
+                    break;
+
+                case "home":
+                    if (GameSession.Instance != null) GameSession.Instance.EndVisit();
+                    WriteOut(id + " home");
                     break;
 
                 case "give":
@@ -438,6 +447,17 @@ namespace ZooZooClub.EditorTools
             }
             session.Save();
             return parts[0] + " +" + amount + " gems=" + state.gems;
+        }
+
+        /// <summary>점검용: visit &lt;이름&gt; 은 이 컴퓨터에 있는 그 이름의 저장으로 마을 구경을 해 본다(서버 없이).</summary>
+        static string VisitLocal(string name)
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var session = GameSession.Instance;
+            if (session == null || session.Game == null) return "no game";
+            string path = SaveFiles.PathFor(name);
+            if (path == null || !File.Exists(path)) return "no save for " + name;
+            return session.Visit(File.ReadAllText(path)) ?? "ok";
         }
 
         static string Raid(string argument)

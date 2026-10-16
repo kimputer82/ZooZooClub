@@ -34,6 +34,16 @@ namespace ZooZooClub.Client
         float saveAt;
         bool logoutRequested;
 
+        // 친구 마을 구경: 내 월드와 화면은 숨겨 두고, 친구의 저장으로 보기 전용 월드를 따로 띄운다.
+        GameObject visitWorldObject;
+        GameObject visitHudObject;
+        bool endVisitRequested;
+        // 구경하는 동안 내 마을의 다음 침략까지 남은 시간(초). 돌아오면 이어서 센다.
+        long raidSecondsLeft;
+
+        /// <summary>지금 친구 마을을 구경하는 중인지.</summary>
+        public bool Visiting { get { return visitWorldObject != null; } }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -228,11 +238,79 @@ namespace ZooZooClub.Client
             return null;
         }
 
+        /// <summary>
+        /// 친구의 저장(JSON)으로 그 마을을 구경하러 간다. 내 마을은 그대로 숨겨 두고, 침략 시계는 멈춘다.
+        /// 갈 수 없으면 이유를, 갔으면 null을 돌려준다.
+        /// </summary>
+        public string Visit(string json)
+        {
+            if (Game == null) return "먼저 마을에 들어와야 해요.";
+            if (Visiting) return "이미 구경하는 중이에요.";
+            if (Game.RaidActive) return "침략을 막는 중에는 구경 갈 수 없어요.";
+            var state = ParseState(json);
+            if (state == null) return "친구 마을을 읽지 못했어요.";
+
+            raidSecondsLeft = NonNegative(Game.State.nextRaidAt - Game.Now);
+            if (dirty) Save();
+
+            var visitGame = new Game(catalog, state, new SystemClock());
+            worldObject.SetActive(false);
+            hudObject.SetActive(false);
+
+            var world = new GameObject("VisitWorld").AddComponent<WorldView>();
+            world.transform.SetParent(transform, false);
+            world.ReadOnly = true;
+            world.Init(visitGame);
+            visitWorldObject = world.gameObject;
+
+            var hud = new GameObject("VisitHud").AddComponent<VisitHud>();
+            hud.transform.SetParent(transform, false);
+            hud.Init(visitGame);
+            hud.BackRequested += () => endVisitRequested = true;
+            visitHudObject = hud.gameObject;
+
+            Debug.Log("[Zoo] visiting " + state.playerName);
+            return null;
+        }
+
+        static long NonNegative(long value)
+        {
+            return Math.Max(0L, value);
+        }
+
+        /// <summary>구경을 마치고 내 마을로 돌아온다.</summary>
+        public void EndVisit()
+        {
+            endVisitRequested = false;
+            if (!Visiting) return;
+
+            Destroy(visitWorldObject);
+            if (visitHudObject != null) Destroy(visitHudObject);
+            visitWorldObject = null;
+            visitHudObject = null;
+
+            if (worldObject != null)
+            {
+                worldObject.SetActive(true);
+                worldObject.GetComponent<WorldView>().FocusCamera();
+            }
+            if (hudObject != null) hudObject.SetActive(true);
+
+            // 구경하는 동안 멈춰 둔 침략 시계를 이어서 센다. 돌아오자마자 쳐들어오지 않도록 경고 시간만큼은 남긴다.
+            if (Game != null && Game.RaidsUnlocked)
+            {
+                long warning = Math.Max(0, catalog.balance.raidWarningSeconds);
+                Game.State.nextRaidAt = Game.Now + Math.Max(raidSecondsLeft, warning);
+                MarkDirty();
+            }
+        }
+
         /// <summary>저장하고 로그인 화면으로 돌아간다.</summary>
         public void Logout()
         {
             logoutRequested = false;
             if (Game == null) return;
+            EndVisit();
 
             Save();
             FlushCloudSave();
@@ -381,7 +459,9 @@ namespace ZooZooClub.Client
                 Logout();
                 return;
             }
-            if (Game != null) Game.TickRaid(Time.unscaledDeltaTime);
+            if (endVisitRequested) EndVisit();
+            // 친구 마을을 구경하는 동안에는 내 마을의 침략 시계를 멈춘다.
+            if (Game != null && !Visiting) Game.TickRaid(Time.unscaledDeltaTime);
             if (dirty && Time.unscaledTime >= saveAt) Save();
             if (cloudPending != null && Time.unscaledTime >= cloudAt) FlushCloudSave();
         }
