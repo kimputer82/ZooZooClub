@@ -91,7 +91,10 @@ namespace ZooZooClub.Core
             }
         }
 
-        /// <summary>이 시설에서 지금 레시피를 시작하면 걸리는 시간(초). 배치된 주민의 보너스가 반영된다.</summary>
+        /// <summary>
+        /// 이 시설에서 지금 레시피를 시작하면 걸리는 시간(초).
+        /// 배치된 주민의 보너스와 마을 매력 보너스가 차례로 곱해져 반영된다.
+        /// </summary>
         public int CraftSecondsFor(int objectId, RecipeDef recipe)
         {
             if (recipe == null) return 0;
@@ -100,8 +103,57 @@ namespace ZooZooClub.Core
             var resident = ResidentAt(objectId);
             if (resident != null) bonus = Math.Max(0, Math.Min(99, resident.craftSpeedBonusPercent));
 
-            long seconds = (long)recipe.craftSeconds * (100 - bonus) / 100;
+            long seconds = (long)recipe.craftSeconds * (100 - bonus) * (100 - CharmSpeedPercent) / 10000;
             return (int)Math.Max(1L, seconds);
+        }
+
+        /// <summary>지금 매력으로 받는 생산 시간 감소(%). 도달한 가장 높은 단계의 값이고, 없으면 0.</summary>
+        public int CharmSpeedPercent
+        {
+            get
+            {
+                var tier = CharmTierFor(TotalCharm);
+                return tier == null ? 0 : Math.Max(0, Math.Min(50, tier.speedPercent));
+            }
+        }
+
+        /// <summary>다음 매력 단계. 이미 가장 높은 단계면 null.</summary>
+        public CharmTierDef NextCharmTier
+        {
+            get
+            {
+                int charm = TotalCharm;
+                CharmTierDef next = null;
+                foreach (var tier in CharmTiers)
+                {
+                    if (tier.charm > charm && (next == null || tier.charm < next.charm)) next = tier;
+                }
+                return next;
+            }
+        }
+
+        /// <summary>이 매력으로 도달한 가장 높은 단계. 없으면 null.</summary>
+        public CharmTierDef CharmTierFor(int charm)
+        {
+            CharmTierDef best = null;
+            foreach (var tier in CharmTiers)
+            {
+                if (tier.charm <= charm && (best == null || tier.charm > best.charm)) best = tier;
+            }
+            return best;
+        }
+
+        IEnumerable<CharmTierDef> CharmTiers
+        {
+            get
+            {
+                var tiers = Catalog.balance != null ? Catalog.balance.charmTiers : null;
+                if (tiers == null) yield break;
+                foreach (var tier in tiers)
+                {
+                    if (tier != null) yield return tier;
+                }
+            }
         }
     }
 }

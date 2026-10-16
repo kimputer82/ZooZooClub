@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: bf54c9d84e10dcd4da62dff6bcd34651
+guid: bc2c9dc799688554a8c43d20fac7042d
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 6910940618791622545
-    second: mailbox_0
+      213: -7372369867522183663
+    second: floor_wood_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -115,13 +115,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: mailbox_0
+      name: floor_wood_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 125
-        height: 220
+        width: 256
+        height: 144
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -130,8 +130,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 19794e680e798ef50800000000000000
-      internalID: 6910940618791622545
+      spriteID: 11eeb8d7aa410b990800000000000000
+      internalID: -7372369867522183663
       vertices: []
       indices: 
       edges: []

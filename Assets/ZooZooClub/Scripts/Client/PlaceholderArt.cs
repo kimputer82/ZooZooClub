@@ -33,9 +33,13 @@ namespace ZooZooClub.Client
             { "mushroom", new Color(0.85f, 0.3f, 0.25f) },
             { "flower_barrel", new Color(0.95f, 0.7f, 0.6f) },
             { "signpost", new Color(0.82f, 0.62f, 0.38f) },
-            { "mailbox", new Color(0.5f, 0.6f, 0.4f) },
             { "bird_bath", new Color(0.88f, 0.82f, 0.68f) },
-            { "well", new Color(0.7f, 0.66f, 0.6f) }
+            { "well", new Color(0.7f, 0.66f, 0.6f) },
+            { "floor_wood", new Color(0.78f, 0.55f, 0.32f) },
+            { "floor_gravel", new Color(0.86f, 0.8f, 0.68f) },
+            { "floor_brick", new Color(0.8f, 0.42f, 0.3f) },
+            { "floor_stone", new Color(0.7f, 0.68f, 0.62f) },
+            { "floor_marble", new Color(0.94f, 0.9f, 0.84f) }
         };
 
         public static readonly Color GroundA = new Color(0.55f, 0.78f, 0.42f);

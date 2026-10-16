@@ -43,6 +43,7 @@ namespace ZooZooClub.Core
             foreach (var other in State.objects)
             {
                 if (other.id == ignoreObjectId) continue;
+                if (!PlaceableKind.Conflicts(def, Catalog.GetPlaceable(other.defId))) continue;
                 int otherWidth, otherHeight;
                 GetFootprint(other, out otherWidth, out otherHeight);
                 if (otherWidth <= 0) continue;

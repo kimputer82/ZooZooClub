@@ -42,6 +42,7 @@ namespace ZooZooClub.Tests
             c.placeables.Add(new PlaceableDef { id = "plot", kind = PlaceableKind.Plot, width = 1, height = 1, cost = 20 });
             c.placeables.Add(new PlaceableDef { id = "bakery", kind = PlaceableKind.Facility, width = 2, height = 2, cost = 150, queueSlots = 2, maxCount = 1 });
             c.placeables.Add(new PlaceableDef { id = "tree", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 40, charm = 4 });
+            c.placeables.Add(new PlaceableDef { id = "floor_wood", kind = PlaceableKind.Floor, width = 1, height = 1, cost = 10, charm = 1 });
 
             c.residents.Add(new ResidentDef { id = "dog", displayName = "Dog", species = "dog", unlockLevel = 1, craftSpeedBonusPercent = 50 });
             c.residents.Add(new ResidentDef { id = "fox", displayName = "Fox", species = "fox", unlockLevel = 1, craftSpeedBonusPercent = 25 });
@@ -383,6 +384,49 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(0, game.ReadyJobCount(bakery));
             clock.Now += 1;
             Assert.AreEqual(1, game.ReadyJobCount(bakery));
+        }
+
+        [Test]
+        public void Floor_SitsUnderOtherThings_ButNotUnderPlotsOrOtherFloors()
+        {
+            int id;
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("floor_wood", 5, 5, out id));
+            Assert.IsFalse(game.CanPlace("floor_wood", 5, 5));
+            Assert.IsFalse(game.CanPlace("plot", 5, 5));
+            Assert.IsFalse(game.CanPlace("floor_wood", 0, 0), "밭(시작 밭) 위에는 바닥을 깔 수 없다");
+
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("tree", 5, 5, out id));
+            Assert.IsFalse(game.CanPlace("tree", 5, 5));
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("floor_wood", 4, 5, out id));
+            Assert.AreEqual(4 + 1 + 1, game.TotalCharm);
+        }
+
+        [Test]
+        public void Charm_ShortensCraftTimeOnceATierIsReached()
+        {
+            catalog.balance.charmTiers.Add(new CharmTierDef { charm = 12, speedPercent = 20 });
+            catalog.balance.charmTiers.Add(new CharmTierDef { charm = 8, speedPercent = 10 });
+            int bakery = PlaceBakery();
+            var bread = catalog.GetRecipe("bread");
+            int id;
+
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("tree", 5, 5, out id));
+            Assert.AreEqual(0, game.CharmSpeedPercent);
+            Assert.AreEqual(8, game.NextCharmTier.charm);
+            Assert.AreEqual(60, game.CraftSecondsFor(bakery, bread));
+
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("tree", 5, 4, out id));
+            Assert.AreEqual(10, game.CharmSpeedPercent);
+            Assert.AreEqual(54, game.CraftSecondsFor(bakery, bread));
+
+            // 주민 보너스와는 곱해진다: 60 x 0.5 x 0.9
+            Assert.AreEqual(ActionResult.Ok, game.AssignResident("dog", bakery));
+            Assert.AreEqual(27, game.CraftSecondsFor(bakery, bread));
+
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("tree", 5, 3, out id));
+            Assert.AreEqual(20, game.CharmSpeedPercent);
+            Assert.IsNull(game.NextCharmTier);
+            Assert.AreEqual(24, game.CraftSecondsFor(bakery, bread));
         }
 
         [Test]

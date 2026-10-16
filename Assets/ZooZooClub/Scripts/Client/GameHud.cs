@@ -48,6 +48,8 @@ namespace ZooZooClub.Client
         TextMeshProUGUI gemsText;
         TextMeshProUGUI storageText;
         TextMeshProUGUI charmText;
+        // 마지막으로 본 매력 보너스(%). 처음 화면을 그릴 때는 -1이라 알림을 띄우지 않는다.
+        int lastCharmPercent = -1;
         GameObject menuRoot;
         GameObject expandRoot;
         GameObject ordersBadge;
@@ -212,7 +214,18 @@ namespace ZooZooClub.Client
             group.childAlignment = TextAnchor.MiddleRight;
             group.childForceExpandWidth = false;
 
-            charmText = Capsule(row, "Charm", "ui_icon_heart", 150f);
+            charmText = Capsule(row, "Charm", "ui_icon_heart", 230f);
+            // 매력 표시를 누르면 지금 받는 생산 보너스와 다음 단계를 알려 준다.
+            var charmRoot = charmText.transform.parent.gameObject;
+            var charmButton = charmRoot.AddComponent<UButton>();
+            var charmBackground = charmRoot.transform.Find("Background").GetComponent<UnityEngine.UI.Image>();
+            charmBackground.raycastTarget = true;
+            charmButton.targetGraphic = charmBackground;
+            charmButton.onClick.AddListener(() =>
+            {
+                Sound.Play(Sound.Click);
+                Toast(CharmBonusText());
+            });
             storageText = Capsule(row, "Storage", "ui_icon_box", 190f);
             gemsText = Capsule(row, "Gems", "ui_icon_gem", 150f);
             coinsText = Capsule(row, "Coins", "ui_icon_coin", 200f);
@@ -621,7 +634,16 @@ namespace ZooZooClub.Client
             gemsText.text = state.gems.ToString("N0");
             storageText.text = game.StoredTotal + "/" + state.storageCapacity;
             storageText.color = game.StoredTotal >= state.storageCapacity ? new Color(1f, 0.72f, 0.66f) : Color.white;
-            charmText.text = game.TotalCharm.ToString();
+            int charmPercent = game.CharmSpeedPercent;
+            charmText.text = charmPercent > 0
+                ? game.TotalCharm + " <size=70%><color=#C9F5B4>생산 -" + charmPercent + "%</color></size>"
+                : game.TotalCharm.ToString();
+            if (lastCharmPercent >= 0 && charmPercent > lastCharmPercent)
+            {
+                Sound.Play(Sound.Win);
+                Toast("마을 매력 " + game.TotalCharm + " 달성! 모든 시설의 생산 시간이 " + charmPercent + "% 줄어요.");
+            }
+            lastCharmPercent = charmPercent;
 
             int ready = 0;
             foreach (var order in state.orders)
@@ -685,6 +707,19 @@ namespace ZooZooClub.Client
                     : "금고가 코인을 지켰어요";
                 Toast(report.defeated + "마리 물리치고 " + report.escaped + "마리를 놓쳤어요.  " + stolen);
             }
+        }
+
+        string CharmBonusText()
+        {
+            int charm = game.TotalCharm;
+            int percent = game.CharmSpeedPercent;
+            var next = game.NextCharmTier;
+            string text = percent > 0
+                ? "마을 매력 " + charm + ": 모든 시설의 생산 시간 -" + percent + "%."
+                : "마을 매력 " + charm + ": 아직 생산 보너스가 없어요.";
+            if (next != null) text += "  매력 " + next.charm + "이 되면 -" + next.speedPercent + "%";
+            else if (percent > 0) text += "  최고 단계예요!";
+            return text;
         }
 
         public void Toast(string text)
@@ -956,7 +991,8 @@ namespace ZooZooClub.Client
             var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
-                int tab = def.kind == PlaceableKind.Decor ? 1 : def.kind == PlaceableKind.Defense ? 2 : 0;
+                int tab = def.kind == PlaceableKind.Decor ? 1 : def.kind == PlaceableKind.Defense ? 2
+                    : def.kind == PlaceableKind.Floor ? 3 : 0;
                 if (tab == buildTab) shown.Add(def);
             }
 
@@ -966,6 +1002,7 @@ namespace ZooZooClub.Client
             BuildTab("TabFacility", "밭 · 시설", 0);
             BuildTab("TabDecor", "장식", 1);
             BuildTab("TabDefense", "방어", 2);
+            BuildTab("TabFloor", "바닥", 3);
 
             if (showGrades) GradeChances();
 
@@ -1026,7 +1063,7 @@ namespace ZooZooClub.Client
             var name = Text(inside, def.displayName, 26f, Ui.Ink, true);
             Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -150f, 204f, 36f);
 
-            string detail = def.kind == PlaceableKind.Decor ? "매력 +" + def.charm
+            string detail = def.kind == PlaceableKind.Decor || def.kind == PlaceableKind.Floor ? "매력 +" + def.charm
                 : def.kind == PlaceableKind.Facility ? "생산 시설"
                 : def.kind == PlaceableKind.Defense ? "사거리 " + Number(def.attackRange) + " · 공격 " + def.attackDamage
                 : "작물을 심는 곳";

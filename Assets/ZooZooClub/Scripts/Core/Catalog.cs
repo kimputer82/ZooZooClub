@@ -61,6 +61,32 @@ namespace ZooZooClub.Core
         public const string Facility = "facility";
         public const string Decor = "decor";
         public const string Defense = "defense";
+        /// <summary>바닥 장식. 땅 위에 깔리므로 그 위에 다른 배치물을 놓을 수 있고, 주민과 침략자가 밟고 지나간다.</summary>
+        public const string Floor = "floor";
+
+        /// <summary>땅바닥 자리를 쓰는지. 바닥과 밭은 서로 겹칠 수 없다.</summary>
+        public static bool UsesGround(PlaceableDef def)
+        {
+            return def != null && (def.kind == Floor || def.kind == Plot);
+        }
+
+        /// <summary>땅 위 자리를 쓰는지(바닥이 아닌 모든 것). 밭은 땅바닥과 땅 위 자리를 모두 쓴다.</summary>
+        public static bool UsesAbove(PlaceableDef def)
+        {
+            return def != null && def.kind != Floor;
+        }
+
+        /// <summary>두 배치물이 같은 칸에 함께 있을 수 없는지.</summary>
+        public static bool Conflicts(PlaceableDef a, PlaceableDef b)
+        {
+            return (UsesGround(a) && UsesGround(b)) || (UsesAbove(a) && UsesAbove(b));
+        }
+
+        /// <summary>지나가는 길을 막는지. 바닥은 막지 않는다.</summary>
+        public static bool BlocksWalking(PlaceableDef def)
+        {
+            return def != null && def.kind != Floor;
+        }
     }
 
     [Serializable]
@@ -271,6 +297,16 @@ namespace ZooZooClub.Core
         // 마을 한가운데에 닿은 침략자가 코인을 훔치는 데 걸리는 시간. 그 안에 물리치면 코인을 지킨다.
         public float raidStealSeconds = 3f;
         public List<StarterObject> starterObjects = new List<StarterObject>();
+        // 마을 매력이 charm 이상이면 모든 시설의 생산 시간이 speedPercent% 줄어든다. 가장 높은 단계 하나만 적용된다.
+        public List<CharmTierDef> charmTiers = new List<CharmTierDef>();
+    }
+
+    /// <summary>마을 매력 단계. 매력이 charm 이상이면 모든 생산 시설의 생산 시간이 speedPercent% 줄어든다.</summary>
+    [Serializable]
+    public class CharmTierDef
+    {
+        public int charm;
+        public int speedPercent;
     }
 
     [Serializable]

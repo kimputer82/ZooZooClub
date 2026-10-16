@@ -39,16 +39,19 @@
     {"id": "bench_back", "width": 0.973, "lift": 0.129, "offsetX": -0.014},
     {"id": "popcorn_cart_back", "width": 0.914, "lift": 0.133, "offsetX": 0.164},
     {"id": "bird_bath", "width": 0.594, "lift": 0.165, "offsetX": 0.004},
-    {"id": "bird_bath_side", "width": 0.594, "lift": 0.165, "offsetX": -0.002},
+    {"id": "bird_bath_back", "width": 0.594, "lift": 0.165, "offsetX": -0.002},
     {"id": "flower_barrel", "width": 0.559, "lift": 0.12, "offsetX": 0},
-    {"id": "flower_barrel_side", "width": 0.559, "lift": 0.12, "offsetX": -0.005},
-    {"id": "mailbox", "width": 0.488, "lift": 0.188, "offsetX": -0.117},
-    {"id": "mailbox_side", "width": 0.465, "lift": 0.188, "offsetX": 0.107},
+    {"id": "flower_barrel_back", "width": 0.559, "lift": 0.12, "offsetX": -0.005},
     {"id": "mushroom", "width": 0.465, "lift": 0.15, "offsetX": -0.029},
-    {"id": "mushroom_side", "width": 0.465, "lift": 0.15, "offsetX": 0.021},
+    {"id": "mushroom_back", "width": 0.465, "lift": 0.15, "offsetX": 0.021},
     {"id": "signpost", "width": 0.719, "lift": 0.166, "offsetX": -0.018},
-    {"id": "signpost_side", "width": 0.719, "lift": 0.166, "offsetX": 0.008},
+    {"id": "signpost_back", "width": 0.719, "lift": 0.166, "offsetX": 0.008},
     {"id": "well", "width": 0.75, "lift": 0.07, "offsetX": 0},
-    {"id": "well_side", "width": 0.75, "lift": 0.07, "offsetX": 0}
+    {"id": "well_back", "width": 0.75, "lift": 0.07, "offsetX": 0},
+    {"id": "floor_wood", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "floor_gravel", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "floor_brick", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "floor_stone", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "floor_marble", "width": 1.0, "lift": 0.0, "offsetX": 0.0}
   ]
 }

@@ -452,15 +452,20 @@ namespace ZooZooClub.Client
             if (handler != null) handler(text);
         }
 
-        PlacedObject ObjectAt(int x, int y)
+        /// <summary>그 칸의 배치물. 바닥 위에 다른 것이 놓여 있으면 위에 있는 것을 먼저 돌려준다.</summary>
+        PlacedObject ObjectAt(int x, int y, bool includeFloors = true)
         {
+            PlacedObject floor = null;
             foreach (var obj in game.State.objects)
             {
                 int width, height;
                 game.GetFootprint(obj, out width, out height);
-                if (x >= obj.x && x < obj.x + width && y >= obj.y && y < obj.y + height) return obj;
+                if (x < obj.x || x >= obj.x + width || y < obj.y || y >= obj.y + height) continue;
+                var def = game.Catalog.GetPlaceable(obj.defId);
+                if (def != null && def.kind == PlaceableKind.Floor) floor = obj;
+                else return obj;
             }
-            return null;
+            return includeFloors ? floor : null;
         }
 
         // ---------- 배치물 그리기 ----------
@@ -646,11 +651,15 @@ namespace ZooZooClub.Client
             view.center = IsoMath.CellToWorld(cellsWide * 0.5f, cellsDeep * 0.5f);
 
             bool isPlot = def.kind == PlaceableKind.Plot;
+            bool isFloor = def.kind == PlaceableKind.Floor;
             bool isFacility = def.kind == PlaceableKind.Facility;
 
-            Sprite plotArt = isPlot ? ArtLibrary.Get("plot") : null;
-            var plotLayout = ArtLibrary.Layout("plot");
+            // 밭과 바닥은 칸마다 땅에 붙은 그림을 깐다.
+            string groundName = isPlot ? "plot" : isFloor ? def.id : null;
+            Sprite plotArt = groundName != null ? ArtLibrary.Get(groundName) : null;
+            var plotLayout = groundName != null ? ArtLibrary.Layout(groundName) : null;
             if (isPlot) view.baseColor = plotArt != null ? Color.white : PlaceholderArt.Soil;
+            else if (isFloor) view.baseColor = plotArt != null ? Color.white : PlaceholderArt.ColorFor(def.id);
             else view.baseColor = Color.clear;
 
             for (int j = 0; j < cellsDeep; j++)
@@ -678,7 +687,14 @@ namespace ZooZooClub.Client
 
             float labelY;
 
-            if (isPlot)
+            if (isFloor)
+            {
+                view.body = NewSprite("Body", view.root.transform, null);
+                view.body.enabled = false;
+                view.sortOffsetY = 0f;
+                labelY = view.center.y + 0.3f;
+            }
+            else if (isPlot)
             {
                 view.body = NewSprite("Crop", view.root.transform, PlaceholderArt.Circle);
                 view.body.enabled = false;
@@ -943,7 +959,7 @@ namespace ZooZooClub.Client
             {
                 int x = UnityEngine.Random.Range(0, game.State.landWidth);
                 int y = UnityEngine.Random.Range(0, game.State.landHeight);
-                if (ObjectAt(x, y) != null) continue;
+                if (ObjectAt(x, y, false) != null) continue;
                 cell = new Vector2(x + 0.5f, y + 0.5f);
                 return true;
             }
@@ -975,6 +991,7 @@ namespace ZooZooClub.Client
 
             foreach (var obj in game.State.objects)
             {
+                if (!PlaceableKind.BlocksWalking(game.Catalog.GetPlaceable(obj.defId))) continue;
                 int objectWidth, objectHeight;
                 game.GetFootprint(obj, out objectWidth, out objectHeight);
                 for (int j = 0; j < objectHeight; j++)

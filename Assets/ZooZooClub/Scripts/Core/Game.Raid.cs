@@ -317,6 +317,7 @@ namespace ZooZooClub.Core
 
             foreach (var obj in State.objects)
             {
+                if (!PlaceableKind.BlocksWalking(Catalog.GetPlaceable(obj.defId))) continue;
                 int objectWidth, objectHeight;
                 GetFootprint(obj, out objectWidth, out objectHeight);
                 for (int j = 0; j < objectHeight; j++)
