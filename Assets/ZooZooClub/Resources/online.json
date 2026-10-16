@@ -1,0 +1,6 @@
+{
+  "databaseUrl": "https://zoozooclub-cff02-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "rankUploadSeconds": 60,
+  "rankRefreshSeconds": 30,
+  "boardRefreshSeconds": 10
+}

@@ -33,7 +33,8 @@ namespace ZooZooClub.Client
             Residents,
             Expand,
             Quiz,
-            Selection
+            Selection,
+            Rank
         }
 
         Game game;
@@ -362,6 +363,10 @@ namespace ZooZooClub.Client
             MenuButton(menu, "StorageButton", "ui_icon_box", "창고", Ui.Blue, () => Toggle(PanelKind.Storage));
             var orders = MenuButton(menu, "OrdersButton", "ui_icon_orders", "주문", Ui.Yellow, () => Toggle(PanelKind.Orders));
             MenuButton(menu, "BuildButton", "ui_icon_build", "건설", Ui.Orange, () => Toggle(PanelKind.Build));
+            if (game.State.roomCode.Length > 0)
+            {
+                MenuButton(menu, "RankButton", "ui_icon_star", "랭킹", Ui.Red, () => Toggle(PanelKind.Rank));
+            }
 
             // 지금 바로 납품할 수 있는 주문 수.
             var badge = Ui.Picture("Badge", orders, ArtLibrary.Get("ui_dot"));
@@ -429,7 +434,7 @@ namespace ZooZooClub.Client
         {
             var sheet = Ui.Box("Sheet", root, Ui.PanelSprite, Color.white);
             sheet.raycastTarget = true;
-            Ui.Put(sheet.rectTransform, 0.5f, 0f, 0f, 16f, 1210f, 300f);
+            Ui.Put(sheet.rectTransform, 0.5f, 0f, 0f, 16f, 1210f, 320f);
             sheetRoot = sheet.gameObject;
 
             CloseButton(sheet.transform);
@@ -813,6 +818,10 @@ namespace ZooZooClub.Client
                 builder.Append(quizCurrent != null ? quizCurrent.id : "-").Append('|').Append(quizPicked).Append('|');
                 builder.Append(game.QuizLockSeconds > 0).Append('|').Append(game.QuizCount);
             }
+            else if (panel == PanelKind.Rank)
+            {
+                builder.Append(rankVersion);
+            }
             else if (panel == PanelKind.Orders)
             {
                 foreach (var order in game.State.orders)
@@ -861,6 +870,9 @@ namespace ZooZooClub.Client
                     break;
                 case PanelKind.Quiz:
                     BuildQuizPanel();
+                    break;
+                case PanelKind.Rank:
+                    BuildRankPanel();
                     break;
                 case PanelKind.Selection:
                     BuildSelectionPanel();
@@ -1342,6 +1354,75 @@ namespace ZooZooClub.Client
             rebuildNeeded = true;
         }
 
+        // ---------- 랭킹 ----------
+
+        List<RankEntry> rankEntries = new List<RankEntry>();
+        string rankError;
+        int rankVersion;
+        float nextRankFetch;
+        bool rankFetching;
+
+        void BuildRankPanel()
+        {
+            string code = game.State.roomCode;
+            ShowWindow("랭킹  ·  방 코드 " + code, 900f, 760f);
+            ShowHeader(34f);
+            string when = rankError != null ? rankError
+                : rankEntries.Count == 0 ? "불러오는 중…"
+                : "같은 방 친구들의 레벨 순위예요. " + Online.RankRefreshSeconds + "초마다 새로 가져와요.";
+            var hint = Ui.Label("Hint", windowHeader, when, 22f, rankError != null ? Ui.Bad : Ui.Muted, TextAlignmentOptions.Center);
+            hint.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+
+            // 창을 열면 내 점수를 먼저 올리고 바로 받아 온다.
+            var reporter = GetComponent<RankReporter>();
+            if (reporter != null && Time.unscaledTime >= nextRankFetch) reporter.UploadNow();
+            if (Time.unscaledTime >= nextRankFetch) FetchRank();
+
+            var places = RankBoard.Places(rankEntries);
+            string me = PlayerName.Key(game.State.playerName);
+            for (int i = 0; i < rankEntries.Count; i++)
+            {
+                var entry = rankEntries[i];
+                bool mine = PlayerName.Key(entry.name) == me;
+                var row = Ui.Box("Row " + i, windowContent, Ui.CardSprite, mine ? Ui.Yellow : places[i] <= 3 ? Ui.Sand : Color.white);
+                Ui.Fixed(row.gameObject, 0f, 56f);
+                var place = Ui.Label("Place", row.transform, places[i] + "위", 28f, places[i] == 1 ? Ui.Orange : Ui.Ink,
+                    TextAlignmentOptions.Center, true);
+                Ui.Put(place.rectTransform, 0f, 0.5f, 10f, 0f, 100f, 48f);
+                var name = Ui.Label("Name", row.transform, entry.name + (mine ? "  (나)" : ""), 28f, Ui.Ink, TextAlignmentOptions.Left, true);
+                Ui.Put(name.rectTransform, 0f, 0.5f, 118f, 0f, 380f, 48f);
+                var level = Ui.Label("Level", row.transform, "Lv " + entry.level, 28f, Ui.Good, TextAlignmentOptions.Center, true);
+                Ui.Put(level.rectTransform, 1f, 0.5f, -230f, 0f, 120f, 48f);
+                var detail = Ui.Label("Detail", row.transform, "문제 " + entry.quizSolved + "개", 22f, Ui.Muted, TextAlignmentOptions.Right);
+                Ui.Put(detail.rectTransform, 1f, 0.5f, -20f, 0f, 200f, 48f);
+            }
+            if (rankEntries.Count == 0 && rankError == null)
+            {
+                Text(windowContent, "\n아직 아무도 없어요. 잠시 뒤에 다시 열어 보세요.", 26f, Ui.Muted);
+            }
+
+            // 열려 있는 동안 때맞춰 다시 가져온다.
+            tickers.Add(() =>
+            {
+                if (panel == PanelKind.Rank && !rankFetching && Time.unscaledTime >= nextRankFetch) FetchRank();
+            });
+        }
+
+        void FetchRank()
+        {
+            rankFetching = true;
+            nextRankFetch = Time.unscaledTime + Online.RankRefreshSeconds;
+            Online.FetchPlayers(game.State.roomCode, (entries, error) =>
+            {
+                rankFetching = false;
+                if (this == null) return;
+                rankError = error;
+                if (entries != null) rankEntries = entries;
+                rankVersion++;
+                if (panel == PanelKind.Rank) rebuildNeeded = true;
+            });
+        }
+
         // ---------- 마을 확장 ----------
 
         void BuildExpandPanel()
@@ -1496,11 +1577,24 @@ namespace ZooZooClub.Client
 
             if (string.IsNullOrEmpty(plot.cropId))
             {
-                InfoLine("심을 작물을 고르세요.", Ui.Muted);
+                InfoLine("심을 작물을 고르세요. (휠이나 끌기, 화살표로 넘겨요)", Ui.Muted);
 
-                var scroll = Ui.ScrollView("Scroll", sheetBody, 8f);
-                var grid = Ui.Grid("Grid", scroll, 150f, 210f, 12f, 5);
-                foreach (var crop in game.Catalog.crops) CropCard(grid, crop, objectId);
+                // 작물이 많아져도 잘리지 않게 가로로 넘겨 본다.
+                var strip = Ui.Rect("Strip", sheetBody);
+                strip.gameObject.AddComponent<ULayoutElement>().flexibleHeight = 1f;
+                var stripGroup = Ui.Horizontal(strip.gameObject, 6f, 0);
+                stripGroup.childAlignment = TextAnchor.MiddleLeft;
+                stripGroup.childForceExpandWidth = false;
+                stripGroup.childForceExpandHeight = true;
+
+                UnityEngine.UI.ScrollRect scroll = null;
+                var left = Ui.Button("ScrollLeft", strip, "‹", () => Ui.PageHorizontal(scroll, -1), 190f, 40f, Ui.Sand);
+                Ui.Fixed(left.gameObject, 44f, 190f);
+                var list = Ui.HorizontalScrollView("Scroll", strip, 12f, out scroll);
+                var right = Ui.Button("ScrollRight", strip, "›", () => Ui.PageHorizontal(scroll, 1), 190f, 40f, Ui.Sand);
+                Ui.Fixed(right.gameObject, 44f, 190f);
+
+                foreach (var crop in game.Catalog.crops) CropCard(list, crop, objectId);
                 return;
             }
 
@@ -1563,16 +1657,17 @@ namespace ZooZooClub.Client
                 Report(game.Plant(objectId, cropId), null);
             });
             card.interactable = !locked;
+            Ui.Fixed(card.gameObject, 150f, 190f);
             Transform inside = card.transform;
 
             var icon = Ui.Picture("Icon", inside, Art("crop_" + crop.id));
-            Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -10f, 120f, 84f);
+            Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -6f, 114f, 80f);
 
             var name = Text(inside, crop.displayName, 22f, Ui.Ink, true);
-            Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -96f, 140f, 30f);
+            Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -88f, 140f, 28f);
 
             var time = CenterRow(inside, 4f);
-            Ui.Put(time, 0.5f, 1f, 0f, -128f, 140f, 28f);
+            Ui.Put(time, 0.5f, 1f, 0f, -118f, 140f, 26f);
             Ui.Icon("Clock", time, Art("ui_icon_clock"), 24f);
             Ui.Label("Time", time, Texts.Duration(crop.growSeconds), 20f, Ui.Muted, TextAlignmentOptions.Left, true);
 
@@ -1580,7 +1675,7 @@ namespace ZooZooClub.Client
             if (locked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), "Lv " + crop.unlockLevel, Ui.Gray, 40f, 20f);
             else if (crop.seedCost <= 0) price = Ui.Chip("Price", inside, null, "무료", Ui.Green, 40f, 20f);
             else price = Ui.Chip("Price", inside, Art("ui_icon_coin"), crop.seedCost.ToString(), Ui.Yellow, 40f, 20f);
-            Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 18f, 118f, 40f);
+            Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 6f, 118f, 40f);
         }
 
         // ---------- 생산 시설 ----------

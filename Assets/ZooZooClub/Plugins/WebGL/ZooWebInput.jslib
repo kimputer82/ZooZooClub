@@ -1,13 +1,21 @@
 // 브라우저(WebGL)에서 한글을 입력하기 위한 진짜 HTML 입력 칸.
-// 유니티의 입력 칸은 브라우저에서 한글 조합(IME)을 못 받으므로, 로그인 화면의 이름 칸 자리에
-// HTML <input>을 얹어 두고 그 값을 읽어 간다. 위치는 캔버스 기준 비율(0~1)로 받는다.
+// 유니티의 입력 칸은 브라우저에서 한글 조합(IME)을 못 받으므로, 글자를 적는 자리마다 HTML <input>을 얹어 두고
+// 그 값을 읽어 간다. id로 여러 칸을 구분하고, 위치는 캔버스 기준 비율(0~1)로 받는다.
 mergeInto(LibraryManager.library, {
-  ZooWebInputShow: function (left, top, width, height, placeholderPtr, maxLength) {
-    var input = document.getElementById("zoo-name-input");
+  ZooWebInputShow: function (idPtr, left, top, width, height, placeholderPtr, maxLength, password) {
+    var id = "zoo-input-" + UTF8ToString(idPtr);
+    var input = document.getElementById(id);
     if (!input) {
+      if (!document.getElementById("zoo-input-style")) {
+        var style = document.createElement("style");
+        style.id = "zoo-input-style";
+        style.textContent = ".zoo-input::placeholder { color: rgba(150, 118, 88, 0.55); font-weight: normal; }";
+        document.head.appendChild(style);
+      }
       input = document.createElement("input");
-      input.id = "zoo-name-input";
-      input.type = "text";
+      input.id = id;
+      input.className = "zoo-input";
+      input.type = password ? "password" : "text";
       input.autocomplete = "off";
       input.spellcheck = false;
       input.style.position = "absolute";
@@ -28,47 +36,46 @@ mergeInto(LibraryManager.library, {
       });
       input.addEventListener("keyup", function (e) { e.stopPropagation(); });
       input.addEventListener("keypress", function (e) { e.stopPropagation(); });
-      var style = document.createElement("style");
-      style.textContent = "#zoo-name-input::placeholder { color: rgba(150, 118, 88, 0.55); font-weight: normal; }";
-      document.head.appendChild(style);
       document.body.appendChild(input);
-      window.zooWebInputSubmit = false;
+      if (window.zooWebInputSubmit === undefined) window.zooWebInputSubmit = false;
     }
     input.placeholder = UTF8ToString(placeholderPtr);
     input.maxLength = maxLength;
 
     var canvas = document.querySelector("#unity-canvas") || document.querySelector("canvas");
     var rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-    var px = rect.left + rect.width * left;
-    var py = rect.top + rect.height * top;
-    var pw = rect.width * width;
     var ph = rect.height * height;
-    input.style.left = px + "px";
-    input.style.top = py + "px";
-    input.style.width = pw + "px";
+    input.style.left = (rect.left + rect.width * left) + "px";
+    input.style.top = (rect.top + rect.height * top) + "px";
+    input.style.width = (rect.width * width) + "px";
     input.style.height = ph + "px";
     input.style.fontSize = Math.max(12, ph * 0.42) + "px";
     input.style.display = "block";
   },
 
-  ZooWebInputFocus: function () {
-    var input = document.getElementById("zoo-name-input");
+  ZooWebInputFocus: function (idPtr) {
+    var input = document.getElementById("zoo-input-" + UTF8ToString(idPtr));
     if (input) input.focus();
   },
 
-  ZooWebInputHide: function () {
-    var input = document.getElementById("zoo-name-input");
+  ZooWebInputHide: function (idPtr) {
+    var input = document.getElementById("zoo-input-" + UTF8ToString(idPtr));
     if (input) { input.style.display = "none"; input.blur(); }
   },
 
-  ZooWebInputClear: function () {
-    var input = document.getElementById("zoo-name-input");
+  ZooWebInputHideAll: function () {
+    var inputs = document.getElementsByClassName("zoo-input");
+    for (var i = 0; i < inputs.length; i++) { inputs[i].style.display = "none"; inputs[i].blur(); }
+  },
+
+  ZooWebInputClear: function (idPtr) {
+    var input = document.getElementById("zoo-input-" + UTF8ToString(idPtr));
     if (input) input.value = "";
     window.zooWebInputSubmit = false;
   },
 
-  ZooWebInputGetValue: function () {
-    var input = document.getElementById("zoo-name-input");
+  ZooWebInputGetValue: function (idPtr) {
+    var input = document.getElementById("zoo-input-" + UTF8ToString(idPtr));
     var value = input ? input.value : "";
     var size = lengthBytesUTF8(value) + 1;
     var buffer = _malloc(size);
@@ -76,16 +83,16 @@ mergeInto(LibraryManager.library, {
     return buffer;
   },
 
+  ZooWebInputTakeSubmit: function () {
+    var flag = window.zooWebInputSubmit ? 1 : 0;
+    window.zooWebInputSubmit = false;
+    return flag;
+  },
+
   // 저장 파일을 브라우저 저장소(IndexedDB)에 바로 옮긴다. 자동 동기화가 있지만, 탭을 닫기 직전에도 남도록 저장할 때마다 부른다.
   ZooWebSyncSaves: function () {
     if (typeof FS !== "undefined" && FS.syncfs) {
       FS.syncfs(false, function (err) { if (err) console.warn("[Zoo] save sync failed: " + err); });
     }
-  },
-
-  ZooWebInputTakeSubmit: function () {
-    var flag = window.zooWebInputSubmit ? 1 : 0;
-    window.zooWebInputSubmit = false;
-    return flag;
   }
 });

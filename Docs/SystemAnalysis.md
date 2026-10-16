@@ -97,6 +97,8 @@ Zoo Zoo Club은 장르와 시스템 구조만 참고하고, 이름·캐릭터·�
 문제 등록(엑셀): 문제는 엑셀로 적어 등록한다. 프로젝트 맨 위의 `Quiz` 폴더(Assets 바깥)에 있는 `문제.xlsx`의 첫 번째 시트에 한 줄에 문제 하나씩, `문제 | 보기1 | 보기2 | 보기3 | 보기4 | 정답 | 보상 | 메모` 열로 적는다. 보기는 2~4개(쓰지 않는 보기는 비운다), 정답은 보기 번호(1~4, 보기의 글을 그대로 적어도 된다), 보상은 비우면 기본 보상이다. 제목 줄은 이름으로 찾으므로 열 순서를 바꾸거나 다른 열을 더해도 된다. 파일을 저장하면 열려 있는 Unity 에디터가 몇 초 안에 알아채고 `quiz.json`을 다시 만들며(플레이 중이면 멈춘 뒤에), 결과는 같은 폴더의 `등록결과.txt`에 적힌다(등록한 문제 수, 등록하지 못한 줄과 이유). 폴더에 `.xlsx`가 여러 개 있으면 이름 순서로 모두 합친다. 읽을 수 있는 문제가 하나도 없으면 문제 은행을 그대로 둔다. `quiz.json`을 직접 고쳐도 되지만 다음에 엑셀이 바뀌면 덮어쓰인다. 게임에는 `quiz.json`만 들어가므로, 문제를 바꾼 뒤에는 다시 빌드해야 배포판에 반영된다. 문제와 보기는 적힌 그대로 보여 주며(꺾쇠 괄호나 역슬래시가 꾸밈 명령으로 읽히지 않는다), 길면 칸에 맞게 글자가 작아진다. 표를 문제로 바꾸는 규칙은 `Scripts/Core/QuizSheet.cs`, 엑셀 읽기와 자동 등록은 `Editor/QuizExcelImporter.cs`(메뉴 `ZooZooClub > 문제 엑셀 다시 읽기`)에 있다.
 로그인과 저장(자체 요소): 게임을 켜면 로그인 화면이 나오고, 학생이 이름만 적으면 그 이름의 마을로 들어간다. 이름은 한글·영어·숫자와 빈칸만, 10글자까지 쓸 수 있다(파일 이름으로 쓰기 때문이며, 규칙은 `Scripts/Core/PlayerName.cs`). 빈칸과 대소문자가 달라도 같은 이름으로 본다. 진행 상황은 서버 없이 이 컴퓨터에 이름마다 따로 저장된다(`p_<이름>.json`). 같은 컴퓨터에서 같은 이름으로 들어오면 이어 하고, 처음 보는 이름이면 새 마을로 시작한다. 로그인 화면 아래에는 이 컴퓨터에서 하던 이름이 최근 순으로 6개까지 버튼으로 나와, 눌러서 바로 들어갈 수 있다. 로그인 화면의 그림은 `Resources/Art/login_background.png`(동물들이 서 있는 풀밭 전경, 화면 비율이 달라도 아래쪽을 기준으로 빈 곳 없이 덮는다), `login_logo.png`(제목 로고), `login_start.png`(시작 글자가 들어간 버튼 그림)이며, 로고와 이름 창은 배경의 동물들 위쪽 하늘 부분 가운데에 놓인다. 그림이 없으면 하늘색 바탕과 글자로 대신한다. 게임 화면 왼쪽 위(레벨 아래)의 이름 표시를 누르면 저장하고 로그인 화면으로 돌아간다. 이름이 같은 학생은 같은 마을을 쓰게 되므로 이름 뒤에 번호를 붙이는 식으로 구분한다. 비밀번호가 없어서 다른 학생의 이름으로도 들어갈 수 있다. 다른 컴퓨터에서는 이어지지 않는다(그러려면 공유 폴더나 서버가 필요하다).
 
+방과 랭킹(자체 요소, 온라인): 선생님이 방을 만들고 학생이 그 방 코드로 들어오면 같은 방끼리 레벨 순위를 본다. 서버는 Firebase 실시간 데이터베이스이고 REST로만 쓴다(실시간 연결을 쓰지 않으므로 무료 플랜의 동시 접속 100개 제한에 걸리지 않는다). 주소 등 설정은 `Resources/online.json`(`databaseUrl`, 올리는 간격 `rankUploadSeconds` 60초, 학생 순위표 갱신 `rankRefreshSeconds` 30초, 선생님 랭킹판 갱신 `boardRefreshSeconds` 10초)이며, 주소가 비어 있으면 온라인 기능이 꺼진다(`Scripts/Client/Online.cs`). 자료 모양: `secret/teacher`(선생님 비밀번호, 아무도 읽지 못함, 콘솔에서 직접 적는다), `rooms/<코드>/owner`(`key`, `stamp`: 선생님이 쓸 때 함께 보내는 비밀번호와 시각, 읽지 못함), `rooms/<코드>/public`(`name`, `createdAt`, `open`), `rooms/<코드>/players/<이름키>`(`name`, `level`, `xp`, `quizSolved`, `updatedAt`). 보안 규칙은 `Docs/firebase-rules.json`에 있고 콘솔의 규칙 탭에 붙여 넣는다: 방 만들기·닫기·기록 지우기는 함께 보낸 `owner/key`가 `secret/teacher`와 같고 `owner/stamp`가 바뀔 때만 되고(그래서 학생이 기존 값으로는 흉내 낼 수 없다), 학생은 열린 방의 `players/<자기 이름키>`에만 쓸 수 있으며 값의 모양(이름 20자, 레벨 100 이하 등)을 검사한다. 방 코드는 헷갈리는 글자를 뺀 영문 대문자·숫자 6자리(`Scripts/Core/Rooms.cs`의 `RoomCode`), 순위는 레벨 > 경험치 > 푼 문제 수 > 이름 순이고 같은 점수는 같은 순위다(`RankBoard`). JSON은 `Scripts/Core/MiniJson.cs`로 읽고 쓴다. 로그인 화면의 방 코드 칸에 코드를 적으면 서버에 방이 있고 열려 있는지 확인한 뒤 들어가며(`GameState.roomCode`에 남는다, 비우면 혼자 하기), 들어온 학생은 `RankReporter`가 들어올 때·레벨이 오를 때·1분마다 자기 순위 정보를 올리고, 아래 메뉴에 생기는 "랭킹" 버튼으로 같은 방의 순위표를 본다(30초마다 갱신, 내 줄은 노란색). 로그인 화면 오른쪽 아래 "선생님" 버튼 → 비밀번호 → 방 이름을 적어 방 만들기(코드 자동 생성, 이 컴퓨터에서 만든 방 8개까지 PlayerPrefs `zoo.teacherRooms`에 기억) → 랭킹판(교실 화면용, 방 닫기/열기, 기록 지우기)이다(`Scripts/Client/TeacherScreen.cs`). 비밀번호는 서버가 검사하므로 틀리면 방 만들기에서 알게 된다. 글자 입력 칸은 `Scripts/Client/TextEntry.cs`로 통일했고 브라우저에서는 칸마다 HTML 입력을 얹는다(`Plugins/WebGL/ZooWebInput.jslib`, 비밀번호 칸은 가려서 보인다). 개발 도구 명령 `room <비밀번호> <방 이름>`, `room close|open|clear <코드> <비밀번호>`, `login <이름>|<코드>`로 점검한다. 서버 저장: 방 코드로 들어온 학생의 저장은 `saves/<코드>/<이름키>`에 저장 파일 내용(JSON 글 한 덩어리, 5~10KB)으로도 올라간다. 로그인할 때 서버 저장을 받아 이 컴퓨터의 저장과 `savedAt`(저장 시각)을 견주어 더 새것을 쓰므로, 브라우저 데이터가 지워지거나 다른 PC에서 들어와도 이어진다. 올리기는 저장할 때마다가 아니라 20초에 한 번 모아서 하고(`GameSession`의 `QueueCloudSave`/`FlushCloudSave`), 나가기·탭 숨김·종료 때는 바로 올린다. 실패하면 다음 기회에 다시 올리고, 그동안은 이 컴퓨터 저장만 된다. 저장은 방 코드별이므로 한 학급은 같은 방을 계속 쓴다(랭킹판의 "기록 지우기"는 순위만 지운다). 코드 없이 들어오면 전처럼 이 컴퓨터에만 저장한다. 사용량: 학생 1명이 1분에 한 번 올리고(1KB 미만) 랭킹 창을 열어 둔 동안 30초마다 방 하나(30명 기준 약 2KB)를 읽으므로 학급 여러 개는 무료 한도(월 10GB) 안이고, 수천 명이 동시에 쓰면 Blaze(다운로드 1GB당 1달러)로 올리면 된다.
+
 소리(자체 요소): 배경음과 효과음은 `Resources/Audio/`에 두고 이름으로 부른다(`Scripts/Client/Sound.cs`). `bgm_main.ogg`(마을 배경음, 반복)과 효과음 `sfx_click`(버튼), `sfx_harvest`(수확), `sfx_coin`(주문 납품·판매), `sfx_correct`/`sfx_wrong`(문제 정답·오답), `sfx_raid`(침략 시작), `sfx_build`(건물·장식 놓기), `sfx_win`(침략 방어 성공·레벨 업)이며, 같은 이름의 파일로 바꿔 끼우면 된다. 파일이 없으면 그 소리만 조용히 건너뛴다. 모든 버튼은 `Ui.Button`/`Ui.ButtonBox`에서 자동으로 클릭 소리를 낸다. 화면 왼쪽 위 이름 표시 옆의 "소리 켜짐/꺼짐" 버튼으로 끌 수 있고 설정은 이 컴퓨터에 남는다(PlayerPrefs `zoo.muted`). 배경음은 "Woodland Whimsy"(사용자가 구해 온 곡, 원본 mp3는 저장소 밖에 보관)를 모노 32kHz ogg(1MB)로 줄인 것이고, 효과음 8개는 `Tools/make_sfx.py`가 합성한 것이다. 브라우저는 사용자가 한 번 클릭하기 전에는 소리를 못 내므로 배경음은 로그인(시작 버튼) 뒤에 시작한다. 브라우저 빌드에서는 배경음을 유니티가 아니라 HTML `<audio>`로 튼다(`Plugins/WebGL/ZooWebMusic.jslib`, 웹 빌드가 `Web/bgm_main.ogg`를 복사해 둔다): 유니티는 웹 빌드에서 모든 소리를 AAC로 바꿔 브라우저가 풀게 하는데, 긴 곡을 통째로 메모리에 푸는 것을 피하기 위해서다. 효과음은 유니티가 그대로 낸다(크롬·엣지·파이어폭스 모두 AAC를 풀 수 있다). 임포트 설정은 `Editor/AudioImportSettings.cs`(효과음 PCM, 배경음 Vorbis, 모두 읽을 때 풀기).
 
 윈도우 빌드와 배포: 메뉴 `ZooZooClub/윈도우 빌드 만들기`(또는 개발 도구의 `build` 명령)를 누르면 `Builds/Windows/ZooZooClub/` 폴더에 게임이 만들어진다(`Assets/ZooZooClub/Editor/BuildWindows.cs`, 약 140MB, 1~2분). 이 폴더를 통째로 복사해 `ZooZooClub.exe`를 실행하면 되고 설치는 필요 없다. `ZooZooClub_BackUpThisFolder_ButDontShipItWithYourGame` 폴더는 디버그용이라 나눠 줄 때 빼도 된다. 처음에는 모니터 해상도 그대로 테두리 없는 전체 화면으로 뜨고, 창으로 바꾸면 크기를 조절할 수 있다(`PlayerSettings`의 fullScreenMode·resizableWindow를 빌드 스크립트가 맞춘다). 학생 PC에 나눠 주는 방법은 zip으로 묶어 USB·공유 폴더·구글 드라이브 등으로 복사하면 된다. `Builds/` 폴더는 저장소에 올리지 않는다. 처음 실행할 때 윈도우 SmartScreen이 "알 수 없는 게시자" 경고를 낼 수 있는데 "추가 정보 > 실행"으로 넘어가면 된다(코드 서명을 하지 않았기 때문).
@@ -122,6 +124,8 @@ Zoo Zoo Club은 장르와 시스템 구조만 참고하고, 이름·캐릭터·�
 | ★★★★ 전설 | 3% | 250% | 140% | 135% |
 
 등급은 `catalog.json`의 `grades`에서 고친다. `weight`가 확률의 비중이고(전체 합에 대한 비율), 목록의 순서가 낮은 등급에서 높은 등급 순서다. 등급을 더 넣거나 빼도 된다.
+
+가로로 넘겨 보는 목록: 빈 밭을 눌렀을 때 나오는 작물 목록처럼 항목이 늘어나도 잘리지 않아야 하는 곳은 `Ui.HorizontalScrollView`(마우스 휠·끌기)와 양쪽 끝의 ‹ › 버튼(`Ui.PageHorizontal`, 한 화면씩)으로 넘겨 본다. 아래 시트의 높이는 320이고 작물 카드는 150×190이다.
 
 방향 돌리기: 벤치와 팝콘 수레는 네 방향으로 돌려 놓을 수 있다. 놓을 자리를 고르는 동안 R 키나 아래쪽의 "돌리기" 버튼을 누르면 한 번에 90도씩 돌고, 놓기 전에 반투명한 그림으로 미리 보인다. 이미 놓은 것은 눌러서 나오는 "돌리기" 버튼으로 제자리에서 돌리며, 돌린 모양이 들어갈 칸이 비어 있지 않으면 돌지 않는다. 옮길 때도 돌릴 수 있다. 방향은 0(앞모습), 1(앞모습을 좌우로 뒤집음), 2(뒷모습), 3(뒷모습을 좌우로 뒤집음)이고, 1과 3에서는 차지하는 칸의 가로·세로가 바뀐다(2×1 벤치가 1×2가 된다). 기준 칸(가장 앞쪽 모서리 칸)은 돌려도 그대로다. 뒷모습 그림의 이름은 `<id>_back`(`bench_back`, `popcorn_cart_back`)이고, 없으면 앞모습 그림으로 대신한다. 다른 시설이나 장식도 `catalog.json`에서 `rotations`를 4(네 방향) 또는 2(앞·뒤만, 칸 모양은 그대로)로 적고 뒷모습 그림을 넣으면 돌릴 수 있다. 규칙은 `Scripts/Core/Catalog.cs`의 `Rotation`과 `Game.Placement.cs`에 있다.
 
@@ -194,7 +198,8 @@ Zoo Zoo Club은 장르와 시스템 구조만 참고하고, 이름·캐릭터·�
 | `Scripts/Core/QuizSheet.cs` | 표로 적은 문제를 문제 은행의 문제로 바꾸는 규칙 |
 | `Editor/QuizExcelImporter.cs` | 엑셀(.xlsx) 읽기와 자동 등록 |
 | `Tests/Editor/QuizSheetTests.cs` | 문제 표 읽기 테스트 10개 |
-| `Tests/Editor/RaidAndQuizTests.cs`, `GridPathTests.cs` | 침략·등급·문제 풀기 테스트 27개, 길 찾기 테스트 9개 |
+| `Tests/Editor/RaidAndQuizTests.cs`, `GridPathTests.cs` | 침략·등급·문제 풀기 테스트, 길 찾기 테스트 |
+| `Tests/Editor/OnlineTests.cs` | JSON·방 코드·순위표 테스트 5개 |
 | `Tools/make_defense.py` (프로젝트 루트) | 문제·방패 아이콘 임시 그림을 만드는 파이썬 스크립트 |
 | `Resources/catalog.json` | 게임 데이터 |
 | `Tests/Editor/GameTests.cs` | 규칙 테스트 23개 |
@@ -209,6 +214,11 @@ Zoo Zoo Club은 장르와 시스템 구조만 참고하고, 이름·캐릭터·�
 | `Editor/BuildWindows.cs` | 윈도우 빌드 만들기 메뉴 |
 | `Editor/BuildWeb.cs` | 웹(WebGL) 빌드 만들기 메뉴 |
 | `Scripts/Client/Sound.cs` | 배경음·효과음 재생과 소리 끄기 |
+| `Scripts/Core/Rooms.cs`, `MiniJson.cs` | 방 코드·순위표 규칙, JSON 읽기·쓰기 |
+| `Scripts/Client/Online.cs` | Firebase 실시간 데이터베이스 REST 통신 |
+| `Scripts/Client/TeacherScreen.cs` | 선생님 화면(방 만들기, 랭킹판) |
+| `Scripts/Client/RankReporter.cs` | 학생의 순위 정보 올리기 |
+| `Scripts/Client/TextEntry.cs` | 글자 입력 칸(브라우저에서는 HTML 입력) |
 | `Editor/AudioImportSettings.cs` | 소리 파일 임포트 설정 |
 | `Scripts/Client/WebSave.cs` | 브라우저에서의 저장에 대한 설명과 판별 |
 | `Scripts/Client/SaveFiles.cs` | 이름별 저장 파일의 자리(저장 폴더, 하던 이름 목록) |

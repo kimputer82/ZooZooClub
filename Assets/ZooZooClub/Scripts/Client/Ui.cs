@@ -410,6 +410,59 @@ namespace ZooZooClub.Client
             return content;
         }
 
+        /// <summary>
+        /// 가로로 넘겨 보는 목록. 항목을 넣을 Content를 돌려주고, 만든 ScrollRect를 scroll로 준다.
+        /// 마우스 휠과 끌기로 넘어가며, 세로 배치 그룹 안에 넣으면 남는 높이를 차지한다.
+        /// </summary>
+        public static RectTransform HorizontalScrollView(string name, Transform parent, float spacing, out UScrollRect scroll)
+        {
+            var root = Rect(name, parent);
+            var rootLayout = root.gameObject.AddComponent<ULayoutElement>();
+            rootLayout.minHeight = 80f;
+            rootLayout.flexibleHeight = 1f;
+            rootLayout.flexibleWidth = 1f;
+            scroll = root.gameObject.AddComponent<UScrollRect>();
+
+            var viewport = Panel("Viewport", root, Color.white);
+            Stretch(viewport.rectTransform, 0f, 0f, 0f, 0f);
+            viewport.gameObject.AddComponent<UMask>().showMaskGraphic = false;
+
+            var content = Rect("Content", viewport.transform);
+            content.anchorMin = new Vector2(0f, 0f);
+            content.anchorMax = new Vector2(0f, 1f);
+            content.pivot = new Vector2(0f, 0.5f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+            var group = Horizontal(content.gameObject, spacing, 0);
+            group.childAlignment = TextAnchor.MiddleLeft;
+            group.childForceExpandWidth = false;
+            group.childForceExpandHeight = false;
+
+            var fitter = content.gameObject.AddComponent<UContentSizeFitter>();
+            fitter.horizontalFit = UContentSizeFitter.FitMode.PreferredSize;
+            fitter.verticalFit = UContentSizeFitter.FitMode.Unconstrained;
+
+            scroll.viewport = viewport.rectTransform;
+            scroll.content = content;
+            scroll.horizontal = true;
+            scroll.vertical = false;
+            scroll.movementType = UScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+            return content;
+        }
+
+        /// <summary>가로 목록을 한 화면 너비만큼 넘긴다(direction은 -1 또는 1).</summary>
+        public static void PageHorizontal(UScrollRect scroll, int direction)
+        {
+            if (scroll == null || scroll.content == null || scroll.viewport == null) return;
+            float contentWidth = scroll.content.rect.width;
+            float viewWidth = scroll.viewport.rect.width;
+            float overflow = contentWidth - viewWidth;
+            if (overflow <= 0f) return;
+            float step = viewWidth * 0.9f / overflow;
+            scroll.horizontalNormalizedPosition = Mathf.Clamp01(scroll.horizontalNormalizedPosition + direction * step);
+        }
+
         /// <summary>부모를 가득 채우되 네 변에서 주어진 만큼 안쪽으로 들인다.</summary>
         public static void Stretch(RectTransform rect, float left, float bottom, float right, float top)
         {

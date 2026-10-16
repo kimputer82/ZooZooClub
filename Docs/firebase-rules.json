@@ -1,0 +1,38 @@
+{
+  "rules": {
+    "secret": {
+      ".read": false,
+      ".write": false
+    },
+    "saves": {
+      "$code": {
+        "$player": {
+          ".read": true,
+          ".write": "root.child('rooms').child($code).child('public').child('open').val() === true",
+          ".validate": "newData.isString() && newData.val().length < 300000"
+        }
+      }
+    },
+    "rooms": {
+      "$code": {
+        "owner": {
+          ".read": false,
+          ".write": "newData.child('key').val() === root.child('secret').child('teacher').val() && newData.child('stamp').isNumber() && (!data.exists() || newData.child('stamp').val() > data.child('stamp').val())"
+        },
+        "public": {
+          ".read": true,
+          ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val()",
+          ".validate": "newData.hasChildren(['name', 'createdAt', 'open']) && newData.child('name').isString() && newData.child('name').val().length <= 40"
+        },
+        "players": {
+          ".read": true,
+          ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val()",
+          "$player": {
+            ".write": "root.child('rooms').child($code).child('public').child('open').val() === true",
+            ".validate": "newData.hasChildren(['name', 'level', 'updatedAt']) && newData.child('name').isString() && newData.child('name').val().length <= 20 && newData.child('level').isNumber() && newData.child('level').val() <= 100 && newData.child('xp').isNumber() && newData.child('quizSolved').isNumber()"
+          }
+        }
+      }
+    }
+  }
+}

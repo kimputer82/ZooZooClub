@@ -17,7 +17,7 @@ namespace ZooZooClub.EditorTools
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
     /// 명령: ping, refresh, test, build(윈도우 빌드), buildweb(웹 빌드), play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
-    /// 플레이 중 점검용: login <이름>, logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
+    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -147,11 +147,15 @@ namespace ZooZooClub.EditorTools
                     break;
 
                 case "login":
-                    WriteOut(id + " login: " + LogIn(argument));
+                    LogIn(id, argument);
                     break;
 
                 case "logout":
                     WriteOut(id + " logout: " + LogOut());
+                    break;
+
+                case "room":
+                    Room(id, argument);
                     break;
 
                 case "quiz":
@@ -262,13 +266,52 @@ namespace ZooZooClub.EditorTools
         static readonly string StateDumpPath = Path.Combine(Dir, "state.json");
 
         /// <summary>이름이 같은 켜져 있는 버튼을 찾아 누른 것처럼 동작시킨다.</summary>
-        static string LogIn(string name)
+        static void LogIn(string id, string name)
         {
-            if (!EditorApplication.isPlaying) return "skipped, not playing";
+            if (!EditorApplication.isPlaying) { WriteOut(id + " login: skipped, not playing"); return; }
             var session = GameSession.Instance;
-            if (session == null) return "no session";
-            string error = session.Login(name);
-            return error ?? ("ok, save=" + Path.GetFileName(session.SavePath));
+            if (session == null) { WriteOut(id + " login: no session"); return; }
+            // "이름|방코드" 꼴이면 그 방으로 들어간다(방이 있는지는 확인하지 않고, 서버 저장은 가져온다).
+            string code = "";
+            int bar = name.IndexOf('|');
+            if (bar >= 0)
+            {
+                code = ZooZooClub.Core.RoomCode.Normalize(name.Substring(bar + 1)) ?? "";
+                name = name.Substring(0, bar);
+            }
+            string cleanName = name;
+            if (code.Length == 0)
+            {
+                string error = session.Login(cleanName, code, null);
+                WriteOut(id + " login: " + (error ?? ("ok, save=" + Path.GetFileName(session.SavePath))));
+                return;
+            }
+            Online.FetchSave(code, cleanName, (json, fetchError) =>
+            {
+                if (fetchError != null) { WriteOut(id + " login: " + fetchError); return; }
+                string error = session.Login(cleanName, code, json);
+                WriteOut(id + " login: " + (error ?? ("ok, save=" + Path.GetFileName(session.SavePath) + " room=" + code
+                    + (json != null ? " cloud=" + json.Length + "B" : " cloud=none"))));
+            });
+        }
+
+        /// <summary>room &lt;비밀번호&gt; &lt;방 이름&gt; : 서버에 방을 만들고 코드를 적는다. room close|open|clear &lt;코드&gt; &lt;비밀번호&gt; 도 된다.</summary>
+        static void Room(string id, string argument)
+        {
+            if (!EditorApplication.isPlaying) { WriteOut(id + " room: skipped, not playing"); return; }
+            var parts = argument.Split(new[] { ' ' }, 3);
+            if (parts.Length >= 3 && (parts[0] == "close" || parts[0] == "open" || parts[0] == "clear"))
+            {
+                string code = ZooZooClub.Core.RoomCode.Normalize(parts[1]) ?? parts[1];
+                System.Action<string> done = error => WriteOut(id + " room " + parts[0] + ": " + (error ?? "ok"));
+                if (parts[0] == "clear") Online.ClearPlayers(code, parts[2], done);
+                else Online.SetRoomOpen(code, parts[0] == "open", parts[2], done);
+                return;
+            }
+            if (parts.Length < 2) { WriteOut(id + " room: usage room <password> <name>"); return; }
+            string newCode = ZooZooClub.Core.RoomCode.Generate(new System.Random());
+            Online.OpenRoom(newCode, parts.Length >= 3 ? parts[1] + " " + parts[2] : parts[1], parts[0],
+                error => WriteOut(id + " room: " + (error ?? ("ok code=" + newCode))));
         }
 
         static string LogOut()

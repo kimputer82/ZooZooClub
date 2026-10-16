@@ -8,7 +8,9 @@ namespace ZooZooClub.Client
 {
     /// <summary>
     /// 게임을 켜면 처음 나오는 화면. 학생이 이름을 적으면 그 이름의 마을(저장 파일)로 들어간다.
+    /// 선생님이 알려 준 방 코드를 함께 적으면 그 방의 친구들과 랭킹을 겨룬다(비워 두면 혼자 하기).
     /// 이 컴퓨터에서 하던 이름은 아래에 버튼으로 나와서, 눌러서 바로 이어 할 수 있다.
+    /// 오른쪽 아래 작은 "선생님" 버튼으로 선생님 화면(방 만들기, 랭킹판)에 들어간다.
     /// </summary>
     public sealed class LoginScreen : MonoBehaviour
     {
@@ -31,34 +33,36 @@ namespace ZooZooClub.Client
 
         const float PanelWidth = 780f;
         const float PadSide = 60f;
-        const float PadTop = 40f;
-        const float PadBottom = 50f;
+        const float PadTop = 36f;
+        const float PadBottom = 40f;
         const float Spacing = 10f;
         const float ContentWidth = PanelWidth - PadSide * 2f;
-        const float PromptHeight = 40f;
-        const float InputHeight = 88f;
-        const float ErrorHeight = 30f;
+        const float PromptHeight = 36f;
+        const float InputHeight = 84f;
+        const float CodeHeight = 64f;
+        const float ErrorHeight = 28f;
         const float StartFallbackHeight = 96f;
-        const float RecentTitleHeight = 36f;
-        const float RecentHeight = 56f;
+        const float RecentTitleHeight = 32f;
+        const float RecentHeight = 50f;
         const float RecentGap = 12f;
 
-        Func<string, string> onLogin;
+        /// <summary>이름, 방 코드(없으면 빈 문자열), 서버에 있던 저장(없으면 null)을 받아 들어가기를 시도하고, 안 되면 보여 줄 이유를, 되면 null을 돌려준다.</summary>
+        Func<string, string, string, string> onLogin;
+        Action onTeacher;
         RectTransform logo;
         RectTransform panel;
-        TMP_InputField input;
-        TextMeshProUGUI[] unityInputLabels;
+        TextEntry nameEntry;
+        TextEntry codeEntry;
         TextMeshProUGUI errorText;
         GameObject recentTitle;
         RectTransform recentGrid;
         float startHeight = StartFallbackHeight;
+        bool busy;
 
-        /// <summary>
-        /// onLogin은 이름을 받아 들어가기를 시도하고, 안 되면 아이에게 보여 줄 이유를, 되면 null을 돌려준다.
-        /// </summary>
-        public void Init(Func<string, string> onLogin)
+        public void Init(Func<string, string, string, string> onLogin, Action onTeacher)
         {
             this.onLogin = onLogin;
+            this.onTeacher = onTeacher;
 
             var canvasGo = new GameObject("LoginCanvas", typeof(RectTransform));
             canvasGo.transform.SetParent(transform, false);
@@ -76,6 +80,7 @@ namespace ZooZooClub.Client
             BuildBackdrop(root);
             BuildLogo(root);
             BuildPanel(root);
+            BuildTeacherButton(root);
         }
 
         /// <summary>바탕. 뒤의 게임 화면을 가리고 클릭도 막는다.</summary>
@@ -127,7 +132,8 @@ namespace ZooZooClub.Client
             var prompt = Ui.Label("Prompt", content, "이름을 적고 내 마을로 들어가요", 28f, Ui.Muted, TextAlignmentOptions.Center);
             Ui.Fixed(prompt.gameObject, 0f, PromptHeight);
 
-            input = BuildInput(content);
+            nameEntry = new TextEntry("Name", content, "여기에 이름", PlayerName.MaxLength, InputHeight, 38f, false, () => SetError(""));
+            codeEntry = new TextEntry("Code", content, "방 코드 (선생님이 알려 준 것, 없으면 비워 둬요)", 8, CodeHeight, 24f, false, () => SetError(""));
 
             errorText = Ui.Label("Error", content, "", 24f, Ui.Bad, TextAlignmentOptions.Center, true);
             Ui.Fixed(errorText.gameObject, 0f, ErrorHeight);
@@ -148,99 +154,43 @@ namespace ZooZooClub.Client
             Sprite sprite = ArtLibrary.Get(StartArt);
             if (sprite == null)
             {
-                Ui.Button("StartButton", parent, "시작", () => Submit(TypedName), StartFallbackHeight, 38f, Ui.Green);
+                Ui.Button("StartButton", parent, "시작", () => Submit(nameEntry.Value), StartFallbackHeight, 38f, Ui.Green);
                 return;
             }
 
             // '시작' 글자가 그림에 들어 있으므로 그림을 통째로 버튼으로 쓴다.
             startHeight = ContentWidth * sprite.rect.height / sprite.rect.width;
-            var button = Ui.ButtonBox("StartButton", parent, sprite, Color.white, () => Submit(TypedName));
+            var button = Ui.ButtonBox("StartButton", parent, sprite, Color.white, () => Submit(nameEntry.Value));
             var image = (Image)button.targetGraphic;
             image.type = Image.Type.Simple;
             image.preserveAspect = true;
             Ui.Fixed(button.gameObject, 0f, startHeight);
         }
 
-        /// <summary>지금 이름 칸에 적힌 글. 브라우저에서는 HTML 입력 칸의 값이다.</summary>
-        string TypedName
+        void BuildTeacherButton(Transform root)
         {
-            get { return WebNameInput.Available ? WebNameInput.Value : input.text; }
-        }
-
-        TMP_InputField BuildInput(Transform parent)
-        {
-            var box = Ui.Box("NameInput", parent, Ui.CardSprite, Color.white);
-            box.raycastTarget = true;
-            Ui.Fixed(box.gameObject, 0f, InputHeight);
-
-            // 입력 칸은 글자 칸과 안내 글이 다 연결된 뒤에 켜야 한다.
-            box.gameObject.SetActive(false);
-
-            var area = Ui.Rect("Text Area", box.transform);
-            Ui.Stretch(area, 28f, 10f, 28f, 6f);
-            area.gameObject.AddComponent<RectMask2D>();
-
-            var placeholder = Ui.Label("Placeholder", area, "여기에 이름", 38f, new Color(0.59f, 0.46f, 0.35f, 0.55f),
-                TextAlignmentOptions.Center);
-            Ui.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
-            var text = Ui.Label("Text", area, "", 38f, Ui.Ink, TextAlignmentOptions.Center, true);
-            Ui.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
-
-            var field = box.gameObject.AddComponent<TMP_InputField>();
-            field.targetGraphic = box;
-            field.textViewport = area;
-            field.textComponent = text;
-            field.placeholder = placeholder;
-            if (Ui.Font != null) field.fontAsset = Ui.Font;
-            field.pointSize = 38f;
-            field.lineType = TMP_InputField.LineType.SingleLine;
-            field.characterLimit = PlayerName.MaxLength;
-            field.richText = false;
-            field.caretColor = Ui.Ink;
-            field.customCaretColor = true;
-            field.selectionColor = new Color(1f, 0.84f, 0.35f, 0.6f);
-            field.onSubmit.AddListener(Submit);
-            field.onValueChanged.AddListener(_ => SetError(""));
-
-            box.gameObject.SetActive(true);
-
-            // 브라우저에서는 한글 조합이 안 되므로 유니티 입력 칸 대신 같은 자리에 HTML 입력 칸을 얹는다(Update 참고).
-            if (WebNameInput.Available)
+            var button = Ui.ButtonBox("TeacherButton", root, Ui.CapsuleSprite, new Color(0.2f, 0.13f, 0.08f, 0.55f), () =>
             {
-                field.enabled = false;
-                unityInputLabels = new[] { placeholder, text };
-                HideUnityInputLabels();
-            }
-            return field;
-        }
-
-        /// <summary>브라우저에서는 유니티 입력 칸의 글자(안내 글 포함)를 숨긴다. 입력 칸이 글을 바꿀 때 다시 켜지므로 거듭 부른다.</summary>
-        void HideUnityInputLabels()
-        {
-            if (unityInputLabels == null) return;
-            foreach (var label in unityInputLabels)
-            {
-                if (label != null && label.enabled) label.enabled = false;
-            }
+                if (onTeacher != null) onTeacher();
+            });
+            Ui.Put((RectTransform)button.transform, 1f, 0f, -24f, 20f, 150f, 46f);
+            var label = Ui.Label("Text", button.transform, "선생님", 20f, new Color(1f, 1f, 1f, 0.85f), TextAlignmentOptions.Center);
+            Ui.Stretch(label.rectTransform, 0f, 0f, 0f, 0f);
         }
 
         void Update()
         {
-            if (!WebNameInput.Available || input == null) return;
-            HideUnityInputLabels();
-            // 유니티 시작 화면(Made with Unity)이 끝나기 전에는 입력 칸이 그 위에 떠 보이므로 기다린다.
-            if (!UnityEngine.Rendering.SplashScreen.isFinished) return;
-            WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
-            if (WebNameInput.TakeSubmit()) Submit(TypedName);
+            nameEntry.Update();
+            codeEntry.Update();
+            if (nameEntry.TakeSubmit() || codeEntry.TakeSubmit()) Submit(nameEntry.Value);
         }
 
         /// <summary>화면을 보여 준다. 하던 이름 목록을 새로 채우고 이름 칸을 비운다.</summary>
         public void Show()
         {
             gameObject.SetActive(true);
-            input.text = "";
-            HideUnityInputLabels();
-            WebNameInput.Clear();
+            busy = false;
+            nameEntry.Clear();
             SetError("");
 
             Ui.Clear(recentGrid);
@@ -248,7 +198,7 @@ namespace ZooZooClub.Client
             foreach (string name in names)
             {
                 string picked = name;
-                Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), RecentHeight, 26f, Ui.Sand);
+                Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), RecentHeight, 24f, Ui.Sand);
             }
 
             bool any = names.Count > 0;
@@ -256,23 +206,13 @@ namespace ZooZooClub.Client
             recentGrid.gameObject.SetActive(any);
             int rows = (names.Count + RecentColumns - 1) / RecentColumns;
 
-            float height = PadTop + PromptHeight + InputHeight + ErrorHeight + startHeight + Spacing * 3f + PadBottom;
+            float height = PadTop + PromptHeight + InputHeight + CodeHeight + ErrorHeight + startHeight + Spacing * 4f + PadBottom;
             if (any) height += Spacing * 2f + RecentTitleHeight + rows * RecentHeight + (rows - 1) * RecentGap;
             Arrange(height);
 
-            if (WebNameInput.Available)
-            {
-                if (UnityEngine.Rendering.SplashScreen.isFinished)
-                {
-                    WebNameInput.Show(input.GetComponent<RectTransform>(), "여기에 이름", PlayerName.MaxLength);
-                    WebNameInput.Focus();
-                }
-            }
-            else
-            {
-                input.Select();
-                input.ActivateInputField();
-            }
+            nameEntry.Update();
+            codeEntry.Update();
+            nameEntry.Focus();
         }
 
         /// <summary>로고와 창을 한 덩어리로 보고, 화면 위쪽과 동물들 머리 사이의 한가운데에 놓는다.</summary>
@@ -299,26 +239,67 @@ namespace ZooZooClub.Client
 
         public void Hide()
         {
-            WebNameInput.Hide();
+            nameEntry.Hide();
+            codeEntry.Hide();
             gameObject.SetActive(false);
         }
 
         void Submit(string name)
         {
-            if (onLogin == null) return;
-            string error = onLogin(name);
-            if (error != null)
+            if (onLogin == null || busy) return;
+
+            string codeText = codeEntry.Value;
+            if (string.IsNullOrWhiteSpace(codeText))
             {
-                SetError(error);
-                if (!gameObject.activeInHierarchy) return;
-                if (WebNameInput.Available) WebNameInput.Focus();
-                else input.ActivateInputField();
+                Finish(onLogin(name, "", null));
+                return;
             }
+
+            string code = RoomCode.Normalize(codeText);
+            if (code == null)
+            {
+                SetError("방 코드는 영문과 숫자 4~8자예요.");
+                return;
+            }
+
+            // 이름이 이상하면 서버에 물어보기 전에 알려 준다.
+            string nameError;
+            if (PlayerName.Clean(name, out nameError) == null)
+            {
+                SetError(nameError);
+                return;
+            }
+
+            busy = true;
+            SetError("방을 확인하는 중…");
+            Online.CheckRoom(code, (room, error) =>
+            {
+                if (!gameObject.activeInHierarchy) { busy = false; return; }
+                if (error != null) { busy = false; Finish(error); return; }
+                SetError("저장을 불러오는 중…");
+                // 서버에 이 이름의 저장이 있으면 가져와서, 이 컴퓨터의 저장과 견주어 더 새것을 쓴다.
+                Online.FetchSave(code, name, (json, saveError) =>
+                {
+                    busy = false;
+                    if (!gameObject.activeInHierarchy) return;
+                    if (saveError != null) { Finish(saveError); return; }
+                    Finish(onLogin(name, code, json));
+                });
+            });
+        }
+
+        void Finish(string error)
+        {
+            if (error == null) return;
+            SetError(error);
+            if (gameObject.activeInHierarchy) nameEntry.Focus();
         }
 
         void SetError(string text)
         {
-            if (errorText != null) errorText.text = text;
+            if (errorText == null) return;
+            errorText.text = text;
+            errorText.color = text.EndsWith("중…") ? Ui.Muted : Ui.Bad;
         }
     }
 }

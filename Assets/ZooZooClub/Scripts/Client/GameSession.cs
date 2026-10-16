@@ -27,6 +27,7 @@ namespace ZooZooClub.Client
 
         GameCatalog catalog;
         LoginScreen login;
+        TeacherScreen teacher;
         GameObject worldObject;
         GameObject hudObject;
         bool dirty;
@@ -94,10 +95,24 @@ namespace ZooZooClub.Client
             }
 
             Sound.Ensure(transform);
+            Online.Ensure(transform);
+
+            teacher = new GameObject("Teacher").AddComponent<TeacherScreen>();
+            teacher.transform.SetParent(transform, false);
+            teacher.Init(() =>
+            {
+                teacher.Hide();
+                login.Show();
+            });
+            teacher.Hide();
 
             login = new GameObject("Login").AddComponent<LoginScreen>();
             login.transform.SetParent(transform, false);
-            login.Init(Login);
+            login.Init(Login, () =>
+            {
+                login.Hide();
+                teacher.Show();
+            });
             login.Show();
 
             Debug.Log("[Zoo] ready. quiz=" + (catalog.quiz != null ? catalog.quiz.questions.Count : 0)
@@ -109,6 +124,20 @@ namespace ZooZooClub.Client
         /// 들어가지 못하면 아이에게 보여 줄 이유를, 들어갔으면 null을 돌려준다.
         /// </summary>
         public string Login(string rawName)
+        {
+            return Login(rawName, "", null);
+        }
+
+        public string Login(string rawName, string roomCode)
+        {
+            return Login(rawName, roomCode, null);
+        }
+
+        /// <summary>
+        /// roomCode는 정리된 방 코드(없으면 빈 문자열). 방이 있는지는 부르는 쪽에서 미리 확인한다.
+        /// cloudJson은 서버에 있던 이 이름의 저장(없으면 null)이며, 이 컴퓨터의 저장보다 새것이면 그것으로 시작한다.
+        /// </summary>
+        public string Login(string rawName, string roomCode, string cloudJson)
         {
             if (catalog == null) return "게임 데이터를 읽지 못했어요.";
             if (Game != null) return "이미 들어와 있어요.";
@@ -130,9 +159,20 @@ namespace ZooZooClub.Client
                 adopted = state != null;
             }
 
+            // 서버 저장이 있으면 더 새것을 고른다(같으면 서버 것).
+            bool fromCloud = false;
+            var cloud = ParseState(cloudJson);
+            if (cloud != null && (state == null || cloud.savedAt >= state.savedAt))
+            {
+                state = cloud;
+                fromCloud = true;
+            }
+
             bool isNew = state == null;
             if (isNew) state = GameState.CreateNew(catalog, clock.Now);
             if (string.IsNullOrEmpty(state.playerName) || adopted) state.playerName = name;
+            bool roomChanged = state.roomCode != (roomCode ?? "");
+            state.roomCode = roomCode ?? "";
 
             SavePath = path;
             Game = new Game(catalog, state, clock);
@@ -154,12 +194,21 @@ namespace ZooZooClub.Client
             hudObject = hud.gameObject;
 
             login.Hide();
+            TextEntry.HideAll();
             SaveFiles.LastName = name;
 
+            // 방에 들어왔으면 내 순위 정보를 올리기 시작한다.
+            if (state.roomCode.Length > 0)
+            {
+                var reporter = hud.gameObject.AddComponent<RankReporter>();
+                reporter.Init(Game);
+            }
+
             // 새 마을이나 이어받은 마을은 바로 한 번 저장해서, 다음에 이름 목록에 나오게 한다.
-            if (isNew || adopted) Save();
+            if (isNew || adopted || roomChanged || fromCloud) Save();
 
             Debug.Log("[Zoo] started. player=" + state.playerName + (isNew ? " (new)" : adopted ? " (adopted)" : "")
+                + (state.roomCode.Length > 0 ? " room=" + state.roomCode : "") + (fromCloud ? " (cloud)" : "")
                 + " level=" + state.level + " coins=" + state.coins
                 + " objects=" + state.objects.Count + " orders=" + state.orders.Count
                 + " quiz=" + Game.QuizCount);
@@ -173,6 +222,7 @@ namespace ZooZooClub.Client
             if (Game == null) return;
 
             Save();
+            FlushCloudSave();
             Game.Changed -= MarkDirty;
             if (hudObject != null) Destroy(hudObject);
             if (worldObject != null) Destroy(worldObject);
@@ -197,13 +247,27 @@ namespace ZooZooClub.Client
             try
             {
                 if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
-                var state = JsonUtility.FromJson<GameState>(File.ReadAllText(path));
+                return ParseState(File.ReadAllText(path));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Zoo] 저장 파일을 읽지 못해 새 게임으로 시작합니다: " + e.Message);
+                return null;
+            }
+        }
+
+        static GameState ParseState(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try
+            {
+                var state = JsonUtility.FromJson<GameState>(json);
                 if (state == null || state.landWidth <= 0) return null;
                 return state;
             }
             catch (Exception e)
             {
-                Debug.LogWarning("[Zoo] 저장 파일을 읽지 못해 새 게임으로 시작합니다: " + e.Message);
+                Debug.LogWarning("[Zoo] 저장을 읽지 못했습니다: " + e.Message);
                 return null;
             }
         }
@@ -223,7 +287,10 @@ namespace ZooZooClub.Client
             {
                 // 쓰는 도중에 컴퓨터가 꺼져도 원래 파일이 깨지지 않도록, 옆에 다 쓴 뒤 바꿔치기한다.
                 string temp = SavePath + ".tmp";
-                File.WriteAllText(temp, JsonUtility.ToJson(Game.State));
+                Game.State.savedAt = Game.Now;
+                string json = JsonUtility.ToJson(Game.State);
+                File.WriteAllText(temp, json);
+                QueueCloudSave(json);
                 if (!File.Exists(SavePath))
                 {
                     File.Move(temp, SavePath);
@@ -253,6 +320,44 @@ namespace ZooZooClub.Client
         public void SaveNow()
         {
             if (dirty) Save();
+            FlushCloudSave();
+        }
+
+        // ---------- 서버 저장 ----------
+        // 방에 들어온 학생의 저장은 서버에도 올린다. 저장할 때마다 올리지 않고 조금 모아서(CloudDelaySeconds) 올리며,
+        // 나가거나 탭을 닫을 때는 바로 올린다. 실패하면 다음 저장 때 다시 올린다.
+
+        const float CloudDelaySeconds = 20f;
+        string cloudPending;
+        float cloudAt;
+        bool cloudUploading;
+
+        void QueueCloudSave(string json)
+        {
+            if (Game == null || Game.State.roomCode.Length == 0 || !Online.Enabled) return;
+            if (cloudPending == null) cloudAt = Time.unscaledTime + CloudDelaySeconds;
+            cloudPending = json;
+        }
+
+        void FlushCloudSave()
+        {
+            if (cloudPending == null || cloudUploading) return;
+            string json = cloudPending;
+            string code = Game != null ? Game.State.roomCode : null;
+            string name = Game != null ? Game.State.playerName : null;
+            if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(name)) { cloudPending = null; return; }
+            cloudPending = null;
+            cloudUploading = true;
+            Online.PutSave(code, name, json, error =>
+            {
+                cloudUploading = false;
+                if (error != null)
+                {
+                    Debug.LogWarning("[Zoo] 서버 저장 실패: " + error);
+                    // 다음 기회에 다시 올린다(새 저장이 그 사이에 없었을 때만).
+                    if (cloudPending == null) { cloudPending = json; cloudAt = Time.unscaledTime + 30f; }
+                }
+            });
         }
 
         void Update()
@@ -264,21 +369,27 @@ namespace ZooZooClub.Client
             }
             if (Game != null) Game.TickRaid(Time.unscaledDeltaTime);
             if (dirty && Time.unscaledTime >= saveAt) Save();
+            if (cloudPending != null && Time.unscaledTime >= cloudAt) FlushCloudSave();
         }
 
         void OnApplicationPause(bool paused)
         {
-            if (paused && dirty) Save();
+            if (!paused) return;
+            if (dirty) Save();
+            FlushCloudSave();
         }
 
         void OnApplicationFocus(bool focused)
         {
-            if (!focused && dirty) Save();
+            if (focused) return;
+            if (dirty) Save();
+            FlushCloudSave();
         }
 
         void OnApplicationQuit()
         {
             if (dirty) Save();
+            FlushCloudSave();
         }
 
         void OnDestroy()
