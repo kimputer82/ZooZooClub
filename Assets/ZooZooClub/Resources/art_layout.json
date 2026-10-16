@@ -52,6 +52,9 @@
     {"id": "floor_gravel", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
     {"id": "floor_brick", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
     {"id": "floor_stone", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
-    {"id": "floor_marble", "width": 1.0, "lift": 0.0, "offsetX": 0.0}
+    {"id": "floor_marble", "width": 1.0, "lift": 0.0, "offsetX": 0.0},
+    {"id": "bakery_back", "width": 1.9, "lift": 0.02, "offsetX": 0.0},
+    {"id": "juice_bar_back", "width": 1.9, "lift": 0.02, "offsetX": 0.0},
+    {"id": "jam_workshop_back", "width": 1.9, "lift": 0.02, "offsetX": 0.0}
   ]
 }
