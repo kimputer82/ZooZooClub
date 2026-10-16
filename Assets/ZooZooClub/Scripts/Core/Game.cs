@@ -29,7 +29,8 @@ namespace ZooZooClub.Core
         NotReady,
         QueueFull,
         InvalidPlacement,
-        MaxReached
+        MaxReached,
+        NotEnoughGems
     }
 
     /// <summary>

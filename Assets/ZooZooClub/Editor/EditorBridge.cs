@@ -17,7 +17,7 @@ namespace ZooZooClub.EditorTools
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
     /// 명령: ping, refresh, test, build(윈도우 빌드), buildweb(웹 빌드), play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
-    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향]
+    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향], give <아이템|gems|coins> <수>
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -168,6 +168,10 @@ namespace ZooZooClub.EditorTools
 
                 case "place":
                     WriteOut(id + " place: " + Place(argument));
+                    break;
+
+                case "give":
+                    WriteOut(id + " give: " + Give(argument));
                     break;
 
                 case "state":
@@ -410,6 +414,30 @@ namespace ZooZooClub.EditorTools
             var result = game.BuyAndPlace(parts[0], x, y, out objectId, rotation);
             session.Save();
             return parts[0] + " at " + x + "," + y + " rot=" + rotation + " -> " + result + " id=" + objectId;
+        }
+
+        /// <summary>점검용: give &lt;아이템 id|gems|coins&gt; &lt;수&gt; 로 지금 게임에 넣어 준다. 점검용 이름으로 들어온 뒤에만 쓴다.</summary>
+        static string Give(string argument)
+        {
+            if (!EditorApplication.isPlaying) return "not playing";
+            var session = GameSession.Instance;
+            if (session == null || session.Game == null) return "no game";
+
+            var parts = argument.Split(' ');
+            int amount;
+            if (parts.Length != 2 || !int.TryParse(parts[1], out amount)) return "usage: give <itemId|gems|coins> <amount>";
+
+            var state = session.Game.State;
+            if (parts[0] == "gems") state.gems = Math.Max(0, state.gems + amount);
+            else if (parts[0] == "coins") state.coins = Math.Max(0, state.coins + amount);
+            else
+            {
+                var entry = state.inventory.Find(e => e.itemId == parts[0]);
+                if (entry != null) entry.amount += amount;
+                else state.inventory.Add(new ItemAmount(parts[0], amount));
+            }
+            session.Save();
+            return parts[0] + " +" + amount + " gems=" + state.gems;
         }
 
         static string Raid(string argument)

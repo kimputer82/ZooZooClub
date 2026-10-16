@@ -387,6 +387,36 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void FinishNow_SpendsGemsAndPullsTheQueueForward()
+        {
+            int bakery = PlaceBakery();
+            game.State.inventory.Add(new ItemAmount("wheat", 4));
+            game.State.gems = 3;
+            Assert.AreEqual(0, game.FinishNowCost(bakery));
+            Assert.AreEqual(ActionResult.NotReady, game.FinishNow(bakery));
+
+            Assert.AreEqual(ActionResult.Ok, game.StartCraft(bakery, "bread"));
+            Assert.AreEqual(ActionResult.Ok, game.StartCraft(bakery, "bread"));
+            clock.Now += 10;
+
+            // 남은 50초: 120초마다 1개, 최소 1개.
+            Assert.AreEqual(1, game.FinishNowCost(bakery));
+            Assert.AreEqual(ActionResult.Ok, game.FinishNow(bakery));
+            Assert.AreEqual(2, game.State.gems);
+            Assert.AreEqual(1, game.ReadyJobCount(bakery));
+
+            // 두 번째 빵은 지금부터 60초 뒤에 끝난다.
+            var second = game.FindObject(bakery).queue[1];
+            Assert.AreEqual(clock.Now, second.startAt);
+            Assert.AreEqual(clock.Now + 60, second.finishAt);
+
+            catalog.balance.gemFinishSeconds = 20;
+            Assert.AreEqual(3, game.FinishNowCost(bakery));
+            Assert.AreEqual(ActionResult.NotEnoughGems, game.FinishNow(bakery));
+            Assert.AreEqual(2, game.State.gems);
+        }
+
+        [Test]
         public void Floor_SitsUnderOtherThings_ButNotUnderPlotsOrOtherFloors()
         {
             int id;

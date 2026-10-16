@@ -112,6 +112,8 @@
     "raidMaxStealPercent": 30,
     "raidSpawnGapSeconds": 1.2,
     "raidStealSeconds": 3.0,
+    "gemFinishSeconds": 120,
+    "quizGemChancePercent": 3,
     "charmTiers": [
       { "charm": 30, "speedPercent": 5 },
       { "charm": 80, "speedPercent": 10 },

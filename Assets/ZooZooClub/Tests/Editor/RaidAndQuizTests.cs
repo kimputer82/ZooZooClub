@@ -549,6 +549,29 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void Quiz_SometimesPaysAGem()
+        {
+            bool correct;
+            int reward, gems;
+            int before = game.State.gems;
+
+            catalog.balance.quizGemChancePercent = 100;
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 2, out correct, out reward, out gems));
+            Assert.AreEqual(1, gems);
+            Assert.AreEqual(before + 1, game.State.gems);
+
+            catalog.balance.quizGemChancePercent = 0;
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 2, out correct, out reward, out gems));
+            Assert.AreEqual(0, gems);
+
+            // 틀리면 확률과 상관없이 보석이 없다.
+            catalog.balance.quizGemChancePercent = 100;
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 1, out correct, out reward, out gems));
+            Assert.AreEqual(0, gems);
+            Assert.AreEqual(before + 1, game.State.gems);
+        }
+
+        [Test]
         public void Quiz_WrongAnswerPaysNothingAndLocksForAWhile()
         {
             bool correct;

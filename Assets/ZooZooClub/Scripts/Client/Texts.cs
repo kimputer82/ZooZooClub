@@ -22,6 +22,7 @@ namespace ZooZooClub.Client
                 case ActionResult.QueueFull: return "대기열이 가득 찼어요.";
                 case ActionResult.InvalidPlacement: return "여기에는 놓을 수 없어요.";
                 case ActionResult.MaxReached: return "더 늘릴 수 없어요.";
+                case ActionResult.NotEnoughGems: return "보석이 부족해요.";
                 default: return result.ToString();
             }
         }

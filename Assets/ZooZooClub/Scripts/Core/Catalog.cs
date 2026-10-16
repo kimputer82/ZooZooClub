@@ -297,6 +297,10 @@ namespace ZooZooClub.Core
         // 마을 한가운데에 닿은 침략자가 코인을 훔치는 데 걸리는 시간. 그 안에 물리치면 코인을 지킨다.
         public float raidStealSeconds = 3f;
         public List<StarterObject> starterObjects = new List<StarterObject>();
+        // 보석으로 생산을 바로 끝낼 때, 남은 시간 이만큼(초)마다 보석 1개. 남은 시간이 짧아도 최소 1개.
+        public int gemFinishSeconds = 120;
+        // 문제를 맞혔을 때 보석 1개를 받을 확률(%).
+        public int quizGemChancePercent = 3;
         // 마을 매력이 charm 이상이면 모든 시설의 생산 시간이 speedPercent% 줄어든다. 가장 높은 단계 하나만 적용된다.
         public List<CharmTierDef> charmTiers = new List<CharmTierDef>();
     }

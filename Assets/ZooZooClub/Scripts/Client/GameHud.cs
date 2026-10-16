@@ -103,6 +103,7 @@ namespace ZooZooClub.Client
         int quizPicked;
         bool quizCorrect;
         int quizReward;
+        int quizGems;
         string signature = "";
         bool rebuildNeeded;
         float nextTick;
@@ -1331,7 +1332,7 @@ namespace ZooZooClub.Client
             }
 
             string resultText = quizCorrect
-                ? "정답이에요!  +" + quizReward.ToString("N0") + " 코인"
+                ? "정답이에요!  +" + quizReward.ToString("N0") + " 코인" + (quizGems > 0 ? "  +보석 " + quizGems : "")
                 : "아쉬워요. 정답은 「" + quiz.choices[quiz.answer - 1] + "」";
             var result = Ui.Label("Result", windowFooter, resultText, 28f, quizCorrect ? Ui.Good : Ui.Bad,
                 TextAlignmentOptions.Left, true);
@@ -1378,7 +1379,8 @@ namespace ZooZooClub.Client
 
             bool correct;
             int reward;
-            var result = game.AnswerQuiz(quizCurrent.id, number, out correct, out reward);
+            int gems;
+            var result = game.AnswerQuiz(quizCurrent.id, number, out correct, out reward, out gems);
             if (result != ActionResult.Ok)
             {
                 Toast(Texts.Describe(result));
@@ -1388,6 +1390,8 @@ namespace ZooZooClub.Client
             quizPicked = number;
             quizCorrect = correct;
             quizReward = reward;
+            quizGems = gems;
+            if (gems > 0) Toast("운이 좋아요! 보석 " + gems + "개를 얻었어요.");
             Sound.Play(correct ? Sound.Correct : Sound.Wrong);
             rebuildNeeded = true;
         }
@@ -1753,12 +1757,57 @@ namespace ZooZooClub.Client
                 }, 64f, 24f, Ui.Green);
                 Ui.Fixed(collect.gameObject, 300f, 64f);
             }
+            if (game.FinishNowCost(objectId) > 0) FinishNowButton(objectId);
             Ui.Spacer(windowFooter, 1f, 0f);
 
             var actions = Ui.Rect("Actions", windowFooter);
             Ui.Fixed(actions.gameObject, def.rotations > 1 ? 640f : 460f, 64f);
             Ui.Horizontal(actions.gameObject, 12f, 0);
             MoveAndRemoveButtons(actions, objectId, def, 64f, 22f);
+        }
+
+        /// <summary>
+        /// 보석으로 지금 만들고 있는 것을 바로 끝내는 버튼. 실수로 보석을 쓰지 않도록 두 번 눌러야 한다.
+        /// 남은 시간이 줄면 드는 보석도 줄어드니 글자를 계속 고친다.
+        /// </summary>
+        void FinishNowButton(int objectId)
+        {
+            bool armed = false;
+            UButton button = null;
+            button = Ui.Button("FinishNow", windowFooter, "", () =>
+            {
+                if (!armed)
+                {
+                    armed = true;
+                    Ui.SetButtonText(button, "한 번 더 누르면 보석 " + game.FinishNowCost(objectId) + "개");
+                    return;
+                }
+                armed = false;
+                var result = game.FinishNow(objectId);
+                if (result == ActionResult.Ok)
+                {
+                    Sound.Play(Sound.Coin);
+                    var collected = game.CollectCrafted(objectId);
+                    Toast(collected == ActionResult.Ok ? "보석을 써서 바로 완성했어요!"
+                        : "바로 완성했어요. " + Texts.Describe(collected));
+                }
+                else Toast(Texts.Describe(result));
+            }, 64f, 22f, Ui.Blue);
+            Ui.Fixed(button.gameObject, 380f, 64f);
+
+            Action tick = () =>
+            {
+                if (button == null) return;
+                int cost = game.FinishNowCost(objectId);
+                if (cost <= 0)
+                {
+                    button.gameObject.SetActive(false);
+                    return;
+                }
+                if (!armed) Ui.SetButtonText(button, "보석 " + cost + "개로 바로 완성");
+            };
+            tick();
+            tickers.Add(tick);
         }
 
         /// <summary>지금 일하는 주민과, 대신 배치할 수 있는 주민들.</summary>

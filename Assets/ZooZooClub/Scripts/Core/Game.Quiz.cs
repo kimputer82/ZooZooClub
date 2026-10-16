@@ -72,8 +72,16 @@ namespace ZooZooClub.Core
         /// </summary>
         public ActionResult AnswerQuiz(string quizId, int choice, out bool correct, out int reward)
         {
+            int gems;
+            return AnswerQuiz(quizId, choice, out correct, out reward, out gems);
+        }
+
+        /// <summary>위와 같고, 맞혔을 때 낮은 확률로 받은 보석 수(0 또는 1)도 돌려준다.</summary>
+        public ActionResult AnswerQuiz(string quizId, int choice, out bool correct, out int reward, out int gems)
+        {
             correct = false;
             reward = 0;
+            gems = 0;
 
             var quiz = Catalog.GetQuiz(quizId);
             if (quiz == null) return ActionResult.NotFound;
@@ -85,6 +93,13 @@ namespace ZooZooClub.Core
                 reward = QuizRewardFor(quiz);
                 State.coins += reward;
                 State.quizSolved++;
+
+                int chance = Catalog.balance != null ? Catalog.balance.quizGemChancePercent : 0;
+                if (chance > 0 && NextRandom(100) < chance)
+                {
+                    gems = 1;
+                    State.gems += gems;
+                }
             }
             else
             {

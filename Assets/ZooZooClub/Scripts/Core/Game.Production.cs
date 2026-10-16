@@ -66,6 +66,62 @@ namespace ZooZooClub.Core
             return ready;
         }
 
+        /// <summary>지금 만들고 있는(아직 덜 된 것 중 맨 앞) 작업. 없으면 null.</summary>
+        CraftJob CurrentJob(PlacedObject facility)
+        {
+            long now = Now;
+            foreach (var job in facility.queue)
+            {
+                if (job.finishAt > now) return job;
+            }
+            return null;
+        }
+
+        /// <summary>지금 만들고 있는 작업을 바로 끝내는 데 드는 보석. 만들고 있는 것이 없으면 0.</summary>
+        public int FinishNowCost(int objectId)
+        {
+            PlaceableDef def;
+            var facility = FindFacility(objectId, out def);
+            if (facility == null) return 0;
+            var job = CurrentJob(facility);
+            if (job == null) return 0;
+
+            long remaining = job.finishAt - Now;
+            long step = Math.Max(1, Catalog.balance != null ? Catalog.balance.gemFinishSeconds : 120);
+            return (int)Math.Max(1L, (remaining + step - 1) / step);
+        }
+
+        /// <summary>
+        /// 보석을 써서 지금 만들고 있는 작업을 바로 끝낸다. 뒤에 줄 선 작업들도 그만큼 앞당겨진다.
+        /// 끝난 완성품은 평소처럼 수거해야 창고에 들어간다.
+        /// </summary>
+        public ActionResult FinishNow(int objectId)
+        {
+            PlaceableDef def;
+            var facility = FindFacility(objectId, out def);
+            if (facility == null) return ActionResult.NotFound;
+            var job = CurrentJob(facility);
+            if (job == null) return ActionResult.NotReady;
+
+            int cost = FinishNowCost(objectId);
+            if (State.gems < cost) return ActionResult.NotEnoughGems;
+            State.gems -= cost;
+
+            long now = Now;
+            long saved = job.finishAt - now;
+            int index = facility.queue.IndexOf(job);
+            job.finishAt = now;
+            for (int i = index + 1; i < facility.queue.Count; i++)
+            {
+                var next = facility.queue[i];
+                next.startAt = Math.Max(now, next.startAt - saved);
+                next.finishAt = Math.Max(next.startAt, next.finishAt - saved);
+            }
+
+            NotifyChanged();
+            return ActionResult.Ok;
+        }
+
         /// <summary>완성된 작업을 창고에 들어가는 만큼 앞에서부터 수거한다.</summary>
         public ActionResult CollectCrafted(int objectId)
         {
