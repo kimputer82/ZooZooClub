@@ -447,6 +447,18 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void QuizCombo_ShortensCraftTime()
+        {
+            catalog.balance.comboTiers.Add(new ComboTierDef { combo = 2, speedPercent = 50 });
+            int bakery = PlaceBakery();
+            var bread = catalog.GetRecipe("bread");
+            Assert.AreEqual(60, game.CraftSecondsFor(bakery, bread));
+            game.State.quizCombo = 2;
+            game.State.quizComboAt = clock.Now;
+            Assert.AreEqual(30, game.CraftSecondsFor(bakery, bread));
+        }
+
+        [Test]
         public void FinishNow_SpendsGemsAndPullsTheQueueForward()
         {
             int bakery = PlaceBakery();

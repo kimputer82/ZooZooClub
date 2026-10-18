@@ -143,6 +143,9 @@ namespace ZooZooClub.Client
         /// <summary>플레이어에게 알려 줄 짧은 문구.</summary>
         public event Action<string> Message;
 
+        /// <summary>새 배치물을 사서 놓았을 때(그 배치물 번호).</summary>
+        public event Action<int> Placed;
+
         public bool InPlacementMode
         {
             get { return mode != Mode.None; }
@@ -481,6 +484,10 @@ namespace ZooZooClub.Client
                 {
                     Notify(Texts.GradeStars(game.Catalog, grade) + "  " + grade.displayName + " " + def.displayName + " 등장!");
                 }
+                var placedHandler = Placed;
+                if (placedHandler != null) placedHandler(newId);
+                if (mode != Mode.Placing) return;
+
                 bool keepPlacing = def != null
                     && def.kind != PlaceableKind.Facility
                     && game.State.coins >= def.cost
@@ -907,16 +914,20 @@ namespace ZooZooClub.Client
                 ArtLibrary.Fit(view.body, PlaceholderArt.Circle, new Vector3(view.center.x, 0.17f, 0f), size);
             }
 
-            view.label.text = ripe ? "수확!" : Texts.Duration(game.SecondsUntilRipe(obj.id));
+            view.label.text = ripe ? (obj.quizGate ? "문제 풀고 수확!" : "수확!") : Texts.Duration(game.SecondsUntilRipe(obj.id));
         }
 
         /// <summary>방어 시설 위에 등급을 별로 보여 준다.</summary>
         void RefreshDefense(ObjectView view, PlacedObject obj)
         {
             var grade = game.GradeOf(obj);
-            view.label.text = grade != null
+            string stars = grade != null
                 ? Texts.GradeColorTag(grade) + Texts.GradeStars(game.Catalog, grade) + "</color>"
                 : "";
+            // 공사 중(문제를 덜 푼) 방어 시설은 흐릿하게 보이고, 남은 문제 수를 단다.
+            bool building = obj.buildQuizzes > 0;
+            if (view.body != null) view.body.color = building ? new Color(0.75f, 0.75f, 0.75f, 0.55f) : Color.white;
+            view.label.text = building ? stars + "\n공사 중 · 문제 " + obj.buildQuizzes : stars;
         }
 
         void RefreshFacility(ObjectView view, PlacedObject obj)

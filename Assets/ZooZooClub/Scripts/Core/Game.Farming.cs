@@ -28,6 +28,9 @@ namespace ZooZooClub.Core
             State.coins -= crop.seedCost;
             plot.cropId = crop.id;
             plot.plantedAt = Now;
+            // 수확할 때 문제를 풀어야 하는지는 심을 때 정해 둔다(다시 눌러서 피하지 못하게).
+            int quizChance = Catalog.balance != null ? Catalog.balance.harvestQuizChancePercent : 0;
+            plot.quizGate = quizChance > 0 && QuizCount > 0 && NextRandom(100) < quizChance;
             NotifyChanged();
             return ActionResult.Ok;
         }
@@ -121,6 +124,7 @@ namespace ZooZooClub.Core
             var plot = FindPlot(objectId);
             if (plot == null || string.IsNullOrEmpty(plot.cropId)) return ActionResult.NotFound;
             if (!IsRipe(objectId)) return ActionResult.NotReady;
+            if (plot.quizGate && QuizCount > 0) return ActionResult.NeedsQuiz;
 
             var crop = Catalog.GetCrop(plot.cropId);
             if (crop == null)
@@ -146,6 +150,7 @@ namespace ZooZooClub.Core
 
             plot.cropId = "";
             plot.plantedAt = 0;
+            plot.quizGate = false;
             AddXp(crop.harvestXp);
             NotifyChanged();
             return ActionResult.Ok;

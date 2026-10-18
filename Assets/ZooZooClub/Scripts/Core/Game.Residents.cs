@@ -93,7 +93,7 @@ namespace ZooZooClub.Core
 
         /// <summary>
         /// 이 시설에서 지금 레시피를 시작하면 걸리는 시간(초).
-        /// 배치된 주민의 보너스와 마을 매력 보너스가 차례로 곱해져 반영된다.
+        /// 배치된 주민의 보너스, 마을 매력 보너스, 문제 콤보 보너스가 차례로 곱해져 반영된다.
         /// </summary>
         public int CraftSecondsFor(int objectId, RecipeDef recipe)
         {
@@ -103,7 +103,8 @@ namespace ZooZooClub.Core
             var resident = ResidentAt(objectId);
             if (resident != null) bonus = Math.Max(0, Math.Min(99, resident.craftSpeedBonusPercent));
 
-            long seconds = (long)recipe.craftSeconds * (100 - bonus) * (100 - CharmSpeedPercent) / 10000;
+            long seconds = (long)recipe.craftSeconds * (100 - bonus) * (100 - CharmSpeedPercent) * (100 - ComboSpeedPercent)
+                / 1000000;
             return (int)Math.Max(1L, seconds);
         }
 

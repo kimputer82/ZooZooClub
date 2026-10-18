@@ -36,6 +36,11 @@ namespace ZooZooClub.Tests
                 attackRange = 1.2f, attackDamage = 1, attackInterval = 5f
             });
 
+            // 수확 문제 점검용 밭과 작물.
+            c.items.Add(new ItemDef { id = "carrot", displayName = "Carrot", value = 3 });
+            c.crops.Add(new CropDef { id = "carrot", harvestItemId = "carrot", harvestAmount = 1, growSeconds = 10, unlockLevel = 1 });
+            c.placeables.Add(new PlaceableDef { id = "plot", kind = PlaceableKind.Plot, width = 1, height = 1, cost = 0 });
+
             c.invaders.Add(new InvaderDef { id = "thief", hp = 10, speed = 2f, stealCoins = 30, bounty = 5, xp = 0, firstLevel = 1 });
 
             c.levels.Add(new LevelDef { xpToNext = 1000 });
@@ -637,6 +642,111 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 1, out correct, out reward, out gems));
             Assert.AreEqual(0, gems);
             Assert.AreEqual(before + 1, game.State.gems);
+        }
+
+        [Test]
+        public void Harvest_SometimesNeedsAQuizFirst()
+        {
+            catalog.balance.storageUpgradeStep = 1;
+            game.State.storageCapacity = 50;
+            int plot = Place("plot", 0, 0);
+            bool correct;
+            int reward, gems;
+
+            // 확률 0%: 문제 없이 수확.
+            catalog.balance.harvestQuizChancePercent = 0;
+            Assert.AreEqual(ActionResult.Ok, game.Plant(plot, "carrot"));
+            clock.Now += 10;
+            Assert.AreEqual(ActionResult.Ok, game.Harvest(plot));
+
+            // 확률 100%: 심을 때 정해지고, 맞히기 전에는 수확할 수 없다.
+            catalog.balance.harvestQuizChancePercent = 100;
+            Assert.AreEqual(ActionResult.Ok, game.Plant(plot, "carrot"));
+            Assert.IsTrue(game.FindObject(plot).quizGate);
+            clock.Now += 10;
+            Assert.AreEqual(ActionResult.NeedsQuiz, game.Harvest(plot));
+
+            // 틀리면 그대로다(작물도 남아 있다).
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 1, out correct, out reward, out gems, plot));
+            Assert.IsFalse(correct);
+            Assert.AreEqual(ActionResult.NeedsQuiz, game.Harvest(plot));
+            Assert.AreEqual("carrot", game.FindObject(plot).cropId);
+
+            // 기다렸다가 맞히면 수확할 수 있다.
+            clock.Now += 5;
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 2, out correct, out reward, out gems, plot));
+            Assert.IsTrue(correct);
+            Assert.AreEqual(ActionResult.Ok, game.Harvest(plot));
+            Assert.IsFalse(game.FindObject(plot).quizGate);
+        }
+
+        [Test]
+        public void Defense_HighGradeIsUnderConstructionUntilQuizzesAreSolved()
+        {
+            catalog.grades.Add(new GradeDef { id = "common", displayName = "Common", weight = 0 });
+            catalog.grades.Add(new GradeDef { id = "legend", displayName = "Legend", weight = 1, buildQuizzes = 2 });
+            catalog.invaders[0].hp = 1;
+            catalog.balance.raidBaseCount = 1;
+            int tower = Place("tower", Land / 2 + 1, Land / 2);
+            Assert.AreEqual(2, game.FindObject(tower).buildQuizzes);
+
+            // 공사 중에는 공격하지 않는다.
+            Assert.AreEqual(0, RunRaid().defeated);
+
+            bool correct;
+            int reward, gems;
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q1", 2, out correct, out reward, out gems, tower));
+            Assert.AreEqual(1, game.FindObject(tower).buildQuizzes);
+            Assert.AreEqual(ActionResult.Ok, game.AnswerQuiz("q3", 2, out correct, out reward, out gems, tower));
+            Assert.AreEqual(0, game.FindObject(tower).buildQuizzes);
+
+            Assert.AreEqual(1, RunRaid().defeated);
+        }
+
+        [Test]
+        public void Defense_CommonGradeNeedsNoQuiz()
+        {
+            catalog.grades.Add(new GradeDef { id = "common", displayName = "Common", weight = 1 });
+            catalog.grades.Add(new GradeDef { id = "legend", displayName = "Legend", weight = 0, buildQuizzes = 5 });
+            int tower = Place("tower", 0, 0);
+            Assert.AreEqual(0, game.FindObject(tower).buildQuizzes);
+        }
+
+        [Test]
+        public void Quiz_ComboGrowsBreaksOnWrongAnswerAndExpires()
+        {
+            catalog.balance.comboTimeoutSeconds = 600;
+            catalog.balance.comboTiers.Add(new ComboTierDef { combo = 3, speedPercent = 5 });
+            catalog.balance.comboTiers.Add(new ComboTierDef { combo = 5, speedPercent = 10 });
+            bool correct;
+            int reward, gems;
+
+            for (int i = 0; i < 3; i++) game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            Assert.AreEqual(3, game.QuizCombo);
+            Assert.AreEqual(5, game.ComboSpeedPercent);
+            Assert.AreEqual(5, game.NextComboTier.combo);
+
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            Assert.AreEqual(10, game.ComboSpeedPercent);
+            Assert.IsNull(game.NextComboTier);
+
+            // 틀리면 끊긴다.
+            game.AnswerQuiz("q1", 1, out correct, out reward, out gems);
+            Assert.AreEqual(0, game.QuizCombo);
+            Assert.AreEqual(0, game.ComboSpeedPercent);
+
+            // 오래 쉬어도 끊긴다.
+            clock.Now += 5;
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            Assert.AreEqual(2, game.QuizCombo);
+            clock.Now += 599;
+            Assert.AreEqual(2, game.QuizCombo);
+            clock.Now += 2;
+            Assert.AreEqual(0, game.QuizCombo);
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            Assert.AreEqual(1, game.QuizCombo);
         }
 
         [Test]

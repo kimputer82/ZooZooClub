@@ -34,6 +34,12 @@ namespace ZooZooClub.Core
 
         // 방어 시설일 때: 살 때 정해진 등급. 비어 있으면 가장 낮은 등급으로 친다.
         public string gradeId = "";
+
+        // 밭일 때: 심을 때 정해진 "문제를 맞혀야 수확할 수 있음" 표시. 맞히면 지워진다.
+        public bool quizGate;
+
+        // 방어 시설일 때: 공사를 마치려면 더 맞혀야 하는 문제 수. 0보다 크면 공사 중이라 공격하지 않는다.
+        public int buildQuizzes;
     }
 
     [Serializable]
@@ -91,6 +97,9 @@ namespace ZooZooClub.Core
         public int quizSolved;
         public List<string> quizRecent = new List<string>();
         public long quizLockedUntil;
+        // 문제 콤보: 연속으로 맞힌 수와 마지막으로 맞힌 시각.
+        public int quizCombo;
+        public long quizComboAt;
 
         public static GameState CreateNew(GameCatalog catalog, long now)
         {

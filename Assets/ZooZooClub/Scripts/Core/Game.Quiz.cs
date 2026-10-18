@@ -21,6 +21,65 @@ namespace ZooZooClub.Core
             get { return Math.Max(0, State.quizLockedUntil - Now); }
         }
 
+        // ---------- 콤보 ----------
+
+        /// <summary>지금 이어지고 있는 콤보(연속 정답 수). 마지막 정답 뒤 너무 오래 지났으면 0.</summary>
+        public int QuizCombo
+        {
+            get
+            {
+                if (State.quizCombo <= 0) return 0;
+                return ComboSecondsLeft > 0 ? State.quizCombo : 0;
+            }
+        }
+
+        /// <summary>콤보가 끊기기까지 남은 시간(초). 콤보가 없으면 0.</summary>
+        public long ComboSecondsLeft
+        {
+            get
+            {
+                if (State.quizCombo <= 0) return 0;
+                int timeout = Catalog.balance != null ? Catalog.balance.comboTimeoutSeconds : 0;
+                if (timeout <= 0) return long.MaxValue;
+                return Math.Max(0L, State.quizComboAt + timeout - Now);
+            }
+        }
+
+        /// <summary>지금 콤보로 받는 생산 시간 감소(%). 도달한 가장 높은 단계의 값.</summary>
+        public int ComboSpeedPercent
+        {
+            get
+            {
+                int combo = QuizCombo;
+                int best = 0;
+                int bestCombo = -1;
+                if (Catalog.balance == null || Catalog.balance.comboTiers == null) return 0;
+                foreach (var tier in Catalog.balance.comboTiers)
+                {
+                    if (tier == null || tier.combo > combo || tier.combo <= bestCombo) continue;
+                    bestCombo = tier.combo;
+                    best = tier.speedPercent;
+                }
+                return Math.Max(0, Math.Min(50, best));
+            }
+        }
+
+        /// <summary>다음 콤보 단계. 이미 가장 높은 단계면 null.</summary>
+        public ComboTierDef NextComboTier
+        {
+            get
+            {
+                int combo = QuizCombo;
+                ComboTierDef next = null;
+                if (Catalog.balance == null || Catalog.balance.comboTiers == null) return null;
+                foreach (var tier in Catalog.balance.comboTiers)
+                {
+                    if (tier != null && tier.combo > combo && (next == null || tier.combo < next.combo)) next = tier;
+                }
+                return next;
+            }
+        }
+
         /// <summary>이 문제를 맞히면 받는 코인.</summary>
         public int QuizRewardFor(QuizDef quiz)
         {
@@ -76,8 +135,12 @@ namespace ZooZooClub.Core
             return AnswerQuiz(quizId, choice, out correct, out reward, out gems);
         }
 
-        /// <summary>위와 같고, 맞혔을 때 낮은 확률로 받은 보석 수(0 또는 1)도 돌려준다.</summary>
-        public ActionResult AnswerQuiz(string quizId, int choice, out bool correct, out int reward, out int gems)
+        /// <summary>
+        /// 위와 같고, 맞혔을 때 낮은 확률로 받은 보석 수(0 또는 1)도 돌려준다.
+        /// gateObjectId를 주면 그 배치물 때문에 푸는 문제다: 맞히면 밭의 수확 문제를 지우거나 방어 시설의 공사 문제를 하나 줄인다.
+        /// </summary>
+        public ActionResult AnswerQuiz(string quizId, int choice, out bool correct, out int reward, out int gems,
+            int gateObjectId = 0)
         {
             correct = false;
             reward = 0;
@@ -94,6 +157,17 @@ namespace ZooZooClub.Core
                 State.coins += reward;
                 State.quizSolved++;
 
+                // 콤보: 이어서 맞히면 늘고, 너무 오래 쉬었으면 처음부터 다시 센다.
+                State.quizCombo = QuizCombo + 1;
+                State.quizComboAt = Now;
+
+                var gate = gateObjectId != 0 ? FindObject(gateObjectId) : null;
+                if (gate != null)
+                {
+                    if (gate.quizGate) gate.quizGate = false;
+                    else if (gate.buildQuizzes > 0) gate.buildQuizzes--;
+                }
+
                 int chance = Catalog.balance != null ? Catalog.balance.quizGemChancePercent : 0;
                 if (chance > 0 && NextRandom(100) < chance)
                 {
@@ -105,6 +179,7 @@ namespace ZooZooClub.Core
             {
                 int wait = Catalog.quiz != null ? Math.Max(0, Catalog.quiz.wrongCooldownSeconds) : 0;
                 State.quizLockedUntil = Now + wait;
+                State.quizCombo = 0;
             }
 
             NotifyChanged();

@@ -99,6 +99,8 @@ namespace ZooZooClub.Client
         // 문제 풀기: 지금 보여 주는 문제, 보기를 섞은 순서(문제에 적힌 보기 번호, 1부터),
         // 고른 보기 번호(아직 안 골랐으면 0)와 그 결과.
         QuizDef quizCurrent;
+        // 0이 아니면 이 배치물 때문에 푸는 문제다(수확하려는 밭, 공사 중인 방어 시설).
+        int quizGateId;
         readonly List<int> quizOrder = new List<int>();
         int quizPicked;
         bool quizCorrect;
@@ -123,6 +125,7 @@ namespace ZooZooClub.Client
             world.ObjectClicked += OnObjectClicked;
             world.EmptyClicked += OnEmptyClicked;
             world.Message += Toast;
+            world.Placed += OnPlaced;
 
             RefreshHud();
         }
@@ -141,6 +144,7 @@ namespace ZooZooClub.Client
                 world.ObjectClicked -= OnObjectClicked;
                 world.EmptyClicked -= OnEmptyClicked;
                 world.Message -= Toast;
+                world.Placed -= OnPlaced;
             }
         }
 
@@ -174,6 +178,7 @@ namespace ZooZooClub.Client
             RaidAlert.Create(root, game);
             BuildLevelBadge(root);
             BuildCurrencies(root);
+            BuildComboChip(root);
             BuildRaidChip(root);
             BuildPlayer(root);
             BuildSoundButton(root);
@@ -247,6 +252,47 @@ namespace ZooZooClub.Client
             var label = Ui.Label("Text", root, "", 26f, Color.white, TextAlignmentOptions.Center, true);
             Ui.Stretch(label.rectTransform, 58f, 0f, 16f, 0f);
             return label;
+        }
+
+        GameObject comboRoot;
+        TextMeshProUGUI comboText;
+
+        /// <summary>오른쪽 위 재화 줄 아래: 문제 콤보와 그 생산 보너스, 끊기기까지 남은 시간. 콤보가 있을 때만 보인다.</summary>
+        void BuildComboChip(Transform root)
+        {
+            comboText = Ui.Chip("ComboChip", root, ArtLibrary.Get("ui_icon_quiz"), "", Ui.Purple, 48f, 22f);
+            comboRoot = comboText.transform.parent.gameObject;
+            Ui.Put((RectTransform)comboRoot.transform, 1f, 1f, -24f, -100f, 520f, 48f);
+            comboRoot.SetActive(false);
+        }
+
+        void RefreshComboChip()
+        {
+            int combo = game.QuizCombo;
+            bool show = combo > 0;
+            if (comboRoot.activeSelf != show) comboRoot.SetActive(show);
+            if (!show) return;
+
+            int percent = game.ComboSpeedPercent;
+            var next = game.NextComboTier;
+            string text = "콤보 " + combo;
+            if (percent > 0) text += "  ·  생산 -" + percent + "%";
+            else if (next != null) text += "  ·  " + next.combo + "연속이면 생산 -" + next.speedPercent + "%";
+            long left = game.ComboSecondsLeft;
+            if (left < long.MaxValue) text += "  ·  " + Texts.Duration(left);
+            comboText.text = text;
+        }
+
+        /// <summary>문제를 맞혀 콤보가 이어졌을 때 알려 준다.</summary>
+        void ComboToast()
+        {
+            int combo = game.QuizCombo;
+            int percent = game.ComboSpeedPercent;
+            var next = game.NextComboTier;
+            string text = combo + "연속 정답!";
+            if (percent > 0) text += "  생산 시간 -" + percent + "%";
+            if (next != null) text += "  (" + next.combo + "연속이면 -" + next.speedPercent + "%)";
+            Toast(text);
         }
 
         void BuildRaidChip(Transform root)
@@ -655,6 +701,7 @@ namespace ZooZooClub.Client
             if (ready > 0) ordersBadgeText.text = ready.ToString();
 
             RefreshRaidChip();
+            RefreshComboChip();
             RefreshWorkers();
         }
 
@@ -752,6 +799,11 @@ namespace ZooZooClub.Client
                     : null;
                 bool foundBag;
                 var harvested = game.Harvest(obj.id, out foundBag);
+                if (harvested == ActionResult.NeedsQuiz)
+                {
+                    OpenGateQuiz(obj.id, "수확하려면 문제를 맞혀 보세요!");
+                    return;
+                }
                 if (foundBag && text != null) text += "   보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요.";
                 Report(harvested, text);
                 if (harvested == ActionResult.Ok)
@@ -761,6 +813,11 @@ namespace ZooZooClub.Client
                     if (panel == PanelKind.Selection) ClosePanel();
                     return;
                 }
+            }
+            else if (def.kind == PlaceableKind.Defense && obj.buildQuizzes > 0)
+            {
+                OpenGateQuiz(obj.id, null);
+                return;
             }
             else if (def.kind == PlaceableKind.Facility && game.ReadyJobCount(obj.id) > 0)
             {
@@ -791,6 +848,7 @@ namespace ZooZooClub.Client
                 world.SelectedObjectId = 0;
             }
             world.CancelMode();
+            if (kind == PanelKind.Quiz) quizGateId = 0;
             panel = kind;
             windowContent.anchoredPosition = Vector2.zero;
             rebuildNeeded = true;
@@ -855,6 +913,7 @@ namespace ZooZooClub.Client
             else if (panel == PanelKind.Quiz)
             {
                 builder.Append(quizCurrent != null ? quizCurrent.id : "-").Append('|').Append(quizPicked).Append('|');
+                builder.Append(quizGateId).Append('|');
                 builder.Append(game.QuizLockSeconds > 0).Append('|').Append(game.QuizCount);
             }
             else if (panel == PanelKind.Rank)
@@ -1299,7 +1358,20 @@ namespace ZooZooClub.Client
 
         void BuildQuizPanel()
         {
-            ShowWindow("문제 풀기", 1040f, 700f);
+            // 수확이나 공사 때문에 푸는 문제면 제목에 무엇 때문인지 적는다.
+            var gateObj = quizGateId != 0 ? game.FindObject(quizGateId) : null;
+            var gateDef = gateObj != null ? game.Catalog.GetPlaceable(gateObj.defId) : null;
+            bool harvestGate = gateDef != null && gateDef.kind == PlaceableKind.Plot;
+            bool buildGate = gateDef != null && gateDef.kind == PlaceableKind.Defense;
+            string title = "문제 풀기";
+            if (harvestGate) title = "문제를 맞히면 수확할 수 있어요";
+            else if (buildGate)
+            {
+                title = gateObj.buildQuizzes > 0
+                    ? gateDef.displayName + " 공사 중 · 문제 " + gateObj.buildQuizzes + "개 남음"
+                    : gateDef.displayName + " 공사 완료!";
+            }
+            ShowWindow(title, 1040f, 700f);
 
             if (game.QuizCount == 0)
             {
@@ -1327,7 +1399,11 @@ namespace ZooZooClub.Client
             }
 
             ShowHeader(48f);
-            var solved = Ui.Label("Solved", windowHeader, "맞힌 문제 " + game.State.quizSolved + "개", 24f, Ui.Muted,
+            int combo = game.QuizCombo;
+            string comboText = combo > 0
+                ? "   ·   콤보 " + combo + (game.ComboSpeedPercent > 0 ? " (생산 -" + game.ComboSpeedPercent + "%)" : "")
+                : "";
+            var solved = Ui.Label("Solved", windowHeader, "맞힌 문제 " + game.State.quizSolved + "개" + comboText, 24f, Ui.Muted,
                 TextAlignmentOptions.Left, true);
             solved.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
 
@@ -1391,6 +1467,42 @@ namespace ZooZooClub.Client
             result.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
             ShowAsWritten(result, 18f);
 
+            // 수확 문제를 맞혔으면 바로 수확하고, 공사 문제를 다 맞혔으면 창을 닫는다.
+            if (quizCorrect && harvestGate && !gateObj.quizGate)
+            {
+                int plotId = gateObj.id;
+                var harvest = Ui.Button("HarvestNow", windowFooter, "수확하기", () =>
+                {
+                    bool foundBag;
+                    var harvested = game.Harvest(plotId, out foundBag);
+                    quizCurrent = null;
+                    quizPicked = 0;
+                    ClosePanel();
+                    if (harvested == ActionResult.Ok)
+                    {
+                        Sound.Play(Sound.Harvest);
+                        Toast(foundBag ? "수확했어요! 보따리도 발견했어요. 창고에서 두 번 눌러 열어 보세요." : "수확했어요!");
+                    }
+                    else Toast(Texts.Describe(harvested));
+                }, 64f, 26f, Ui.Green);
+                Ui.Fixed(harvest.gameObject, 300f, 64f);
+                return;
+            }
+            if (quizCorrect && buildGate && gateObj.buildQuizzes <= 0)
+            {
+                string builtName = gateDef.displayName;
+                var done = Ui.Button("BuildDone", windowFooter, "공사 완료!", () =>
+                {
+                    quizCurrent = null;
+                    quizPicked = 0;
+                    ClosePanel();
+                    Sound.Play(Sound.Win);
+                    Toast(builtName + " 공사가 끝났어요! 이제 마을을 지켜요.");
+                }, 64f, 26f, Ui.Green);
+                Ui.Fixed(done.gameObject, 300f, 64f);
+                return;
+            }
+
             var next = Ui.Button("NextQuiz", windowFooter, "다음 문제", () =>
             {
                 quizCurrent = null;
@@ -1425,6 +1537,30 @@ namespace ZooZooClub.Client
             label.fontSizeMin = Mathf.Min(minSize, label.fontSize);
         }
 
+        /// <summary>그 배치물 때문에 풀어야 하는 문제 창을 연다(수확 문제, 방어 시설 공사 문제).</summary>
+        void OpenGateQuiz(int objectId, string toast)
+        {
+            if (quizPicked != 0)
+            {
+                quizCurrent = null;
+                quizPicked = 0;
+            }
+            Open(PanelKind.Quiz);
+            quizGateId = objectId;
+            if (!string.IsNullOrEmpty(toast)) Toast(toast);
+        }
+
+        /// <summary>새로 놓은 방어 시설이 높은 등급이라 공사 문제가 있으면 바로 문제 창을 연다.</summary>
+        void OnPlaced(int objectId)
+        {
+            var obj = game.FindObject(objectId);
+            if (obj == null || obj.buildQuizzes <= 0) return;
+            var grade = game.GradeOf(obj);
+            var def = game.Catalog.GetPlaceable(obj.defId);
+            string name = (grade != null ? grade.displayName + " " : "") + (def != null ? def.displayName : "");
+            OpenGateQuiz(objectId, name + " 등장! 문제 " + obj.buildQuizzes + "개를 맞히면 공사가 끝나요.");
+        }
+
         void AnswerQuiz(int number)
         {
             if (quizCurrent == null || quizPicked != 0) return;
@@ -1432,7 +1568,7 @@ namespace ZooZooClub.Client
             bool correct;
             int reward;
             int gems;
-            var result = game.AnswerQuiz(quizCurrent.id, number, out correct, out reward, out gems);
+            var result = game.AnswerQuiz(quizCurrent.id, number, out correct, out reward, out gems, quizGateId);
             if (result != ActionResult.Ok)
             {
                 Toast(Texts.Describe(result));
@@ -1444,6 +1580,7 @@ namespace ZooZooClub.Client
             quizReward = reward;
             quizGems = gems;
             if (gems > 0) Toast("운이 좋아요! 보석 " + gems + "개를 얻었어요.");
+            else if (correct && game.QuizCombo >= 2) ComboToast();
             Sound.Play(correct ? Sound.Correct : Sound.Wrong);
             rebuildNeeded = true;
         }
@@ -1752,6 +1889,11 @@ namespace ZooZooClub.Client
                     // 수확하고 나면 시트를 닫는다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
                     bool foundBag;
                     var harvested = game.Harvest(objectId, out foundBag);
+                    if (harvested == ActionResult.NeedsQuiz)
+                    {
+                        OpenGateQuiz(objectId, "수확하려면 문제를 맞혀 보세요!");
+                        return;
+                    }
                     Report(harvested, foundBag ? "보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요." : null);
                     if (harvested == ActionResult.Ok)
                     {

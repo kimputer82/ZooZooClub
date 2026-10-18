@@ -30,7 +30,8 @@ namespace ZooZooClub.Core
         QueueFull,
         InvalidPlacement,
         MaxReached,
-        NotEnoughGems
+        NotEnoughGems,
+        NeedsQuiz
     }
 
     /// <summary>

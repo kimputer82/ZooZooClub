@@ -195,6 +195,8 @@ namespace ZooZooClub.Core
         public int speedPercent = 100;
         /// <summary>화면에 표시할 색("#RRGGBB").</summary>
         public string color = "#FFFFFF";
+        /// <summary>이 등급이 나오면 공사를 마치기 위해 맞혀야 하는 문제 수. 0이면 바로 완성된다.</summary>
+        public int buildQuizzes;
     }
 
     /// <summary>주기적으로 쳐들어와 코인을 훔쳐 가는 침략자.</summary>
@@ -312,6 +314,12 @@ namespace ZooZooClub.Core
         public string bagItemId = "";
         public int harvestBagChancePercent;
         public List<BagRewardDef> bagRewards = new List<BagRewardDef>();
+        // 작물을 심을 때 이 확률(%)로 "문제를 맞혀야 수확할 수 있는 밭"이 된다.
+        public int harvestQuizChancePercent;
+        // 문제 콤보: 연속으로 맞힌 수가 combo 이상이면 생산 시간이 speedPercent% 줄어든다.
+        // 틀리거나, 마지막으로 맞힌 뒤 comboTimeoutSeconds 동안 맞히지 않으면 콤보가 끊긴다.
+        public int comboTimeoutSeconds = 600;
+        public List<ComboTierDef> comboTiers = new List<ComboTierDef>();
         // 마을 매력이 charm 이상이면 모든 시설의 생산 시간이 speedPercent% 줄어든다. 가장 높은 단계 하나만 적용된다.
         public List<CharmTierDef> charmTiers = new List<CharmTierDef>();
     }
@@ -322,6 +330,14 @@ namespace ZooZooClub.Core
     {
         public string itemId;
         public int weight = 1;
+    }
+
+    /// <summary>문제 콤보 단계. 연속 정답이 combo 이상이면 모든 생산 시설의 생산 시간이 speedPercent% 줄어든다.</summary>
+    [Serializable]
+    public class ComboTierDef
+    {
+        public int combo;
+        public int speedPercent;
     }
 
     /// <summary>마을 매력 단계. 매력이 charm 이상이면 모든 생산 시설의 생산 시간이 speedPercent% 줄어든다.</summary>

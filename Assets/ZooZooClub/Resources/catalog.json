@@ -59,9 +59,9 @@
   ],
   "grades": [
     { "id": "common", "displayName": "일반", "weight": 60, "damagePercent": 100, "rangePercent": 100, "speedPercent": 100, "color": "#9A9186" },
-    { "id": "uncommon", "displayName": "고급", "weight": 25, "damagePercent": 130, "rangePercent": 110, "speedPercent": 100, "color": "#6CC24A" },
-    { "id": "rare", "displayName": "희귀", "weight": 12, "damagePercent": 170, "rangePercent": 120, "speedPercent": 115, "color": "#4AA8F0" },
-    { "id": "legendary", "displayName": "전설", "weight": 3, "damagePercent": 250, "rangePercent": 140, "speedPercent": 135, "color": "#F0A030" }
+    { "id": "uncommon", "displayName": "고급", "weight": 25, "damagePercent": 130, "rangePercent": 110, "speedPercent": 100, "color": "#6CC24A", "buildQuizzes": 1 },
+    { "id": "rare", "displayName": "희귀", "weight": 12, "damagePercent": 170, "rangePercent": 120, "speedPercent": 115, "color": "#4AA8F0", "buildQuizzes": 3 },
+    { "id": "legendary", "displayName": "전설", "weight": 3, "damagePercent": 250, "rangePercent": 140, "speedPercent": 135, "color": "#F0A030", "buildQuizzes": 5 }
   ],
   "invaders": [
     { "id": "raccoon", "displayName": "너구리 도둑", "hp": 30, "speed": 0.9, "stealCoins": 20, "bounty": 10, "xp": 2, "firstLevel": 1 },
@@ -122,6 +122,13 @@
     "bagRewards": [
       { "itemId": "sansam", "weight": 30 },
       { "itemId": "doraji", "weight": 70 }
+    ],
+    "harvestQuizChancePercent": 20,
+    "comboTimeoutSeconds": 600,
+    "comboTiers": [
+      { "combo": 3, "speedPercent": 5 },
+      { "combo": 5, "speedPercent": 10 },
+      { "combo": 10, "speedPercent": 20 }
     ],
     "charmTiers": [
       { "charm": 30, "speedPercent": 5 },

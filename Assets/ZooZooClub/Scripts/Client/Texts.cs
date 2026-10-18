@@ -23,6 +23,7 @@ namespace ZooZooClub.Client
                 case ActionResult.InvalidPlacement: return "여기에는 놓을 수 없어요.";
                 case ActionResult.MaxReached: return "더 늘릴 수 없어요.";
                 case ActionResult.NotEnoughGems: return "보석이 부족해요.";
+                case ActionResult.NeedsQuiz: return "문제를 맞혀야 해요.";
                 default: return result.ToString();
             }
         }

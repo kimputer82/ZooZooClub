@@ -89,7 +89,13 @@ namespace ZooZooClub.Core
                 y = y,
                 rotation = rotation
             };
-            if (def.kind == PlaceableKind.Defense) obj.gradeId = RollGrade();
+            if (def.kind == PlaceableKind.Defense)
+            {
+                obj.gradeId = RollGrade();
+                // 높은 등급이 나오면 문제를 맞혀야 공사가 끝난다. 문제가 없으면 바로 완성.
+                var grade = GradeOf(obj);
+                obj.buildQuizzes = grade != null && QuizCount > 0 ? Math.Max(0, grade.buildQuizzes) : 0;
+            }
             State.objects.Add(obj);
             objectId = obj.id;
             layoutChanged = true;

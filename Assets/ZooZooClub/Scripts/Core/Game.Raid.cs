@@ -644,6 +644,8 @@ namespace ZooZooClub.Core
             {
                 var def = Catalog.GetPlaceable(obj.defId);
                 if (def == null || def.kind != PlaceableKind.Defense) continue;
+                // 공사 중(문제를 덜 푼) 방어 시설은 아직 공격하지 않는다.
+                if (obj.buildQuizzes > 0) continue;
 
                 float cooldown;
                 defenseCooldowns.TryGetValue(obj.id, out cooldown);
