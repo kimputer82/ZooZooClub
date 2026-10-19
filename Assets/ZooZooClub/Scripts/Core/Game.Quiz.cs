@@ -166,6 +166,15 @@ namespace ZooZooClub.Core
                 {
                     if (gate.quizGate) gate.quizGate = false;
                     else if (gate.buildQuizzes > 0) gate.buildQuizzes--;
+                    else if (CanUpgrade(gate.id))
+                    {
+                        gate.upgradeProgress++;
+                        if (gate.upgradeProgress >= UpgradeQuizCount)
+                        {
+                            gate.upgraded = true;
+                            gate.upgradeProgress = 0;
+                        }
+                    }
                 }
 
                 int chance = Catalog.balance != null ? Catalog.balance.quizGemChancePercent : 0;

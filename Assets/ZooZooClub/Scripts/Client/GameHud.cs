@@ -1363,6 +1363,7 @@ namespace ZooZooClub.Client
             var gateDef = gateObj != null ? game.Catalog.GetPlaceable(gateObj.defId) : null;
             bool harvestGate = gateDef != null && gateDef.kind == PlaceableKind.Plot;
             bool buildGate = gateDef != null && gateDef.kind == PlaceableKind.Defense;
+            bool upgradeGate = gateDef != null && gateDef.kind == PlaceableKind.Facility;
             string title = "문제 풀기";
             if (harvestGate) title = "문제를 맞히면 수확할 수 있어요";
             else if (buildGate)
@@ -1371,7 +1372,13 @@ namespace ZooZooClub.Client
                     ? gateDef.displayName + " 공사 중 · 문제 " + gateObj.buildQuizzes + "개 남음"
                     : gateDef.displayName + " 공사 완료!";
             }
-            ShowWindow(title, 1040f, 700f);
+            else if (upgradeGate)
+            {
+                title = gateObj.upgraded
+                    ? gateDef.displayName + " 생산량 업그레이드 완료!"
+                    : gateDef.displayName + " 생산량 업그레이드 · 문제 " + gateObj.upgradeProgress + " / " + game.UpgradeQuizCount;
+            }
+            ShowWindow(title, 1040f, upgradeGate ? 770f : 700f);
 
             if (game.QuizCount == 0)
             {
@@ -1429,6 +1436,8 @@ namespace ZooZooClub.Client
             var reward = Ui.Chip("Reward", windowHeader, Art("ui_icon_coin"),
                 "정답 보상  " + game.QuizRewardFor(quiz).ToString("N0"), Ui.Yellow, 48f, 24f);
             Ui.Fixed(reward.transform.parent.gameObject, 280f, 48f);
+
+            if (upgradeGate) UpgradeBoxes(gateObj);
 
             var card = Ui.Box("Question", windowContent, Ui.CardSprite, Color.white);
             Ui.Fixed(card.gameObject, 0f, 190f);
@@ -1488,6 +1497,20 @@ namespace ZooZooClub.Client
                 Ui.Fixed(harvest.gameObject, 300f, 64f);
                 return;
             }
+            if (quizCorrect && upgradeGate && gateObj.upgraded)
+            {
+                string upgradedName = gateDef.displayName;
+                var finished = Ui.Button("UpgradeDone", windowFooter, "업그레이드 완료!", () =>
+                {
+                    quizCurrent = null;
+                    quizPicked = 0;
+                    ClosePanel();
+                    Sound.Play(Sound.Win);
+                    Toast(upgradedName + " 생산량 업그레이드! 대기열이 늘고 2개씩 함께 만들어요.");
+                }, 64f, 26f, Ui.Green);
+                Ui.Fixed(finished.gameObject, 300f, 64f);
+                return;
+            }
             if (quizCorrect && buildGate && gateObj.buildQuizzes <= 0)
             {
                 string builtName = gateDef.displayName;
@@ -1535,6 +1558,27 @@ namespace ZooZooClub.Client
             label.enableAutoSizing = true;
             label.fontSizeMax = label.fontSize;
             label.fontSizeMin = Mathf.Min(minSize, label.fontSize);
+        }
+
+        /// <summary>생산량 업그레이드 문제 창 위쪽: 맞혀야 하는 문제 수만큼 상자를 늘어놓고, 맞힌 만큼 채운다.</summary>
+        void UpgradeBoxes(PlacedObject facility)
+        {
+            int total = game.UpgradeQuizCount;
+            int done = facility.upgraded ? total : facility.upgradeProgress;
+            var row = Ui.Rect("UpgradeBoxes", windowContent);
+            Ui.Fixed(row.gameObject, 0f, 56f);
+            var group = Ui.Horizontal(row.gameObject, 10f, 0);
+            group.childForceExpandWidth = false;
+            group.childAlignment = TextAnchor.MiddleCenter;
+            for (int i = 0; i < total; i++)
+            {
+                bool solved = i < done;
+                var box = Ui.Box("Box " + (i + 1), row, Ui.CardSprite, solved ? Ui.Green : Ui.Sand);
+                Ui.Fixed(box.gameObject, 76f, 52f);
+                var label = Ui.Label("Text", box.transform, (i + 1).ToString(), 24f,
+                    solved ? Color.white : Ui.Muted, TextAlignmentOptions.Center, true);
+                Ui.Stretch(label.rectTransform, 0f, 4f, 0f, 0f);
+            }
         }
 
         /// <summary>그 배치물 때문에 풀어야 하는 문제 창을 연다(수확 문제, 방어 시설 공사 문제).</summary>
@@ -2107,17 +2151,48 @@ namespace ZooZooClub.Client
             var group = Ui.Vertical(card.gameObject, 6f, 14);
             group.padding.bottom = 20;
 
-            Ui.Label("Title", card.transform, "대기열  " + facility.queue.Count + " / " + def.queueSlots,
-                22f, Ui.Ink, TextAlignmentOptions.Left, true);
+            int slots = game.QueueSlotsOf(facility, def);
+            int parallel = game.ParallelOf(facility);
+            int objectId = facility.id;
+
+            // 제목 줄: 대기열 수와, 생산량 업그레이드 버튼(업그레이드가 있는 시설만).
+            var titleRow = Ui.Rect("TitleRow", card.transform);
+            Ui.Fixed(titleRow.gameObject, 0f, 30f);
+            var titleGroup = Ui.Horizontal(titleRow.gameObject, 8f, 0);
+            titleGroup.childForceExpandWidth = false;
+            titleGroup.childAlignment = TextAnchor.MiddleLeft;
+            var title = Ui.Label("Title", titleRow, "대기열  " + facility.queue.Count + " / " + slots
+                + (parallel > 1 ? "  ·  " + parallel + "개씩 함께" : ""), 22f, Ui.Ink, TextAlignmentOptions.Left, true);
+            title.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+            if (def.upgradeLevel > 0 && !facility.upgraded)
+            {
+                int lockedLevel = game.UpgradeLockedLevel(objectId);
+                string upgradeText = lockedLevel > 0
+                    ? "업그레이드 Lv " + lockedLevel
+                    : "생산량 업그레이드 " + facility.upgradeProgress + "/" + game.UpgradeQuizCount;
+                var upgrade = Ui.Button("Upgrade", titleRow, upgradeText, () =>
+                {
+                    OpenGateQuiz(objectId, "문제 " + game.UpgradeQuizCount + "개를 맞히면 대기열이 늘고 2개씩 함께 만들어요!");
+                }, 30f, 18f, lockedLevel > 0 ? Ui.Sand : Ui.Purple);
+                upgrade.interactable = lockedLevel == 0;
+                Ui.Fixed(upgrade.gameObject, 250f, 30f);
+            }
+            else if (facility.upgraded)
+            {
+                var badge = Ui.Label("Upgraded", titleRow, "업그레이드 완료", 18f, Ui.Good, TextAlignmentOptions.Right, true);
+                Ui.Fixed(badge.gameObject, 160f, 30f);
+            }
 
             var row = Ui.Rect("Slots", card.transform);
             var rowGroup = Ui.Horizontal(row.gameObject, 8f, 0);
             rowGroup.childForceExpandWidth = false;
 
-            for (int i = 0; i < def.queueSlots; i++)
+            // 칸이 많으면 작게 그린다.
+            float slotWidth = slots > 3 ? 70f : 110f;
+            for (int i = 0; i < slots; i++)
             {
                 var slot = Ui.Box("Slot", row, Ui.CardSprite, Ui.Sand);
-                Ui.Fixed(slot.gameObject, 110f, 104f);
+                Ui.Fixed(slot.gameObject, slotWidth, 104f);
 
                 if (i >= facility.queue.Count)
                 {
@@ -2128,11 +2203,12 @@ namespace ZooZooClub.Client
 
                 var job = facility.queue[i];
                 var recipe = game.Catalog.GetRecipe(job.recipeId);
+                float iconSize = slots > 3 ? 46f : 58f;
                 var icon = Ui.Picture("Icon", slot.transform, recipe != null ? ItemIcon(recipe.outputItemId) : null);
-                Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -8f, 58f, 58f);
+                Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -8f, iconSize, iconSize);
 
-                var time = Text(slot.transform, "", 20f, Ui.Ink, true);
-                Ui.Put(time.rectTransform, 0.5f, 0f, 0f, 12f, 104f, 26f);
+                var time = Text(slot.transform, "", slots > 3 ? 16f : 20f, Ui.Ink, true);
+                Ui.Put(time.rectTransform, 0.5f, 0f, 0f, 12f, slotWidth - 6f, 26f);
 
                 long finishAt = job.finishAt;
                 Action tick = () =>

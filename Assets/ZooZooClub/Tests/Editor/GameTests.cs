@@ -447,6 +447,61 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void UpgradedFacility_HasMoreSlotsAndMakesTwoAtOnce()
+        {
+            catalog.balance.upgradeQueueSlots = 4;
+            catalog.balance.upgradeParallel = 2;
+            int bakery = PlaceBakery();
+            var obj = game.FindObject(bakery);
+            var def = catalog.GetPlaceable("bakery");
+            Assert.AreEqual(2, game.QueueSlotsOf(obj, def));
+            Assert.AreEqual(1, game.ParallelOf(obj));
+
+            obj.upgraded = true;
+            Assert.AreEqual(4, game.QueueSlotsOf(obj, def));
+            Assert.AreEqual(2, game.ParallelOf(obj));
+
+            game.State.inventory.Add(new ItemAmount("wheat", 10));
+            for (int i = 0; i < 4; i++) Assert.AreEqual(ActionResult.Ok, game.StartCraft(bakery, "bread"));
+            Assert.AreEqual(ActionResult.QueueFull, game.StartCraft(bakery, "bread"));
+
+            // 두 개씩 함께 만들어진다: 0~60초에 두 개, 60~120초에 두 개.
+            long t0 = clock.Now;
+            Assert.AreEqual(t0, obj.queue[1].startAt);
+            Assert.AreEqual(t0 + 60, obj.queue[2].startAt);
+            Assert.AreEqual(t0 + 60, obj.queue[3].startAt);
+
+            clock.Now += 60;
+            Assert.AreEqual(2, game.ReadyJobCount(bakery));
+            Assert.AreEqual(ActionResult.Ok, game.CollectCrafted(bakery));
+            Assert.AreEqual(2, obj.queue.Count);
+            clock.Now += 60;
+            Assert.AreEqual(2, game.ReadyJobCount(bakery));
+        }
+
+        [Test]
+        public void UpgradedFacility_FinishNowPullsOnlyTheWaitingJobsForward()
+        {
+            catalog.balance.upgradeQueueSlots = 4;
+            catalog.balance.upgradeParallel = 2;
+            int bakery = PlaceBakery();
+            var obj = game.FindObject(bakery);
+            obj.upgraded = true;
+            game.State.gems = 10;
+            game.State.inventory.Add(new ItemAmount("wheat", 6));
+            for (int i = 0; i < 3; i++) Assert.AreEqual(ActionResult.Ok, game.StartCraft(bakery, "bread"));
+            long t0 = clock.Now;
+            clock.Now += 10;
+
+            Assert.AreEqual(ActionResult.Ok, game.FinishNow(bakery));
+            // 첫 빵은 끝났고, 함께 만들던 둘째 빵은 그대로, 기다리던 셋째 빵은 지금 시작한다.
+            Assert.AreEqual(clock.Now, obj.queue[0].finishAt);
+            Assert.AreEqual(t0 + 60, obj.queue[1].finishAt);
+            Assert.AreEqual(clock.Now, obj.queue[2].startAt);
+            Assert.AreEqual(clock.Now + 60, obj.queue[2].finishAt);
+        }
+
+        [Test]
         public void QuizCombo_ShortensCraftTime()
         {
             catalog.balance.comboTiers.Add(new ComboTierDef { combo = 2, speedPercent = 50 });

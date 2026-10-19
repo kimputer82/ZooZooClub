@@ -38,6 +38,10 @@ namespace ZooZooClub.Core
         // 밭일 때: 심을 때 정해진 "문제를 맞혀야 수확할 수 있음" 표시. 맞히면 지워진다.
         public bool quizGate;
 
+        // 생산 시설일 때: 생산량 업그레이드를 마쳤는지와, 업그레이드하려고 지금까지 맞힌 문제 수.
+        public bool upgraded;
+        public int upgradeProgress;
+
         // 방어 시설일 때: 공사를 마치려면 더 맞혀야 하는 문제 수. 0보다 크면 공사 중이라 공격하지 않는다.
         public int buildQuizzes;
     }

@@ -34,10 +34,10 @@
   ],
   "placeables": [
     { "id": "plot", "displayName": "밭", "kind": "plot", "width": 1, "height": 1, "cost": 20, "unlockLevel": 1, "queueSlots": 0, "charm": 0, "maxCount": 0 },
-    { "id": "bakery", "displayName": "빵집", "kind": "facility", "width": 2, "height": 2, "cost": 180, "unlockLevel": 2, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4 },
-    { "id": "juice_bar", "displayName": "주스 가게", "kind": "facility", "width": 2, "height": 2, "cost": 400, "unlockLevel": 3, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4 },
-    { "id": "jam_workshop", "displayName": "잼 공방", "kind": "facility", "width": 2, "height": 2, "cost": 800, "unlockLevel": 4, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4 },
-    { "id": "popcorn_cart", "displayName": "팝콘 수레", "kind": "facility", "width": 1, "height": 2, "cost": 1300, "unlockLevel": 5, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4 },
+    { "id": "bakery", "displayName": "빵집", "kind": "facility", "width": 2, "height": 2, "cost": 180, "unlockLevel": 2, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4, "upgradeLevel": 5 },
+    { "id": "juice_bar", "displayName": "주스 가게", "kind": "facility", "width": 2, "height": 2, "cost": 400, "unlockLevel": 3, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4, "upgradeLevel": 6 },
+    { "id": "jam_workshop", "displayName": "잼 공방", "kind": "facility", "width": 2, "height": 2, "cost": 800, "unlockLevel": 4, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4, "upgradeLevel": 7 },
+    { "id": "popcorn_cart", "displayName": "팝콘 수레", "kind": "facility", "width": 1, "height": 2, "cost": 1300, "unlockLevel": 5, "queueSlots": 3, "charm": 0, "maxCount": 1, "rotations": 4, "upgradeLevel": 8 },
     { "id": "fence", "displayName": "울타리", "kind": "decor", "width": 1, "height": 1, "cost": 10, "unlockLevel": 1, "queueSlots": 0, "charm": 1, "maxCount": 0, "rotations": 2, "mirror": true },
     { "id": "flower_bed", "displayName": "꽃밭", "kind": "decor", "width": 1, "height": 1, "cost": 30, "unlockLevel": 1, "queueSlots": 0, "charm": 3, "maxCount": 0 },
     { "id": "tree", "displayName": "나무", "kind": "decor", "width": 1, "height": 1, "cost": 40, "unlockLevel": 1, "queueSlots": 0, "charm": 4, "maxCount": 0 },
@@ -124,6 +124,9 @@
       { "itemId": "doraji", "weight": 70 }
     ],
     "harvestQuizChancePercent": 20,
+    "upgradeQuizzes": 10,
+    "upgradeQueueSlots": 6,
+    "upgradeParallel": 2,
     "comboTimeoutSeconds": 600,
     "comboTiers": [
       { "combo": 3, "speedPercent": 5 },

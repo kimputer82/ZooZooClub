@@ -106,6 +106,8 @@ namespace ZooZooClub.Core
         public int cost;
         public int unlockLevel = 1;
         public int queueSlots;
+        // 생산 시설일 때: 이 레벨부터 생산량 업그레이드를 할 수 있다. 0이면 업그레이드가 없다.
+        public int upgradeLevel;
         public int charm;
         public int maxCount;
 
@@ -314,6 +316,11 @@ namespace ZooZooClub.Core
         public string bagItemId = "";
         public int harvestBagChancePercent;
         public List<BagRewardDef> bagRewards = new List<BagRewardDef>();
+        // 생산 시설 업그레이드: 문제를 upgradeQuizzes개 맞히면 대기열이 upgradeQueueSlots칸이 되고,
+        // upgradeParallel개가 동시에 만들어진다.
+        public int upgradeQuizzes = 10;
+        public int upgradeQueueSlots = 6;
+        public int upgradeParallel = 2;
         // 작물을 심을 때 이 확률(%)로 "문제를 맞혀야 수확할 수 있는 밭"이 된다.
         public int harvestQuizChancePercent;
         // 문제 콤보: 연속으로 맞힌 수가 combo 이상이면 생산 시간이 speedPercent% 줄어든다.

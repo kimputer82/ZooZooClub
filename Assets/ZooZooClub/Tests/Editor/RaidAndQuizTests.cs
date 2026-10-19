@@ -713,6 +713,40 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void FacilityUpgrade_NeedsLevelAndQuizzes()
+        {
+            catalog.GetPlaceable("wall").upgradeLevel = 2;
+            catalog.balance.upgradeQuizzes = 3;
+            int wall = Place("wall", 0, 0);
+            bool correct;
+            int reward, gems;
+
+            game.State.level = 1;
+            Assert.IsFalse(game.CanUpgrade(wall));
+            Assert.AreEqual(2, game.UpgradeLockedLevel(wall));
+            // 레벨이 모자라면 맞혀도 늘지 않는다.
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems, wall);
+            Assert.AreEqual(0, game.FindObject(wall).upgradeProgress);
+
+            game.State.level = 2;
+            Assert.IsTrue(game.CanUpgrade(wall));
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems, wall);
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems, wall);
+            Assert.AreEqual(2, game.FindObject(wall).upgradeProgress);
+            // 틀려도 맞힌 수는 그대로다.
+            game.AnswerQuiz("q1", 1, out correct, out reward, out gems, wall);
+            Assert.AreEqual(2, game.FindObject(wall).upgradeProgress);
+            clock.Now += 5;
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems, wall);
+
+            var obj = game.FindObject(wall);
+            Assert.IsTrue(obj.upgraded);
+            Assert.IsFalse(game.CanUpgrade(wall));
+            Assert.AreEqual(6, game.QueueSlotsOf(obj, catalog.GetPlaceable("wall")));
+            Assert.AreEqual(2, game.ParallelOf(obj));
+        }
+
+        [Test]
         public void Quiz_ComboGrowsBreaksOnWrongAnswerAndExpires()
         {
             catalog.balance.comboTimeoutSeconds = 600;
