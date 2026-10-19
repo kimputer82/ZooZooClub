@@ -62,6 +62,7 @@ namespace ZooZooClub.Core
             this.clock = clock;
 
             State.Normalize();
+            SpreadQueuesIntoLanes();
             RefillOrders();
         }
 

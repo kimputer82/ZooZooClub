@@ -1506,7 +1506,7 @@ namespace ZooZooClub.Client
                     quizPicked = 0;
                     ClosePanel();
                     Sound.Play(Sound.Win);
-                    Toast(upgradedName + " 생산량 업그레이드! 대기열이 늘고 2개씩 함께 만들어요.");
+                    Toast(upgradedName + " 생산량 업그레이드! 대기열이 두 줄이 되고, 줄마다 맨 앞이 함께 만들어져요.");
                 }, 64f, 26f, Ui.Green);
                 Ui.Fixed(finished.gameObject, 300f, 64f);
                 return;
@@ -2009,10 +2009,12 @@ namespace ZooZooClub.Client
                 if (recipe.facilityId == def.id) recipeCount++;
             }
             // 아래쪽 버튼 줄(64 + 간격 14)만큼 더 높인다.
-            ShowWindow(def.displayName, 1240f, Mathf.Min(800f, WindowHeight(recipeCount, 5, 310f, 176f) + 78f));
+            // 대기열이 여러 줄이면 그만큼 위쪽 칸을 높인다.
+            float headerHeight = game.ParallelOf(facility) > 1 ? 66f + 88f * game.ParallelOf(facility) : 176f;
+            ShowWindow(def.displayName, 1240f, Mathf.Min(860f, WindowHeight(recipeCount, 5, 310f, headerHeight) + 78f));
 
-            ShowHeader(176f);
-            WorkerCard(objectId);
+            ShowHeader(headerHeight);
+            WorkerCard(objectId, headerHeight);
             QueueCard(facility, def);
 
             var grid = Ui.Grid("Grid", windowContent, 220f, 310f, 16f, 5);
@@ -2084,10 +2086,10 @@ namespace ZooZooClub.Client
         }
 
         /// <summary>지금 일하는 주민과, 대신 배치할 수 있는 주민들.</summary>
-        void WorkerCard(int objectId)
+        void WorkerCard(int objectId, float height)
         {
             var card = Ui.Box("Worker", windowHeader, Ui.CardSprite, Color.white);
-            Ui.Fixed(card.gameObject, 700f, 176f);
+            Ui.Fixed(card.gameObject, 700f, height);
             var group = Ui.Horizontal(card.gameObject, 8f, 14);
             group.padding.bottom = 20;
             group.childForceExpandWidth = false;
@@ -2147,7 +2149,8 @@ namespace ZooZooClub.Client
         void QueueCard(PlacedObject facility, PlaceableDef def)
         {
             var card = Ui.Box("Queue", windowHeader, Ui.CardSprite, Color.white);
-            Ui.Fixed(card.gameObject, 0f, 176f).flexibleWidth = 1f;
+            float cardHeight = game.ParallelOf(facility) > 1 ? 66f + 88f * game.ParallelOf(facility) : 176f;
+            Ui.Fixed(card.gameObject, 0f, cardHeight).flexibleWidth = 1f;
             var group = Ui.Vertical(card.gameObject, 6f, 14);
             group.padding.bottom = 20;
 
@@ -2162,7 +2165,7 @@ namespace ZooZooClub.Client
             titleGroup.childForceExpandWidth = false;
             titleGroup.childAlignment = TextAnchor.MiddleLeft;
             var title = Ui.Label("Title", titleRow, "대기열  " + facility.queue.Count + " / " + slots
-                + (parallel > 1 ? "  ·  " + parallel + "개씩 함께" : ""), 22f, Ui.Ink, TextAlignmentOptions.Left, true);
+                + (parallel > 1 ? "  ·  " + parallel + "줄" : ""), 22f, Ui.Ink, TextAlignmentOptions.Left, true);
             title.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
             if (def.upgradeLevel > 0 && !facility.upgraded)
             {
@@ -2172,7 +2175,7 @@ namespace ZooZooClub.Client
                     : "생산량 업그레이드 " + facility.upgradeProgress + "/" + game.UpgradeQuizCount;
                 var upgrade = Ui.Button("Upgrade", titleRow, upgradeText, () =>
                 {
-                    OpenGateQuiz(objectId, "문제 " + game.UpgradeQuizCount + "개를 맞히면 대기열이 늘고 2개씩 함께 만들어요!");
+                    OpenGateQuiz(objectId, "문제 " + game.UpgradeQuizCount + "개를 맞히면 대기열이 두 줄이 되어 두 개씩 함께 만들어요!");
                 }, 30f, 18f, lockedLevel > 0 ? Ui.Sand : Ui.Purple);
                 upgrade.interactable = lockedLevel == 0;
                 Ui.Fixed(upgrade.gameObject, 250f, 30f);
@@ -2183,43 +2186,63 @@ namespace ZooZooClub.Client
                 Ui.Fixed(badge.gameObject, 160f, 30f);
             }
 
-            var row = Ui.Rect("Slots", card.transform);
-            var rowGroup = Ui.Horizontal(row.gameObject, 8f, 0);
-            rowGroup.childForceExpandWidth = false;
-
-            // 칸이 많으면 작게 그린다.
-            float slotWidth = slots > 3 ? 70f : 110f;
-            for (int i = 0; i < slots; i++)
+            // 대기열이 여러 줄이면(업그레이드한 시설) 줄마다 한 줄씩 세로로 늘어놓는다. 줄마다 맨 앞 작업이 함께 만들어진다.
+            int perLane = game.SlotsPerLane(facility, def);
+            bool multi = parallel > 1;
+            float slotWidth = multi ? 92f : 110f;
+            float slotHeight = multi ? 80f : 104f;
+            for (int lane = 0; lane < parallel; lane++)
             {
-                var slot = Ui.Box("Slot", row, Ui.CardSprite, Ui.Sand);
-                Ui.Fixed(slot.gameObject, slotWidth, 104f);
+                var row = Ui.Rect(multi ? "Lane " + (lane + 1) : "Slots", card.transform);
+                if (multi) Ui.Fixed(row.gameObject, 0f, slotHeight);
+                var rowGroup = Ui.Horizontal(row.gameObject, 8f, 0);
+                rowGroup.childForceExpandWidth = false;
+                rowGroup.childAlignment = TextAnchor.MiddleLeft;
 
-                if (i >= facility.queue.Count)
+                if (multi)
                 {
-                    var blank = Text(slot.transform, "빈 칸", 18f, Ui.Muted);
-                    Ui.Stretch(blank.rectTransform, 0f, 6f, 0f, 0f);
-                    continue;
+                    var laneLabel = Ui.Label("LaneName", row, "대기열 " + (lane + 1), 20f, Ui.Ink, TextAlignmentOptions.Left, true);
+                    Ui.Fixed(laneLabel.gameObject, 96f, slotHeight);
                 }
 
-                var job = facility.queue[i];
-                var recipe = game.Catalog.GetRecipe(job.recipeId);
-                float iconSize = slots > 3 ? 46f : 58f;
-                var icon = Ui.Picture("Icon", slot.transform, recipe != null ? ItemIcon(recipe.outputItemId) : null);
-                Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -8f, iconSize, iconSize);
-
-                var time = Text(slot.transform, "", slots > 3 ? 16f : 20f, Ui.Ink, true);
-                Ui.Put(time.rectTransform, 0.5f, 0f, 0f, 12f, slotWidth - 6f, 26f);
-
-                long finishAt = job.finishAt;
-                Action tick = () =>
+                var laneJobs = new List<CraftJob>();
+                foreach (var queued in facility.queue)
                 {
-                    if (time == null) return;
-                    long remaining = finishAt - game.Now;
-                    time.text = remaining <= 0 ? "완성!" : Texts.Duration(remaining);
-                    time.color = remaining <= 0 ? Ui.Good : Ui.Ink;
-                };
-                tick();
-                tickers.Add(tick);
+                    if (!multi || queued.lane == lane) laneJobs.Add(queued);
+                }
+
+                for (int i = 0; i < perLane; i++)
+                {
+                    var slot = Ui.Box("Slot", row, Ui.CardSprite, Ui.Sand);
+                    Ui.Fixed(slot.gameObject, slotWidth, slotHeight);
+
+                    if (i >= laneJobs.Count)
+                    {
+                        var blank = Text(slot.transform, "빈 칸", 18f, Ui.Muted);
+                        Ui.Stretch(blank.rectTransform, 0f, 6f, 0f, 0f);
+                        continue;
+                    }
+
+                    var job = laneJobs[i];
+                    var recipe = game.Catalog.GetRecipe(job.recipeId);
+                    float iconSize = multi ? 40f : 58f;
+                    var icon = Ui.Picture("Icon", slot.transform, recipe != null ? ItemIcon(recipe.outputItemId) : null);
+                    Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, multi ? -6f : -8f, iconSize, iconSize);
+
+                    var time = Text(slot.transform, "", multi ? 17f : 20f, Ui.Ink, true);
+                    Ui.Put(time.rectTransform, 0.5f, 0f, 0f, multi ? 6f : 12f, slotWidth - 6f, 24f);
+
+                    long finishAt = job.finishAt;
+                    Action tick = () =>
+                    {
+                        if (time == null) return;
+                        long remaining = finishAt - game.Now;
+                        time.text = remaining <= 0 ? "완성!" : Texts.Duration(remaining);
+                        time.color = remaining <= 0 ? Ui.Good : Ui.Ink;
+                    };
+                    tick();
+                    tickers.Add(tick);
+                }
             }
         }
 

@@ -465,8 +465,14 @@ namespace ZooZooClub.Tests
             for (int i = 0; i < 4; i++) Assert.AreEqual(ActionResult.Ok, game.StartCraft(bakery, "bread"));
             Assert.AreEqual(ActionResult.QueueFull, game.StartCraft(bakery, "bread"));
 
-            // 두 개씩 함께 만들어진다: 0~60초에 두 개, 60~120초에 두 개.
+            // 대기열 두 줄에 번갈아 서고, 줄마다 맨 앞이 함께 만들어진다: 0~60초에 두 개, 60~120초에 두 개.
             long t0 = clock.Now;
+            Assert.AreEqual(0, obj.queue[0].lane);
+            Assert.AreEqual(1, obj.queue[1].lane);
+            Assert.AreEqual(0, obj.queue[2].lane);
+            Assert.AreEqual(1, obj.queue[3].lane);
+            Assert.AreEqual(2, game.CountInLane(obj, 0));
+            Assert.AreEqual(2, game.CountInLane(obj, 1));
             Assert.AreEqual(t0, obj.queue[1].startAt);
             Assert.AreEqual(t0 + 60, obj.queue[2].startAt);
             Assert.AreEqual(t0 + 60, obj.queue[3].startAt);
@@ -499,6 +505,22 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(t0 + 60, obj.queue[1].finishAt);
             Assert.AreEqual(clock.Now, obj.queue[2].startAt);
             Assert.AreEqual(clock.Now + 60, obj.queue[2].finishAt);
+        }
+
+        [Test]
+        public void OldUpgradedSave_SpreadsItsQueueOverTheLanes()
+        {
+            int bakery = PlaceBakery();
+            var obj = game.FindObject(bakery);
+            obj.upgraded = true;
+            for (int i = 0; i < 6; i++)
+                obj.queue.Add(new CraftJob { recipeId = "bread", startAt = clock.Now, finishAt = clock.Now + 60 * (i + 1) });
+
+            var reloaded = new Game(catalog, game.State, clock);
+            var again = reloaded.FindObject(bakery);
+            Assert.AreEqual(3, reloaded.CountInLane(again, 0));
+            Assert.AreEqual(3, reloaded.CountInLane(again, 1));
+            Assert.AreEqual(clock.Now + 360, again.queue[5].finishAt);
         }
 
         [Test]

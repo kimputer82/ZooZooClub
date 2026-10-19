@@ -4,7 +4,7 @@ namespace ZooZooClub.Core
 {
     // 생산: 시설에 레시피를 줄 세우면 앞에서부터 차례로 만들어진다.
     // 재료는 줄을 세울 때 바로 소비되고, 완성품은 수거할 때 창고로 들어간다.
-    // 생산량 업그레이드를 마친 시설은 대기열이 늘고, 여러 개(ParallelOf)가 동시에 만들어진다.
+    // 생산량 업그레이드를 마친 시설은 대기열이 여러 줄(ParallelOf)이 되고, 줄마다 맨 앞 작업이 함께 만들어진다.
     public sealed partial class Game
     {
         PlacedObject FindFacility(int objectId, out PlaceableDef def)
@@ -64,16 +64,65 @@ namespace ZooZooClub.Core
         }
 
         /// <summary>
-        /// 대기열의 앞쪽 count개 작업이 놓인 채로, 다음 작업이 시작할 수 있는 시각.
-        /// 동시에 lanes개를 만들 수 있으므로, 가장 늦게 끝나는 lanes개 가운데 가장 먼저 끝나는 때에 자리가 난다.
+        /// 줄 하나에 들어갈 수보다 많이 선 작업을 다른 줄로 옮긴다. 대기열을 줄로 나누기 전에 업그레이드한 저장을 읽을 때 쓴다.
+        /// 시각은 건드리지 않으므로 생산 시간은 그대로 흘러간다.
         /// </summary>
-        long NextFreeAt(PlacedObject facility, int count, int lanes, long now)
+        void SpreadQueuesIntoLanes()
         {
-            if (count < lanes) return now;
-            var finishes = new long[count];
-            for (int i = 0; i < count; i++) finishes[i] = facility.queue[i].finishAt;
-            Array.Sort(finishes);
-            return Math.Max(now, finishes[count - lanes]);
+            foreach (var obj in State.objects)
+            {
+                if (obj.queue == null || obj.queue.Count == 0) continue;
+                var def = Catalog.GetPlaceable(obj.defId);
+                if (def == null || def.kind != PlaceableKind.Facility) continue;
+
+                int lanes = ParallelOf(obj);
+                int perLane = SlotsPerLane(obj, def);
+                var counts = new int[lanes];
+                foreach (var job in obj.queue)
+                {
+                    if (job.lane < 0 || job.lane >= lanes) job.lane = 0;
+                    if (counts[job.lane] < perLane)
+                    {
+                        counts[job.lane]++;
+                        continue;
+                    }
+                    for (int l = 0; l < lanes; l++)
+                    {
+                        if (counts[l] >= perLane) continue;
+                        job.lane = l;
+                        counts[l]++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>줄 하나에 설 수 있는 작업 수.</summary>
+        public int SlotsPerLane(PlacedObject facility, PlaceableDef def)
+        {
+            return Math.Max(1, QueueSlotsOf(facility, def) / ParallelOf(facility));
+        }
+
+        /// <summary>그 줄에 선 작업 수.</summary>
+        public int CountInLane(PlacedObject facility, int lane)
+        {
+            int count = 0;
+            foreach (var job in facility.queue)
+            {
+                if (job.lane == lane) count++;
+            }
+            return count;
+        }
+
+        /// <summary>그 줄의 맨 뒤 작업이 끝나는 시각. 비어 있으면 now.</summary>
+        long LaneFreeAt(PlacedObject facility, int lane, long now)
+        {
+            long free = now;
+            foreach (var job in facility.queue)
+            {
+                if (job.lane == lane) free = Math.Max(free, job.finishAt);
+            }
+            return free;
         }
 
         public ActionResult StartCraft(int objectId, string recipeId)
@@ -85,18 +134,35 @@ namespace ZooZooClub.Core
             var recipe = Catalog.GetRecipe(recipeId);
             if (recipe == null || recipe.facilityId != def.id) return ActionResult.NotFound;
             if (State.level < recipe.unlockLevel) return ActionResult.LockedByLevel;
-            if (facility.queue.Count >= QueueSlotsOf(facility, def)) return ActionResult.QueueFull;
+            // 자리가 남은 줄 가운데 가장 먼저 비는 줄에 선다(같으면 앞 줄).
+            int lanes = ParallelOf(facility);
+            int perLane = SlotsPerLane(facility, def);
+            long now = Now;
+            int lane = -1;
+            long laneFree = long.MaxValue;
+            for (int l = 0; l < lanes; l++)
+            {
+                if (CountInLane(facility, l) >= perLane) continue;
+                long free = LaneFreeAt(facility, l, now);
+                if (free < laneFree)
+                {
+                    lane = l;
+                    laneFree = free;
+                }
+            }
+            if (lane < 0) return ActionResult.QueueFull;
             if (!HasItems(recipe.inputs)) return ActionResult.NotEnoughItems;
 
             RemoveItems(recipe.inputs);
 
-            long start = NextFreeAt(facility, facility.queue.Count, ParallelOf(facility), Now);
+            long start = laneFree;
 
             facility.queue.Add(new CraftJob
             {
                 recipeId = recipe.id,
                 startAt = start,
-                finishAt = start + CraftSecondsFor(objectId, recipe)
+                finishAt = start + CraftSecondsFor(objectId, recipe),
+                lane = lane
             });
 
             NotifyChanged();
@@ -119,10 +185,18 @@ namespace ZooZooClub.Core
             return ready;
         }
 
-        /// <summary>지금 만들고 있는(아직 덜 된 것 중 맨 앞) 작업. 없으면 null.</summary>
+        /// <summary>지금 만들고 있는 작업. 없으면 null.</summary>
         CraftJob CurrentJob(PlacedObject facility)
         {
+            // 줄이 여럿이면 지금 만들고 있는 것 가운데 가장 먼저 끝나는 것.
             long now = Now;
+            CraftJob best = null;
+            foreach (var job in facility.queue)
+            {
+                if (job.finishAt <= now || job.startAt > now) continue;
+                if (best == null || job.finishAt < best.finishAt) best = job;
+            }
+            if (best != null) return best;
             foreach (var job in facility.queue)
             {
                 if (job.finishAt > now) return job;
@@ -163,15 +237,16 @@ namespace ZooZooClub.Core
             long now = Now;
             int index = facility.queue.IndexOf(job);
             job.finishAt = now;
-            // 아직 시작하지 않은 뒤 작업들은 자리가 나는 대로 다시 줄 세운다(이미 만들고 있는 것은 그대로).
-            int lanes = ParallelOf(facility);
+            // 같은 줄에서 그 뒤에 기다리던 작업들만 앞당긴다(다른 줄은 그대로 흘러간다).
+            long previousFinish = now;
             for (int i = index + 1; i < facility.queue.Count; i++)
             {
                 var next = facility.queue[i];
-                if (next.startAt <= now) continue;
+                if (next.lane != job.lane) continue;
                 long duration = next.finishAt - next.startAt;
-                next.startAt = NextFreeAt(facility, i, lanes, now);
+                next.startAt = Math.Max(now, previousFinish);
                 next.finishAt = next.startAt + duration;
+                previousFinish = next.finishAt;
             }
 
             NotifyChanged();

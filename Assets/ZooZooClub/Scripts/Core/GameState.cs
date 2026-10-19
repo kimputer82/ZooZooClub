@@ -12,6 +12,8 @@ namespace ZooZooClub.Core
         public string recipeId;
         public long startAt;
         public long finishAt;
+        // 업그레이드한 시설은 대기열이 여러 줄이다. 이 작업이 선 줄(0부터). 줄마다 맨 앞 작업이 함께 만들어진다.
+        public int lane;
     }
 
     [Serializable]
