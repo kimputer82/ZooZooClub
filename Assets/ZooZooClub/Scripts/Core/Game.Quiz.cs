@@ -157,9 +157,12 @@ namespace ZooZooClub.Core
                 State.coins += reward;
                 State.quizSolved++;
 
-                // 콤보: 이어서 맞히면 늘고, 너무 오래 쉬었으면 처음부터 다시 센다.
-                State.quizCombo = QuizCombo + 1;
-                State.quizComboAt = Now;
+                // 콤보: 문제 풀기 버튼으로 푼 문제만 센다. 이어서 맞히면 늘고, 너무 오래 쉬었으면 처음부터 다시 센다.
+                if (gateObjectId == 0)
+                {
+                    State.quizCombo = QuizCombo + 1;
+                    State.quizComboAt = Now;
+                }
 
                 var gate = gateObjectId != 0 ? FindObject(gateObjectId) : null;
                 if (gate != null)
@@ -188,7 +191,7 @@ namespace ZooZooClub.Core
             {
                 int wait = Catalog.quiz != null ? Math.Max(0, Catalog.quiz.wrongCooldownSeconds) : 0;
                 State.quizLockedUntil = Now + wait;
-                State.quizCombo = 0;
+                if (gateObjectId == 0) State.quizCombo = 0;
             }
 
             NotifyChanged();

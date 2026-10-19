@@ -321,9 +321,10 @@ namespace ZooZooClub.Core
         public int upgradeQuizzes = 10;
         public int upgradeQueueSlots = 6;
         public int upgradeParallel = 2;
-        // 작물을 심을 때 이 확률(%)로 "문제를 맞혀야 수확할 수 있는 밭"이 된다.
+        // 수확하려고 누를 때 이 확률(%)로 문제가 나오고, 맞혀야 수확할 수 있다.
         public int harvestQuizChancePercent;
-        // 문제 콤보: 연속으로 맞힌 수가 combo 이상이면 생산 시간이 speedPercent% 줄어든다.
+        // 문제 콤보: 문제 풀기 버튼으로 연속으로 맞힌 수가 combo 이상이면 생산 시간이 speedPercent% 줄어든다.
+        // 수확·공사·업그레이드 때문에 푼 문제는 콤보를 늘리지도 끊지도 않는다.
         // 틀리거나, 마지막으로 맞힌 뒤 comboTimeoutSeconds 동안 맞히지 않으면 콤보가 끊긴다.
         public int comboTimeoutSeconds = 600;
         public List<ComboTierDef> comboTiers = new List<ComboTierDef>();

@@ -659,11 +659,16 @@ namespace ZooZooClub.Tests
             clock.Now += 10;
             Assert.AreEqual(ActionResult.Ok, game.Harvest(plot));
 
-            // 확률 100%: 심을 때 정해지고, 맞히기 전에는 수확할 수 없다.
+            // 확률 100%: 수확하려고 누를 때 문제가 나오고, 맞히기 전에는 수확할 수 없다.
             catalog.balance.harvestQuizChancePercent = 100;
             Assert.AreEqual(ActionResult.Ok, game.Plant(plot, "carrot"));
-            Assert.IsTrue(game.FindObject(plot).quizGate);
+            Assert.IsFalse(game.FindObject(plot).quizGate);
             clock.Now += 10;
+            Assert.AreEqual(ActionResult.NeedsQuiz, game.Harvest(plot));
+            Assert.IsTrue(game.FindObject(plot).quizGate);
+
+            // 한 번 나온 문제는 다시 눌러도 남아 있다(확률이 0이 되어도).
+            catalog.balance.harvestQuizChancePercent = 0;
             Assert.AreEqual(ActionResult.NeedsQuiz, game.Harvest(plot));
 
             // 틀리면 그대로다(작물도 남아 있다).
@@ -744,6 +749,26 @@ namespace ZooZooClub.Tests
             Assert.IsFalse(game.CanUpgrade(wall));
             Assert.AreEqual(6, game.QueueSlotsOf(obj, catalog.GetPlaceable("wall")));
             Assert.AreEqual(2, game.ParallelOf(obj));
+        }
+
+        [Test]
+        public void Quiz_OnlyQuizButtonAnswersCountForTheCombo()
+        {
+            catalog.grades.Add(new GradeDef { id = "common", displayName = "Common", weight = 0 });
+            catalog.grades.Add(new GradeDef { id = "legend", displayName = "Legend", weight = 1, buildQuizzes = 5 });
+            int tower = Place("tower", 0, 0);
+            bool correct;
+            int reward, gems;
+
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems);
+            Assert.AreEqual(2, game.QuizCombo);
+
+            // 공사 문제는 맞혀도 콤보가 늘지 않고, 틀려도 끊기지 않는다.
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems, tower);
+            Assert.AreEqual(2, game.QuizCombo);
+            game.AnswerQuiz("q1", 1, out correct, out reward, out gems, tower);
+            Assert.AreEqual(2, game.QuizCombo);
         }
 
         [Test]

@@ -1553,6 +1553,19 @@ namespace ZooZooClub.Client
         static void ShowAsWritten(TextMeshProUGUI label, float minSize)
         {
             if (label == null) return;
+            // 분수가 있으면 분자·분모를 위아래로 쌓아 그린다(나머지 글은 적힌 그대로 보이게 감싼다).
+            if (Texts.HasFraction(label.text))
+            {
+                // 가로줄 글자를 글꼴 그림에 미리 넣어 둔다(처음 그릴 때 빠지지 않게).
+                if (label.font != null) label.font.TryAddCharacters("\u2500");
+                label.richText = true;
+                label.text = Texts.MathRich(label.text);
+                label.parseCtrlCharacters = false;
+                label.enableAutoSizing = true;
+                label.fontSizeMax = label.fontSize;
+                label.fontSizeMin = Mathf.Min(minSize, label.fontSize);
+                return;
+            }
             label.richText = false;
             label.parseCtrlCharacters = false;
             label.enableAutoSizing = true;
@@ -1624,7 +1637,7 @@ namespace ZooZooClub.Client
             quizReward = reward;
             quizGems = gems;
             if (gems > 0) Toast("운이 좋아요! 보석 " + gems + "개를 얻었어요.");
-            else if (correct && game.QuizCombo >= 2) ComboToast();
+            else if (correct && quizGateId == 0 && game.QuizCombo >= 2) ComboToast();
             Sound.Play(correct ? Sound.Correct : Sound.Wrong);
             rebuildNeeded = true;
         }

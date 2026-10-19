@@ -914,7 +914,7 @@ namespace ZooZooClub.Client
                 ArtLibrary.Fit(view.body, PlaceholderArt.Circle, new Vector3(view.center.x, 0.17f, 0f), size);
             }
 
-            view.label.text = ripe ? (obj.quizGate ? "문제 풀고 수확!" : "수확!") : Texts.Duration(game.SecondsUntilRipe(obj.id));
+            view.label.text = ripe ? "수확!" : Texts.Duration(game.SecondsUntilRipe(obj.id));
         }
 
         /// <summary>방어 시설 위에 등급을 별로 보여 준다.</summary>
