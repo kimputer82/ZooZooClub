@@ -707,8 +707,8 @@ namespace ZooZooClub.Client
 
         void RefreshRaidChip()
         {
-            // 문제를 푸는 동안에는 새 침략이 오지 않는다.
-            game.RaidHold = panel == PanelKind.Quiz;
+            // 문제를 푸는 동안에도 침략 시간은 그대로 흘러간다(예전에는 문제 창이 열려 있으면 침략을 미뤘다).
+            game.RaidHold = false;
 
             bool show = game.RaidActive || game.RaidsUnlocked;
             if (raidChipRoot.activeSelf != show) raidChipRoot.SetActive(show);
