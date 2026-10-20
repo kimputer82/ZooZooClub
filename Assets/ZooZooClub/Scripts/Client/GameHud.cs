@@ -54,6 +54,10 @@ namespace ZooZooClub.Client
         GameObject expandRoot;
         GameObject ordersBadge;
         TextMeshProUGUI ordersBadgeText;
+        GameObject bagBadgeRoot;
+        TextMeshProUGUI bagBadgeText;
+        // 마지막으로 본 맞힌 문제 수. 구름 장식이 열리는 순간을 알려 주는 데 쓴다(-1이면 아직 안 봄).
+        int lastQuizSolved = -1;
         GameObject raidChipRoot;
         UImage raidChipImage;
         TextMeshProUGUI raidText;
@@ -421,7 +425,7 @@ namespace ZooZooClub.Client
 
             MenuButton(menu, "QuizButton", "ui_icon_quiz", "문제", Ui.Purple, () => Toggle(PanelKind.Quiz));
             MenuButton(menu, "ResidentsButton", "ui_icon_residents", "주민", Ui.Green, () => Toggle(PanelKind.Residents));
-            MenuButton(menu, "StorageButton", "ui_icon_box", "창고", Ui.Blue, () => Toggle(PanelKind.Storage));
+            var storage = MenuButton(menu, "StorageButton", "ui_icon_box", "창고", Ui.Blue, () => Toggle(PanelKind.Storage));
             var orders = MenuButton(menu, "OrdersButton", "ui_icon_orders", "주문", Ui.Yellow, () => Toggle(PanelKind.Orders));
             MenuButton(menu, "BuildButton", "ui_icon_build", "건설", Ui.Orange, () => Toggle(PanelKind.Build));
             if (ActiveRoom.Length > 0)
@@ -437,6 +441,15 @@ namespace ZooZooClub.Client
             Ui.Stretch(ordersBadgeText.rectTransform, 0f, 0f, 0f, 0f);
             ordersBadge = badge.gameObject;
             ordersBadge.SetActive(false);
+
+            // 아직 열지 않은 보따리 수.
+            var bagBadge = Ui.Picture("BagBadge", storage, ArtLibrary.Get("ui_dot"));
+            bagBadge.color = Ui.Red;
+            Ui.Put(bagBadge.rectTransform, 1f, 1f, 0f, 2f, 44f, 44f);
+            bagBadgeText = Ui.Label("Text", bagBadge.transform, "", 24f, Color.white, TextAlignmentOptions.Center, true);
+            Ui.Stretch(bagBadgeText.rectTransform, 0f, 0f, 0f, 0f);
+            bagBadgeRoot = bagBadge.gameObject;
+            bagBadgeRoot.SetActive(false);
 
             var expand = Ui.Rect("ExpandMenu", root);
             Ui.Put(expand, 0f, 0f, 24f, 18f, 140f, 170f);
@@ -700,6 +713,21 @@ namespace ZooZooClub.Client
             if (ordersBadge.activeSelf != ready > 0) ordersBadge.SetActive(ready > 0);
             if (ready > 0) ordersBadgeText.text = ready.ToString();
 
+            string bagItem = game.Catalog.balance != null ? game.Catalog.balance.bagItemId : "";
+            int bags = string.IsNullOrEmpty(bagItem) ? 0 : game.CountOf(bagItem);
+            if (bagBadgeRoot.activeSelf != bags > 0) bagBadgeRoot.SetActive(bags > 0);
+            if (bags > 0) bagBadgeText.text = bags.ToString();
+
+            // 구름 장식이 열리는 순간(맞힌 문제가 기준을 넘을 때) 알려 준다.
+            int solved = state.quizSolved;
+            int cloudNeed = CloudQuizzesNeeded;
+            if (lastQuizSolved >= 0 && cloudNeed > 0 && lastQuizSolved < cloudNeed && solved >= cloudNeed)
+            {
+                Sound.Play(Sound.Win);
+                Toast("문제를 " + cloudNeed + "개 맞혔어요! 구름 장식이 열렸어요. 건설 → 구름에서 살 수 있어요.");
+            }
+            lastQuizSolved = solved;
+
             RefreshRaidChip();
             RefreshComboChip();
             RefreshWorkers();
@@ -804,11 +832,11 @@ namespace ZooZooClub.Client
                     OpenGateQuiz(obj.id, "수확하려면 문제를 맞혀 보세요!");
                     return;
                 }
-                if (foundBag && text != null) text += "   보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요.";
                 Report(harvested, text);
                 if (harvested == ActionResult.Ok)
                 {
                     Sound.Play(Sound.Harvest);
+                    if (foundBag) OnBagFound(obj.id);
                     // 다 자란 밭을 누르면 수확만 한다. 심을 작물은 빈 밭을 다시 눌렀을 때 고른다.
                     if (panel == PanelKind.Selection) ClosePanel();
                     return;
@@ -1053,25 +1081,57 @@ namespace ZooZooClub.Client
             var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
-                int tab = def.kind == PlaceableKind.Decor ? 1 : def.kind == PlaceableKind.Defense ? 2
+                int tab = def.kind == PlaceableKind.Decor ? (def.requiredQuizzes > 0 ? 4 : 1)
+                    : def.kind == PlaceableKind.Defense ? 2
                     : def.kind == PlaceableKind.Floor ? 3 : 0;
                 if (tab == buildTab) shown.Add(def);
             }
 
             bool showGrades = buildTab == 2 && game.Catalog.grades.Count > 0;
             bool showSafe = buildTab == 2 && game.RaidsUnlocked;
-            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f) + (showGrades ? 110f : 0f) + (showSafe ? 84f : 0f));
+            ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f) + (showGrades ? 110f : 0f) + (showSafe ? 84f : 0f)
+                + (buildTab == 4 ? 84f : 0f));
             ShowHeader(60f);
             BuildTab("TabFacility", "밭 · 시설", 0);
             BuildTab("TabDecor", "장식", 1);
             BuildTab("TabDefense", "방어", 2);
             BuildTab("TabFloor", "바닥", 3);
+            BuildTab("TabCloud", "구름", 4);
 
             if (showGrades) GradeChances();
             if (showSafe) SafeRow();
+            if (buildTab == 4) CloudRow();
 
             var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
             foreach (var def in shown) BuildCard(grid, def);
+        }
+
+        /// <summary>구름 장식이 열리는 데 필요한 맞힌 문제 수(구름 장식 가운데 가장 작은 값). 없으면 0.</summary>
+        int CloudQuizzesNeeded
+        {
+            get
+            {
+                int need = 0;
+                foreach (var def in game.Catalog.placeables)
+                {
+                    if (def.requiredQuizzes > 0 && (need == 0 || def.requiredQuizzes < need)) need = def.requiredQuizzes;
+                }
+                return need;
+            }
+        }
+
+        /// <summary>구름 탭 맨 위: 문제를 몇 개 더 맞혀야 열리는지, 또는 열렸다는 안내.</summary>
+        void CloudRow()
+        {
+            int need = CloudQuizzesNeeded;
+            int solved = game.State.quizSolved;
+            var box = Ui.Box("CloudInfo", windowContent, Ui.CardSprite, solved >= need ? Ui.Sand : Color.white);
+            Ui.Fixed(box.gameObject, 0f, 70f);
+            string text = solved >= need
+                ? "구름 장식이 열렸어요! 문제를 열심히 푼 마을만 꾸밀 수 있는 특별한 장식이에요."
+                : "문제를 " + need + "개 맞히면 구름 장식이 한꺼번에 열려요.   지금 " + solved + " / " + need;
+            var label = Text(box.transform, text, 24f, Ui.Ink, true);
+            Ui.Stretch(label.rectTransform, 16f, 0f, 16f, 0f);
         }
 
         /// <summary>방어 탭: 침략자들이 노리는 금고(지킬 곳)를 옮기는 버튼.</summary>
@@ -1124,12 +1184,13 @@ namespace ZooZooClub.Client
                 windowContent.anchoredPosition = Vector2.zero;
                 rebuildNeeded = true;
             }, 60f, 24f, buildTab == index ? Ui.Orange : Ui.Sand);
-            Ui.Fixed(tab.gameObject, 230f, 60f);
+            Ui.Fixed(tab.gameObject, 200f, 60f);
         }
 
         void BuildCard(Transform grid, PlaceableDef def)
         {
             bool locked = game.State.level < def.unlockLevel;
+            bool quizLocked = game.State.quizSolved < def.requiredQuizzes;
             bool maxed = def.maxCount > 0 && game.CountPlaced(def.id) >= def.maxCount;
             string defId = def.id;
 
@@ -1138,10 +1199,11 @@ namespace ZooZooClub.Client
                 ClosePanel();
                 world.BeginPlacing(defId);
             });
-            card.interactable = !locked && !maxed;
+            card.interactable = !locked && !quizLocked && !maxed;
             Transform inside = card.transform;
 
             var icon = Ui.Picture("Icon", inside, Art(def.kind == PlaceableKind.Plot ? "plot" : def.id));
+            if (quizLocked) icon.color = new Color(1f, 1f, 1f, 0.45f);
             Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -14f, 176f, 130f);
 
             var name = Text(inside, def.displayName, 26f, Ui.Ink, true);
@@ -1156,6 +1218,7 @@ namespace ZooZooClub.Client
 
             TextMeshProUGUI price;
             if (locked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), "Lv " + def.unlockLevel, Ui.Gray, 46f, 22f);
+            else if (quizLocked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), def.requiredQuizzes + "문제", Ui.Gray, 46f, 22f);
             else if (maxed) price = Ui.Chip("Price", inside, null, "설치 완료", Ui.Gray, 46f, 22f);
             else price = Ui.Chip("Price", inside, Art("ui_icon_coin"), def.cost.ToString("N0"), Ui.Yellow, 46f, 24f);
             Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 22f, 170f, 46f);
@@ -1283,6 +1346,15 @@ namespace ZooZooClub.Client
                     if (sold == ActionResult.Ok) Sound.Play(Sound.Coin);
                 }, 48f, 20f, Ui.Yellow);
             }
+        }
+
+        /// <summary>수확하다 보따리를 찾았을 때: 밭 위로 보따리가 튀어 오르고, 알림과 소리로 알려 준다.</summary>
+        void OnBagFound(int plotId)
+        {
+            string bagId = game.Catalog.balance != null ? game.Catalog.balance.bagItemId : "";
+            world.ShowFoundItem(plotId, "item_" + bagId, "보따리!");
+            Sound.Play(Sound.Win);
+            Toast("보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요.");
         }
 
         /// <summary>창고의 보따리 하나를 열고 무엇이 나왔는지 알려 준다.</summary>
@@ -1490,7 +1562,8 @@ namespace ZooZooClub.Client
                     if (harvested == ActionResult.Ok)
                     {
                         Sound.Play(Sound.Harvest);
-                        Toast(foundBag ? "수확했어요! 보따리도 발견했어요. 창고에서 두 번 눌러 열어 보세요." : "수확했어요!");
+                        Toast("수확했어요!");
+                        if (foundBag) OnBagFound(plotId);
                     }
                     else Toast(Texts.Describe(harvested));
                 }, 64f, 26f, Ui.Green);
@@ -1951,11 +2024,12 @@ namespace ZooZooClub.Client
                         OpenGateQuiz(objectId, "수확하려면 문제를 맞혀 보세요!");
                         return;
                     }
-                    Report(harvested, foundBag ? "보따리를 발견했어요! 창고에서 두 번 눌러 열어 보세요." : null);
+                    Report(harvested, null);
                     if (harvested == ActionResult.Ok)
                     {
                         Sound.Play(Sound.Harvest);
                         ClosePanel();
+                        if (foundBag) OnBagFound(objectId);
                     }
                 }, 66f, 28f, Ui.Green);
                 harvest.GetComponent<ULayoutElement>().flexibleWidth = 0f;

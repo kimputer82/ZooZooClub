@@ -31,7 +31,8 @@ namespace ZooZooClub.Core
         InvalidPlacement,
         MaxReached,
         NotEnoughGems,
-        NeedsQuiz
+        NeedsQuiz,
+        LockedByQuiz
     }
 
     /// <summary>

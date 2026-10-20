@@ -46,6 +46,7 @@ namespace ZooZooClub.Tests
             c.placeables.Add(new PlaceableDef { id = "bakery", kind = PlaceableKind.Facility, width = 2, height = 2, cost = 150, queueSlots = 2, maxCount = 1 });
             c.placeables.Add(new PlaceableDef { id = "tree", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 40, charm = 4 });
             c.placeables.Add(new PlaceableDef { id = "floor_wood", kind = PlaceableKind.Floor, width = 1, height = 1, cost = 10, charm = 1 });
+            c.placeables.Add(new PlaceableDef { id = "cloud_tree", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 70, charm = 6, requiredQuizzes = 100, rotations = 4 });
 
             c.residents.Add(new ResidentDef { id = "dog", displayName = "Dog", species = "dog", unlockLevel = 1, craftSpeedBonusPercent = 50 });
             c.residents.Add(new ResidentDef { id = "fox", displayName = "Fox", species = "fox", unlockLevel = 1, craftSpeedBonusPercent = 25 });
@@ -521,6 +522,20 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(3, reloaded.CountInLane(again, 0));
             Assert.AreEqual(3, reloaded.CountInLane(again, 1));
             Assert.AreEqual(clock.Now + 360, again.queue[5].finishAt);
+        }
+
+        [Test]
+        public void CloudDecor_UnlocksAfterEnoughSolvedQuizzes()
+        {
+            int id;
+            game.State.quizSolved = 99;
+            Assert.AreEqual(ActionResult.LockedByQuiz, game.BuyAndPlace("cloud_tree", 5, 5, out id));
+            long coins = game.State.coins;
+
+            game.State.quizSolved = 100;
+            Assert.AreEqual(ActionResult.Ok, game.BuyAndPlace("cloud_tree", 5, 5, out id, 2));
+            Assert.AreEqual(coins - 70, game.State.coins);
+            Assert.AreEqual(2, game.FindObject(id).rotation);
         }
 
         [Test]

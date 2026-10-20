@@ -74,6 +74,7 @@ namespace ZooZooClub.Core
             var def = Catalog.GetPlaceable(defId);
             if (def == null) return ActionResult.NotFound;
             if (State.level < def.unlockLevel) return ActionResult.LockedByLevel;
+            if (State.quizSolved < def.requiredQuizzes) return ActionResult.LockedByQuiz;
             if (def.maxCount > 0 && CountPlaced(defId) >= def.maxCount) return ActionResult.MaxReached;
             if (State.coins < def.cost) return ActionResult.NotEnoughCoins;
 

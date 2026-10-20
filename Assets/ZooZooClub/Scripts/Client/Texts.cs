@@ -26,6 +26,7 @@ namespace ZooZooClub.Client
                 case ActionResult.MaxReached: return "더 늘릴 수 없어요.";
                 case ActionResult.NotEnoughGems: return "보석이 부족해요.";
                 case ActionResult.NeedsQuiz: return "문제를 맞혀야 해요.";
+                case ActionResult.LockedByQuiz: return "문제를 더 맞혀야 열려요.";
                 default: return result.ToString();
             }
         }

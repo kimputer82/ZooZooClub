@@ -75,6 +75,16 @@ namespace ZooZooClub.Client
         readonly List<Shot> shots = new List<Shot>();
         readonly List<FloatingText> floatingTexts = new List<FloatingText>();
 
+        sealed class FloatingIcon
+        {
+            public SpriteRenderer sprite;
+            public Vector3 start;
+            public float age;
+        }
+
+        readonly List<FloatingIcon> floatingIcons = new List<FloatingIcon>();
+        const float IconSeconds = 1.8f;
+
         void InitRaid()
         {
             raidRoot = NewChild("Raid");
@@ -144,6 +154,7 @@ namespace ZooZooClub.Client
             UpdateInvaders(deltaTime);
             UpdateShots(deltaTime);
             UpdateFloatingTexts(deltaTime);
+            UpdateFloatingIcons(deltaTime);
             bool planningDefense = UpdateRangeRing();
             UpdateGoalMarker(planningDefense);
         }
@@ -342,6 +353,44 @@ namespace ZooZooClub.Client
             label.color = color;
             label.fontStyle = FontStyles.Bold;
             floatingTexts.Add(new FloatingText { label = label, color = color });
+        }
+
+        /// <summary>
+        /// 그 배치물 위로 물건 그림이 톡 튀어 올랐다가 사라지게 한다(수확하다 보따리를 찾았을 때). 이름표도 함께 띄운다.
+        /// </summary>
+        public void ShowFoundItem(int objectId, string artName, string text)
+        {
+            var obj = game.FindObject(objectId);
+            if (obj == null) return;
+            int width, height;
+            game.GetFootprint(obj, out width, out height);
+            Vector3 world = IsoMath.CellToWorld(obj.x + width * 0.5f, obj.y + height * 0.5f);
+
+            var sprite = NewSprite("Found", raidRoot, ArtLibrary.Get(artName) ?? PlaceholderArt.Circle);
+            ArtLibrary.Fit(sprite, sprite.sprite, world + new Vector3(0f, 0.15f, 0f), 0.42f);
+            sprite.sortingOrder = LabelOrder - 2;
+            floatingIcons.Add(new FloatingIcon { sprite = sprite, start = sprite.transform.localPosition });
+            if (!string.IsNullOrEmpty(text)) ShowFloatingText(world + new Vector3(0f, 0.35f, 0f), text, GainColor);
+        }
+
+        void UpdateFloatingIcons(float deltaTime)
+        {
+            for (int i = floatingIcons.Count - 1; i >= 0; i--)
+            {
+                var item = floatingIcons[i];
+                item.age += deltaTime;
+                float t = item.age / IconSeconds;
+                if (t >= 1f || item.sprite == null)
+                {
+                    if (item.sprite != null) Destroy(item.sprite.gameObject);
+                    floatingIcons.RemoveAt(i);
+                    continue;
+                }
+                // 처음에는 통통 튀어 오르고, 끝 무렵에 흐려진다.
+                float hop = Mathf.Sin(Mathf.Min(1f, t * 2.2f) * Mathf.PI) * 0.25f + t * 0.35f;
+                item.sprite.transform.localPosition = item.start + new Vector3(0f, hop, 0f);
+                item.sprite.color = new Color(1f, 1f, 1f, t < 0.7f ? 1f : 1f - (t - 0.7f) / 0.3f);
+            }
         }
 
         void UpdateFloatingTexts(float deltaTime)

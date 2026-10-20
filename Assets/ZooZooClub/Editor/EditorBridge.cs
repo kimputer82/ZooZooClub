@@ -17,7 +17,7 @@ namespace ZooZooClub.EditorTools
     /// 결과를 같은 폴더의 out.txt 에 덧붙인다. 빌드에는 포함되지 않는다.
     ///
     /// 명령: ping, refresh, test, build(윈도우 빌드), buildweb(웹 빌드), play, stop, shot, tmp, delsave, backup, restore, stash, unstash, boost, reimport, clear, quiz(문제 엑셀 다시 읽기)
-    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향], give <아이템|gems|coins> <수>, visit <이름>, home
+    /// 플레이 중 점검용: login <이름>[|방코드], logout, ui <버튼 이름>, cell <x> <y>, dump, state, grade <물체 번호> <등급 id>, place <id> <x> <y> [방향], give <아이템|gems|coins|solved> <수>, visit <이름>, home
     /// </summary>
     [InitializeOnLoad]
     public static class EditorBridge
@@ -410,7 +410,7 @@ namespace ZooZooClub.EditorTools
 
         /// <summary>
         /// 점검용: place &lt;defId&gt; &lt;x&gt; &lt;y&gt; [방향] 으로 배치물을 사서 놓는다.
-        /// 레벨과 코인이 모자라면 채워 주므로, 점검용 이름으로 들어온 뒤에만 쓴다.
+        /// 레벨, 코인, 맞힌 문제 수가 모자라면 채워 주므로, 점검용 이름으로 들어온 뒤에만 쓴다.
         /// </summary>
         static string Place(string argument)
         {
@@ -427,6 +427,7 @@ namespace ZooZooClub.EditorTools
             var game = session.Game;
             game.State.level = Math.Max(game.State.level, 10);
             game.State.coins = Math.Max(game.State.coins, 100000);
+            game.State.quizSolved = Math.Max(game.State.quizSolved, 1000);
             int objectId;
             var result = game.BuyAndPlace(parts[0], x, y, out objectId, rotation);
             session.Save();
@@ -447,6 +448,7 @@ namespace ZooZooClub.EditorTools
             var state = session.Game.State;
             if (parts[0] == "gems") state.gems = Math.Max(0, state.gems + amount);
             else if (parts[0] == "coins") state.coins = Math.Max(0, state.coins + amount);
+            else if (parts[0] == "solved") state.quizSolved = Math.Max(0, state.quizSolved + amount);
             else
             {
                 var entry = state.inventory.Find(e => e.itemId == parts[0]);
