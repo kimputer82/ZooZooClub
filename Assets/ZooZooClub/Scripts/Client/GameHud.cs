@@ -1218,7 +1218,13 @@ namespace ZooZooClub.Client
 
             TextMeshProUGUI price;
             if (locked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), "Lv " + def.unlockLevel, Ui.Gray, 46f, 22f);
-            else if (quizLocked) price = Ui.Chip("Price", inside, Art("ui_icon_lock"), def.requiredQuizzes + "문제", Ui.Gray, 46f, 22f);
+            else if (quizLocked)
+            {
+                // 문제 수가 모자라면 글자 없이 자물쇠만 가운데에 보여 준다.
+                price = Ui.Chip("Price", inside, null, "", Ui.Gray, 46f, 22f);
+                var lockIcon = Ui.Picture("Lock", price.transform.parent, Art("ui_icon_lock"));
+                Ui.Put(lockIcon.rectTransform, 0.5f, 0.5f, 0f, 0f, 34f, 34f);
+            }
             else if (maxed) price = Ui.Chip("Price", inside, null, "설치 완료", Ui.Gray, 46f, 22f);
             else price = Ui.Chip("Price", inside, Art("ui_icon_coin"), def.cost.ToString("N0"), Ui.Yellow, 46f, 24f);
             Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 22f, 170f, 46f);
