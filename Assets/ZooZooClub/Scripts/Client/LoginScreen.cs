@@ -300,10 +300,17 @@ namespace ZooZooClub.Client
                 // 서버에 이 이름의 저장이 있으면 가져와서, 이 컴퓨터의 저장과 견주어 더 새것을 쓴다.
                 Online.FetchSave(code, cleanName, (json, saveError) =>
                 {
-                    busy = false;
-                    if (!gameObject.activeInHierarchy) return;
-                    if (saveError != null) { Finish(saveError); return; }
-                    Finish(onLogin(cleanName, code, json));
+                    if (!gameObject.activeInHierarchy) { busy = false; return; }
+                    if (saveError != null) { busy = false; Finish(saveError); return; }
+                    // 선생님이 이 방에 올린 문제가 있으면 받아 둔다. 받지 못하면 기본 문제로 한다.
+                    Online.FetchRoomQuiz(code, (quizJson, quizError) =>
+                    {
+                        busy = false;
+                        if (!gameObject.activeInHierarchy) return;
+                        var session = GameSession.Instance;
+                        if (session != null) session.PendingRoomQuiz = quizError == null ? quizJson : null;
+                        Finish(onLogin(cleanName, code, json));
+                    });
                 });
             });
         }

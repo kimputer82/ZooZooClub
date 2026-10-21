@@ -88,7 +88,8 @@ namespace ZooZooClub.Client
                     Debug.LogError("[Zoo] quiz.json 을 읽지 못했습니다: " + e.Message);
                 }
             }
-            catalog.SetQuiz(bank);
+            DefaultQuiz = bank ?? new QuizBank();
+            catalog.SetQuiz(DefaultQuiz);
 
             foreach (var error in catalog.Validate())
             {
@@ -143,6 +144,15 @@ namespace ZooZooClub.Client
             return Login(rawName, roomCode, null);
         }
 
+        /// <summary>게임에 들어 있는 기본 문제 은행(quiz.json). 방 문제가 없을 때 쓴다.</summary>
+        public QuizBank DefaultQuiz { get; private set; }
+
+        /// <summary>
+        /// 들어가려는 방에 선생님이 올린 문제(문제 은행 JSON 글). 로그인 화면이 방을 확인하면서 받아 두고,
+        /// Login이 그 방으로 들어갈 때 한 번 쓰고 비운다. 비어 있으면 기본 문제를 쓴다.
+        /// </summary>
+        public string PendingRoomQuiz { get; set; }
+
         /// <summary>이번 접속에서 실제로 연결된 방 코드. 빈 문자열이면 혼자 하는 중(저장에 적힌 방은 기억만 한다).</summary>
         public string ActiveRoom { get; private set; }
 
@@ -154,6 +164,22 @@ namespace ZooZooClub.Client
         /// cloudJson은 서버에 있던 이 이름의 저장(없으면 null)이며, 이 컴퓨터의 저장보다 새것이면 그것으로 시작한다.
         /// 방 코드가 비어 있으면 혼자 하지만, 저장에 적혀 있던 방 코드는 지우지 않고 기억해 둔다(다음에 자동으로 다시 들어간다).
         /// </summary>
+        static QuizBank ParseRoomQuiz(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try
+            {
+                var bank = JsonUtility.FromJson<QuizBank>(json);
+                if (bank == null || bank.questions == null || bank.questions.Count == 0) return null;
+                return bank;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Zoo] 방 문제를 읽지 못해 기본 문제를 씁니다: " + e.Message);
+                return null;
+            }
+        }
+
         public string Login(string rawName, string roomCode, string cloudJson)
         {
             if (catalog == null) return "게임 데이터를 읽지 못했어요.";
@@ -191,6 +217,11 @@ namespace ZooZooClub.Client
             ActiveRoom = roomCode ?? "";
             bool roomChanged = ActiveRoom.Length > 0 && state.roomCode != ActiveRoom;
             if (ActiveRoom.Length > 0) state.roomCode = ActiveRoom;
+
+            // 방에 선생님이 올린 문제가 있으면 그 문제로, 아니면 기본 문제로 푼다.
+            QuizBank roomQuiz = ActiveRoom.Length > 0 ? ParseRoomQuiz(PendingRoomQuiz) : null;
+            PendingRoomQuiz = null;
+            catalog.SetQuiz(roomQuiz ?? DefaultQuiz);
 
             SavePath = path;
             Game = new Game(catalog, state, clock);

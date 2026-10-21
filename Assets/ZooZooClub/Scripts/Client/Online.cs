@@ -15,6 +15,8 @@ namespace ZooZooClub.Client
         public string name = "";
         public bool open = true;
         public long createdAt;
+        /// <summary>선생님이 엑셀로 올린 이 방 문제의 개수. 0이면 게임에 들어 있는 기본 문제를 쓴다.</summary>
+        public int quizCount;
     }
 
     /// <summary>
@@ -182,11 +184,11 @@ namespace ZooZooClub.Client
         // ---------- 선생님 ----------
 
         /// <summary>방을 만든다(같은 코드가 있으면 이름을 바꾸고 다시 연다). 비밀번호가 틀리면 그 이유를 준다.</summary>
-        public static void OpenRoom(string code, string name, string teacherKey, Action<string> done)
+        public static void OpenRoom(string code, string name, string teacherKey, string roomKey, Action<string> done)
         {
             var body = new Dictionary<string, object>
             {
-                { "owner", new Dictionary<string, object> { { "key", teacherKey }, { "stamp", Now } } },
+                { "owner", new Dictionary<string, object> { { "key", teacherKey }, { "stamp", Now }, { "roomKey", roomKey } } },
                 { "public", new Dictionary<string, object> { { "name", name }, { "createdAt", Now }, { "open", true } } }
             };
             TeacherPatch(code, body, done);
@@ -212,15 +214,66 @@ namespace ZooZooClub.Client
             TeacherPatch(code, body, done);
         }
 
-        static void TeacherPatch(string code, Dictionary<string, object> body, Action<string> done)
+        // ---------- 방 문제 ----------
+
+        /// <summary>
+        /// 방 관리 키를 처음 적어 둔다(키가 생기기 전에 만든 방). 이미 다른 키가 적혀 있으면 서버가 거절한다.
+        /// 방 관리 키는 방을 만든 컴퓨터에만 남아 있어서, 그 컴퓨터에서만 방 문제를 바꿀 수 있다.
+        /// </summary>
+        public static void ClaimRoom(string code, string teacherKey, string roomKey, Action<string> done)
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "owner/key", teacherKey }, { "owner/stamp", Now }, { "owner/roomKey", roomKey }
+            };
+            TeacherPatch(code, body, done, RoomQuizDenied);
+        }
+
+        /// <summary>방 문제(문제 은행 JSON 글)를 올린다. quizJson이 null이면 지워서 기본 문제로 돌아간다.</summary>
+        public static void PutRoomQuiz(string code, string teacherKey, string roomKey, string quizJson, int count, Action<string> done)
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "owner/key", teacherKey }, { "owner/stamp", Now }, { "owner/proof", roomKey },
+                { "quiz", quizJson }, { "public/quizCount", quizJson == null ? 0 : count }
+            };
+            TeacherPatch(code, body, done, RoomQuizDenied);
+        }
+
+        const string RoomQuizDenied = "비밀번호가 틀렸거나, 이 방을 만든 컴퓨터가 아니에요. 방 문제는 방을 만든 컴퓨터에서만 바꿀 수 있어요.";
+
+        /// <summary>방 문제를 받아 온다. 올린 문제가 없으면 json이 null이고 error도 null이다.</summary>
+        public static void FetchRoomQuiz(string code, Action<string, string> done)
+        {
+            if (!Enabled) { done(null, "온라인 기능이 꺼져 있어요."); return; }
+            instance.StartCoroutine(instance.Request("GET", "rooms/" + code + "/quiz", null, (status, text) =>
+            {
+                if (status != 200) { done(null, NetworkError(status)); return; }
+                try
+                {
+                    done(MiniJson.Parse(text) as string, null);
+                }
+                catch (Exception e)
+                {
+                    done(null, "방 문제를 읽지 못했어요: " + e.Message);
+                }
+            }));
+        }
+
+        static void TeacherPatch(string code, Dictionary<string, object> body, Action<string> done, string deniedMessage)
         {
             if (!Enabled) { done("온라인 기능이 꺼져 있어요."); return; }
             instance.StartCoroutine(instance.Request("PATCH", "rooms/" + code, MiniJson.Serialize(body), (status, text) =>
             {
                 if (status == 200) done(null);
-                else if (status == 401 || status == 403) done("선생님 비밀번호가 틀렸어요.");
+                else if (status == 401 || status == 403) done(deniedMessage);
                 else done(NetworkError(status));
             }));
+        }
+
+        static void TeacherPatch(string code, Dictionary<string, object> body, Action<string> done)
+        {
+            TeacherPatch(code, body, done, "선생님 비밀번호가 틀렸어요.");
         }
 
         // ---------- 바닥 ----------
@@ -236,7 +289,8 @@ namespace ZooZooClub.Client
                     code = code,
                     name = MiniJson.AsString(MiniJson.Get(map, "name")),
                     open = MiniJson.AsBool(MiniJson.Get(map, "open"), true),
-                    createdAt = (long)MiniJson.AsNumber(MiniJson.Get(map, "createdAt"))
+                    createdAt = (long)MiniJson.AsNumber(MiniJson.Get(map, "createdAt")),
+                    quizCount = (int)MiniJson.AsNumber(MiniJson.Get(map, "quizCount"))
                 };
             }
             catch (Exception)

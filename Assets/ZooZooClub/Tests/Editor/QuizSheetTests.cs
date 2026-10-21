@@ -36,6 +36,40 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void ToBank_MakesRoomBankWithOwnIdsAndDefaultSettings()
+        {
+            var result = Read(
+                new[] { "7 + 8 은?", "13", "14", "15", "16", "3", "" },
+                new[] { "일주일은 며칠?", "5일", "6일", "7일", "8일", "3", "60" });
+            var defaults = new QuizBank { rewardCoins = 25, wrongCooldownSeconds = 9 };
+
+            var bank = QuizSheet.ToBank(result.questions, defaults);
+
+            Assert.AreEqual(25, bank.rewardCoins);
+            Assert.AreEqual(9, bank.wrongCooldownSeconds);
+            Assert.AreEqual(2, bank.questions.Count);
+            Assert.AreEqual("r001", bank.questions[0].id);
+            Assert.AreEqual("r002", bank.questions[1].id);
+            Assert.AreEqual(60, bank.questions[1].reward);
+
+            // 방 문제는 JSON 글로 서버에 올라갔다가 학생 쪽에서 그대로 다시 읽힌다.
+            var again = UnityEngine.JsonUtility.FromJson<QuizBank>(UnityEngine.JsonUtility.ToJson(bank));
+            Assert.AreEqual(2, again.questions.Count);
+            Assert.AreEqual("일주일은 며칠?", again.questions[1].question);
+            CollectionAssert.AreEqual(new[] { "5일", "6일", "7일", "8일" }, again.questions[1].choices);
+            Assert.AreEqual(3, again.questions[1].answer);
+        }
+
+        [Test]
+        public void ToBank_KeepsAtMostTheRoomLimit()
+        {
+            var many = new List<QuizDef>();
+            for (int i = 0; i < QuizSheet.MaxRoomQuestions + 5; i++)
+                many.Add(new QuizDef { question = "문제 " + i, choices = new List<string> { "가", "나" }, answer = 1 });
+            Assert.AreEqual(QuizSheet.MaxRoomQuestions, QuizSheet.ToBank(many, null).questions.Count);
+        }
+
+        [Test]
         public void Read_FindsColumnsByTitleWhateverTheOrder()
         {
             var rows = new List<string[]>

@@ -38,6 +38,38 @@ namespace ZooZooClub.Core
         /// <summary>
         /// rows[0]이 제목 줄이다. 오류 글에는 엑셀에서 보이는 줄 번호(제목 줄이 1)를 적는다.
         /// </summary>
+        /// <summary>한 방에 올릴 수 있는 문제의 최대 개수.</summary>
+        public const int MaxRoomQuestions = 1000;
+
+        /// <summary>
+        /// 표에서 읽은 문제로 방 문제 은행을 만든다. 기본 보상과 틀린 뒤 기다리는 시간은 defaults(게임의 기본 문제 은행)를 따른다.
+        /// id는 기본 문제(q001…)와 겹치지 않게 r001부터 붙인다.
+        /// </summary>
+        public static QuizBank ToBank(IList<QuizDef> questions, QuizBank defaults)
+        {
+            var bank = new QuizBank();
+            if (defaults != null)
+            {
+                bank.rewardCoins = defaults.rewardCoins;
+                bank.wrongCooldownSeconds = defaults.wrongCooldownSeconds;
+            }
+            if (questions == null) return bank;
+            for (int i = 0; i < questions.Count && i < MaxRoomQuestions; i++)
+            {
+                var source = questions[i];
+                if (source == null) continue;
+                bank.questions.Add(new QuizDef
+                {
+                    id = "r" + (bank.questions.Count + 1).ToString("000"),
+                    question = source.question,
+                    choices = new List<string>(source.choices ?? new List<string>()),
+                    answer = source.answer,
+                    reward = source.reward
+                });
+            }
+            return bank;
+        }
+
         public static QuizSheetResult Read(IList<string[]> rows)
         {
             var result = new QuizSheetResult();

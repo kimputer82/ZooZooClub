@@ -45,6 +45,8 @@ namespace ZooZooClub.EditorTools
         static QuizExcelImporter()
         {
             EditorApplication.update += Poll;
+            // 선생님 화면의 '문제 올리기'를 에디터에서 눌렀을 때 쓰는 엑셀 읽기.
+            ZooZooClub.Client.QuizFilePicker.EditorReader = XlsxReader.ReadFirstSheet;
         }
 
         static void Poll()

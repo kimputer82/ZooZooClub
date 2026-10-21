@@ -158,6 +158,24 @@ namespace ZooZooClub.EditorTools
                     Room(id, argument);
                     break;
 
+                case "board":
+                {
+                    // board <비밀번호> <방 코드>: 선생님 화면의 랭킹판으로 바로 간다.
+                    var parts = argument.Split(' ');
+                    var screen = UnityEngine.Object.FindAnyObjectByType<TeacherScreen>(FindObjectsInactive.Include);
+                    if (!EditorApplication.isPlaying || screen == null || parts.Length < 2) { WriteOut(id + " board: skipped"); break; }
+                    UnityEngine.Object.FindAnyObjectByType<LoginScreen>()?.Hide();
+                    screen.ShowBoardForTest(parts[0], parts[1]);
+                    WriteOut(id + " board: ok " + parts[1]);
+                    break;
+                }
+
+                case "quizfile":
+                    // 다음에 '문제 올리기'를 누르면 파일 창 없이 이 엑셀을 고른 것으로 한다.
+                    QuizFilePicker.TestPath = argument;
+                    WriteOut(id + " quizfile: " + (System.IO.File.Exists(argument) ? "ok" : "no such file") + " " + argument);
+                    break;
+
                 case "quiz":
                     WriteOut(id + " quiz: " + QuizExcelImporter.ImportNow());
                     break;
@@ -327,7 +345,7 @@ namespace ZooZooClub.EditorTools
             }
             if (parts.Length < 2) { WriteOut(id + " room: usage room <password> <name>"); return; }
             string newCode = ZooZooClub.Core.RoomCode.Generate(new System.Random());
-            Online.OpenRoom(newCode, parts.Length >= 3 ? parts[1] + " " + parts[2] : parts[1], parts[0],
+            Online.OpenRoom(newCode, parts.Length >= 3 ? parts[1] + " " + parts[2] : parts[1], parts[0], TeacherScreen.KeyFor(newCode),
                 error => WriteOut(id + " room: " + (error ?? ("ok code=" + newCode))));
         }
 
