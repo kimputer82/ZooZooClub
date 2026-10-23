@@ -280,7 +280,22 @@ namespace ZooZooClub.Client
             var label = Label("Text", image.transform, text, fontSize, TextOn(color), TextAlignmentOptions.Center, true);
             // 버튼 그림 아래쪽에는 두께가 있어서 글자를 조금 위로 올린다.
             Stretch(label.rectTransform, 10f, 10f, 10f, 3f);
+            FitOneLine(label, fontSize);
             return button;
+        }
+
+        /// <summary>
+        /// 버튼 글자를 한 줄로만 쓴다("돌리/기"처럼 낱말 중간에서 줄이 바뀌지 않게).
+        /// 버튼이 좁으면 글자 크기를 줄여서 맞춘다.
+        /// </summary>
+        public static void FitOneLine(TextMeshProUGUI label, float fontSize)
+        {
+            if (label == null) return;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.overflowMode = TextOverflowModes.Overflow;
+            label.enableAutoSizing = true;
+            label.fontSizeMax = fontSize;
+            label.fontSizeMin = Mathf.Min(fontSize, Mathf.Max(10f, fontSize * 0.5f));
         }
 
         /// <summary>바탕 그림이 통째로 눌리는 버튼(카드, 원형 버튼). 안의 내용은 부르는 쪽에서 채운다.</summary>

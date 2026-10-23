@@ -536,7 +536,8 @@ namespace ZooZooClub.Client
             group.childForceExpandHeight = true;
 
             sheetInfo = Ui.Rect("Info", body);
-            Ui.Fixed(sheetInfo.gameObject, 340f, 0f).flexibleHeight = 1f;
+            // 아래쪽에 돌리기·옮기기·보관·철거 버튼이 한 줄로 들어가므로 글자가 줄지 않을 만큼 넓게 둔다.
+            Ui.Fixed(sheetInfo.gameObject, 470f, 0f).flexibleHeight = 1f;
             Ui.Vertical(sheetInfo.gameObject, 6f, 0);
 
             sheetBody = Ui.Rect("Options", body);
