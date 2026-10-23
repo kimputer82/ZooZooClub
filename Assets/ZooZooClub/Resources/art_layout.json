@@ -75,6 +75,18 @@
     {"id": "cloud_fountain", "width": 1.8, "lift": 0.0, "offsetX": 0},
     {"id": "cloud_fountain_back", "width": 1.787, "lift": 0.0, "offsetX": 0},
     {"id": "star_vane", "width": 0.55, "lift": 0.206, "offsetX": -0.048},
-    {"id": "star_vane_back", "width": 0.55, "lift": 0.207, "offsetX": -0.034}
+    {"id": "star_vane_back", "width": 0.55, "lift": 0.207, "offsetX": -0.034},
+    {"id": "sport_trophy", "width": 0.509, "lift": 0.16, "offsetX": 0},
+    {"id": "sport_trophy_back", "width": 0.519, "lift": 0.16, "offsetX": 0},
+    {"id": "sport_bat_rack", "width": 0.438, "lift": 0.2, "offsetX": 0},
+    {"id": "sport_bat_rack_back", "width": 0.459, "lift": 0.2, "offsetX": 0},
+    {"id": "sport_hoop", "width": 0.615, "lift": 0.2, "offsetX": -0.125},
+    {"id": "sport_hoop_back", "width": 0.569, "lift": 0.2, "offsetX": 0.085},
+    {"id": "sport_track", "width": 2.0, "lift": 0, "offsetX": 0},
+    {"id": "sport_track_back", "width": 1.963, "lift": 0, "offsetX": 0},
+    {"id": "sport_goal", "width": 1.37, "lift": 0.12, "offsetX": 0},
+    {"id": "sport_goal_back", "width": 1.327, "lift": 0.12, "offsetX": 0},
+    {"id": "sport_tennis_net", "width": 1.356, "lift": 0.12, "offsetX": 0},
+    {"id": "sport_tennis_net_back", "width": 1.37, "lift": 0.12, "offsetX": 0}
   ]
 }

@@ -99,6 +99,16 @@ namespace ZooZooClub.Client
         PanelKind panel;
         int selectedId;
         int buildTab;
+        /// <summary>건설 > 장식 안의 작은 탭. DecorThemes의 순서.</summary>
+        int decorTheme;
+
+        /// <summary>장식 안의 작은 탭: 묶음 이름(catalog의 theme)과 탭 글자.</summary>
+        static readonly string[][] DecorThemes =
+        {
+            new[] { "", "기본 장식" },
+            new[] { "cloud", "구름" },
+            new[] { "sport", "운동" },
+        };
 
         // 문제 풀기: 지금 보여 주는 문제, 보기를 섞은 순서(문제에 적힌 보기 번호, 1부터),
         // 고른 보기 번호(아직 안 골랐으면 0)와 그 결과.
@@ -718,13 +728,17 @@ namespace ZooZooClub.Client
             if (bagBadgeRoot.activeSelf != bags > 0) bagBadgeRoot.SetActive(bags > 0);
             if (bags > 0) bagBadgeText.text = bags.ToString();
 
-            // 구름 장식이 열리는 순간(맞힌 문제가 기준을 넘을 때) 알려 준다.
+            // 구름·운동 장식이 열리는 순간(맞힌 문제가 기준을 넘을 때) 알려 준다.
             int solved = state.quizSolved;
-            int cloudNeed = CloudQuizzesNeeded;
-            if (lastQuizSolved >= 0 && cloudNeed > 0 && lastQuizSolved < cloudNeed && solved >= cloudNeed)
+            for (int i = 1; i < DecorThemes.Length; i++)
             {
-                Sound.Play(Sound.Win);
-                Toast("문제를 " + cloudNeed + "개 맞혔어요! 구름 장식이 열렸어요. 건설 → 구름에서 살 수 있어요.");
+                int need = ThemeQuizzesNeeded(DecorThemes[i][0]);
+                if (lastQuizSolved >= 0 && need > 0 && lastQuizSolved < need && solved >= need)
+                {
+                    Sound.Play(Sound.Win);
+                    Toast("문제를 " + need + "개 맞혔어요! " + DecorThemes[i][1] + " 장식이 열렸어요. 건설 → 장식 → "
+                        + DecorThemes[i][1] + "에서 살 수 있어요.");
+                }
             }
             lastQuizSolved = solved;
 
@@ -1081,55 +1095,78 @@ namespace ZooZooClub.Client
             var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
-                int tab = def.kind == PlaceableKind.Decor ? (def.requiredQuizzes > 0 ? 4 : 1)
+                int tab = def.kind == PlaceableKind.Decor ? 1
                     : def.kind == PlaceableKind.Defense ? 2
                     : def.kind == PlaceableKind.Floor ? 3 : 0;
-                if (tab == buildTab) shown.Add(def);
+                if (tab != buildTab) continue;
+                if (tab == 1 && (def.theme ?? "") != DecorThemes[decorTheme][0]) continue;
+                shown.Add(def);
             }
+            bool decorTabs = buildTab == 1;
+            bool themeInfo = decorTabs && decorTheme > 0;
 
             bool showGrades = buildTab == 2 && game.Catalog.grades.Count > 0;
             bool showSafe = buildTab == 2 && game.RaidsUnlocked;
             ShowWindow("건설", 1240f, WindowHeight(shown.Count, 5, 280f, 60f) + (showGrades ? 110f : 0f) + (showSafe ? 84f : 0f)
-                + (buildTab == 4 ? 84f : 0f));
+                + (decorTabs ? 76f : 0f) + (themeInfo ? 84f : 0f));
             ShowHeader(60f);
             BuildTab("TabFacility", "밭 · 시설", 0);
             BuildTab("TabDecor", "장식", 1);
             BuildTab("TabDefense", "방어", 2);
             BuildTab("TabFloor", "바닥", 3);
-            BuildTab("TabCloud", "구름", 4);
 
             if (showGrades) GradeChances();
             if (showSafe) SafeRow();
-            if (buildTab == 4) CloudRow();
+            if (decorTabs) DecorThemeTabs();
+            if (themeInfo) ThemeRow(DecorThemes[decorTheme][0], DecorThemes[decorTheme][1]);
 
             var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
             foreach (var def in shown) BuildCard(grid, def);
         }
 
-        /// <summary>구름 장식이 열리는 데 필요한 맞힌 문제 수(구름 장식 가운데 가장 작은 값). 없으면 0.</summary>
-        int CloudQuizzesNeeded
+        /// <summary>장식 탭 맨 위의 작은 탭(기본 장식·구름·운동).</summary>
+        void DecorThemeTabs()
         {
-            get
+            var row = Ui.Rect("DecorThemes", windowContent);
+            Ui.Fixed(row.gameObject, 0f, 60f);
+            var group = Ui.Horizontal(row.gameObject, 12f, 0);
+            group.childAlignment = TextAnchor.MiddleLeft;
+            group.childForceExpandWidth = false;
+            for (int i = 0; i < DecorThemes.Length; i++)
             {
-                int need = 0;
-                foreach (var def in game.Catalog.placeables)
+                int index = i;
+                var tab = Ui.Button("Theme " + DecorThemes[i][0], row, DecorThemes[i][1], () =>
                 {
-                    if (def.requiredQuizzes > 0 && (need == 0 || def.requiredQuizzes < need)) need = def.requiredQuizzes;
-                }
-                return need;
+                    decorTheme = index;
+                    windowContent.anchoredPosition = Vector2.zero;
+                    rebuildNeeded = true;
+                }, 52f, 22f, decorTheme == i ? Ui.Yellow : Ui.Cream);
+                Ui.Fixed(tab.gameObject, 180f, 52f);
             }
         }
 
-        /// <summary>구름 탭 맨 위: 문제를 몇 개 더 맞혀야 열리는지, 또는 열렸다는 안내.</summary>
-        void CloudRow()
+        /// <summary>그 묶음의 장식이 열리는 데 필요한 맞힌 문제 수(묶음 안에서 가장 작은 값). 없으면 0.</summary>
+        int ThemeQuizzesNeeded(string theme)
         {
-            int need = CloudQuizzesNeeded;
+            int need = 0;
+            foreach (var def in game.Catalog.placeables)
+            {
+                if ((def.theme ?? "") != theme || def.requiredQuizzes <= 0) continue;
+                if (need == 0 || def.requiredQuizzes < need) need = def.requiredQuizzes;
+            }
+            return need;
+        }
+
+        /// <summary>구름·운동 탭 맨 위: 문제를 몇 개 더 맞혀야 열리는지, 또는 열렸다는 안내.</summary>
+        void ThemeRow(string theme, string title)
+        {
+            int need = ThemeQuizzesNeeded(theme);
             int solved = game.State.quizSolved;
-            var box = Ui.Box("CloudInfo", windowContent, Ui.CardSprite, solved >= need ? Ui.Sand : Color.white);
+            var box = Ui.Box("ThemeInfo", windowContent, Ui.CardSprite, solved >= need ? Ui.Sand : Color.white);
             Ui.Fixed(box.gameObject, 0f, 70f);
             string text = solved >= need
-                ? "구름 장식이 열렸어요! 문제를 열심히 푼 마을만 꾸밀 수 있는 특별한 장식이에요."
-                : "문제를 " + need + "개 맞히면 구름 장식이 한꺼번에 열려요.   지금 " + solved + " / " + need;
+                ? title + " 장식이 열렸어요! 문제를 열심히 푼 마을만 꾸밀 수 있는 특별한 장식이에요."
+                : "문제를 " + need + "개 맞히면 " + title + " 장식이 한꺼번에 열려요.   지금 " + solved + " / " + need;
             var label = Text(box.transform, text, 24f, Ui.Ink, true);
             Ui.Stretch(label.rectTransform, 16f, 0f, 16f, 0f);
         }

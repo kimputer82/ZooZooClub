@@ -108,8 +108,10 @@ namespace ZooZooClub.Core
         public int queueSlots;
         // 생산 시설일 때: 이 레벨부터 생산량 업그레이드를 할 수 있다. 0이면 업그레이드가 없다.
         public int upgradeLevel;
-        // 맞힌 문제가 이만큼은 되어야 살 수 있다(구름 장식). 0이면 조건 없음.
+        // 맞힌 문제가 이만큼은 되어야 살 수 있다(구름·운동 장식). 0이면 조건 없음.
         public int requiredQuizzes;
+        // 장식의 묶음(건설 > 장식 안의 작은 탭). 비어 있으면 기본 장식, "cloud"는 구름, "sport"는 운동.
+        public string theme = "";
         public int charm;
         public int maxCount;
 
