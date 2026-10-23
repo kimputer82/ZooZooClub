@@ -2080,13 +2080,20 @@ namespace ZooZooClub.Client
                 world.BeginMoving(objectId);
             }, height, fontSize, Ui.Blue);
 
-            Ui.Button("Store", parent, "보관", () => StoreObject(objectId), height, fontSize, Ui.Sand);
+            var store = Ui.Button("Store", parent, "보관", () => StoreObject(objectId), height, fontSize, Ui.Sand);
+            store.GetComponent<ULayoutElement>().flexibleWidth = 0.8f;
 
             long refund = (long)def.cost * game.Catalog.balance.sellBackPercent / 100;
-            Ui.Button("Remove", parent, "철거 +" + refund.ToString("N0"), () =>
+            var remove = Ui.Button("Remove", parent, "철거 +" + refund.ToString("N0"), () =>
             {
                 Report(game.Remove(objectId), "철거했어요.");
             }, height, fontSize, Ui.Red);
+            // 철거 버튼은 돌려받는 코인까지 적혀 있어 글자가 길다. 조금 넓게 두고, 그래도 넘치면 글자를 줄인다.
+            remove.GetComponent<ULayoutElement>().flexibleWidth = 1.6f;
+            var removeLabel = remove.GetComponentInChildren<TextMeshProUGUI>();
+            removeLabel.enableAutoSizing = true;
+            removeLabel.fontSizeMin = 12f;
+            removeLabel.fontSizeMax = fontSize;
         }
 
         /// <summary>마을에서 거둬 보관함에 넣는다. 안 되는 까닭은 알아듣기 쉽게 알려 준다.</summary>
