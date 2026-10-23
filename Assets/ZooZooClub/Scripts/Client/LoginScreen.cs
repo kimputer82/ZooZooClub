@@ -169,7 +169,7 @@ namespace ZooZooClub.Client
 
         void BuildTeacherButton(Transform root)
         {
-            var button = Ui.ButtonBox("TeacherButton", root, Ui.CapsuleSprite, new Color(0.2f, 0.13f, 0.08f, 0.55f), () =>
+            var button = Ui.ButtonBox("TeacherButton", root, Ui.RoundSprite, new Color(0.2f, 0.13f, 0.08f, 0.55f), () =>
             {
                 if (onTeacher != null) onTeacher();
             });

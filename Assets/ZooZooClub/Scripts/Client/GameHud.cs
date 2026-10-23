@@ -199,7 +199,7 @@ namespace ZooZooClub.Client
             var badge = Ui.Rect("LevelBadge", root);
             Ui.Put(badge, 0f, 1f, 24f, -20f, 380f, 84f);
 
-            var bar = Ui.Box("XpBar", badge, Ui.CapsuleSprite, Ui.Pill);
+            var bar = Ui.Box("XpBar", badge, Ui.RoundSprite, Ui.Pill);
             Ui.Put(bar.rectTransform, 0f, 0.5f, 40f, 0f, 330f, 46f);
             // 막대의 왼쪽 끝은 별 그림에 가려지므로 그 뒤부터 채운다.
             var fillArea = Ui.Rect("FillArea", bar.transform);
@@ -247,7 +247,7 @@ namespace ZooZooClub.Client
             var root = Ui.Rect(name, parent);
             Ui.Fixed(root.gameObject, width, 56f);
 
-            var background = Ui.Box("Background", root, Ui.CapsuleSprite, Ui.Pill);
+            var background = Ui.Box("Background", root, Ui.RoundSprite, Ui.Pill);
             Ui.Stretch(background.rectTransform, 20f, 5f, 0f, 5f);
 
             var icon = Ui.Picture("Icon", root, ArtLibrary.Get(iconName));
@@ -310,7 +310,7 @@ namespace ZooZooClub.Client
 
         void BuildPlayer(Transform root)
         {
-            var button = Ui.ButtonBox("LogoutButton", root, Ui.CapsuleSprite, Ui.Pill, () =>
+            var button = Ui.ButtonBox("LogoutButton", root, Ui.RoundSprite, Ui.Pill, () =>
             {
                 if (LogoutRequested != null) LogoutRequested();
             });
@@ -333,7 +333,7 @@ namespace ZooZooClub.Client
         void BuildSoundButton(Transform root)
         {
             TextMeshProUGUI label = null;
-            var button = Ui.ButtonBox("SoundButton", root, Ui.CapsuleSprite, Ui.Pill, () =>
+            var button = Ui.ButtonBox("SoundButton", root, Ui.RoundSprite, Ui.Pill, () =>
             {
                 Sound.Muted = !Sound.Muted;
                 if (label != null) label.text = Sound.Muted ? "소리 꺼짐" : "소리 켜짐";
@@ -389,7 +389,7 @@ namespace ZooZooClub.Client
                 int objectId = workplace.id;
 
                 // 누르면 그 시설의 창이 열린다.
-                var row = Ui.ButtonBox("Worker " + resident.id, list, Ui.CapsuleSprite, Ui.Pill,
+                var row = Ui.ButtonBox("Worker " + resident.id, list, Ui.RoundSprite, Ui.Pill,
                     () => OpenObject(objectId));
                 Ui.Fixed(row.gameObject, 280f, 64f);
 

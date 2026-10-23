@@ -129,6 +129,41 @@ namespace ZooZooClub.Client
         public static Sprite ButtonSprite { get { return Sliced("ui_button", 26f, 32f, 26f, 26f); } }
         public static Sprite CapsuleSprite { get { return Sliced("ui_capsule", 27f, 27f, 27f, 27f); } }
 
+        /// <summary>모서리만 둥근 사각형(반투명 검은 바탕의 메뉴·표시 칸에 쓴다). 그림 파일 없이 코드로 만든다.</summary>
+        public static Sprite RoundSprite
+        {
+            get
+            {
+                Sprite sprite;
+                if (SlicedCache.TryGetValue("round", out sprite) && sprite != null) return sprite;
+                const int size = 48;
+                const float radius = 16f;
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                texture.wrapMode = TextureWrapMode.Clamp;
+                texture.filterMode = FilterMode.Bilinear;
+                var pixels = new Color32[size * size];
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        // 가장 가까운 모서리 원의 중심에서 잰 거리로 가장자리를 부드럽게 깎는다.
+                        float cx = Mathf.Clamp(x + 0.5f, radius, size - radius);
+                        float cy = Mathf.Clamp(y + 0.5f, radius, size - radius);
+                        float distance = Mathf.Sqrt((x + 0.5f - cx) * (x + 0.5f - cx) + (y + 0.5f - cy) * (y + 0.5f - cy));
+                        byte alpha = (byte)(Mathf.Clamp01(radius - distance + 0.5f) * 255f);
+                        pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+                    }
+                }
+                texture.SetPixels32(pixels);
+                texture.Apply(false, true);
+                sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
+                    SpriteMeshType.FullRect, new Vector4(radius, radius, radius, radius));
+                sprite.hideFlags = HideFlags.DontSave;
+                SlicedCache["round"] = sprite;
+                return sprite;
+            }
+        }
+
         static Sprite Sliced(string name, float left, float bottom, float right, float top)
         {
             Sprite sprite;
@@ -281,7 +316,8 @@ namespace ZooZooClub.Client
         public static TextMeshProUGUI Chip(string name, Transform parent, Sprite icon, string text, Color color,
             float height, float fontSize)
         {
-            var box = Box(name, parent, CapsuleSprite, color);
+            // 반투명 검은 바탕(메뉴·표시 칸)은 모서리가 둥근 사각형, 나머지(가격 등)는 알약 모양.
+            var box = Box(name, parent, color.a < 0.95f ? RoundSprite : CapsuleSprite, color);
             float iconSize = height - 8f;
             float left = 14f;
             if (icon != null)
