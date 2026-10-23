@@ -112,6 +112,29 @@ namespace ZooZooClub.Core
         public int requiredQuizzes;
         // 장식의 묶음(건설 > 장식 안의 작은 탭). 비어 있으면 기본 장식, "cloud"는 구름, "sport"는 운동.
         public string theme = "";
+        // 장식일 때: 설치한 뒤 이만큼 문제를 맞혀야 완성된다(코인 대신 문제로 짓는 특별 장식). 0이면 바로 완성.
+        public int buildQuizzes;
+        // 이 때까지만 살 수 있다(예: "2026-12-01T00:00:00+09:00"). 비어 있으면 언제나. 이미 놓은 것은 그대로 남는다.
+        public string availableUntil = "";
+
+        [NonSerialized] bool untilParsed;
+        [NonSerialized] long untilCache;
+
+        /// <summary>살 수 있는 마지막 때(유닉스 초). 기간이 없으면 long.MaxValue.</summary>
+        public long AvailableUntilUnix
+        {
+            get
+            {
+                if (untilParsed) return untilCache;
+                untilParsed = true;
+                DateTimeOffset until;
+                untilCache = !string.IsNullOrEmpty(availableUntil)
+                    && DateTimeOffset.TryParse(availableUntil, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out until)
+                    ? until.ToUnixTimeSeconds() : long.MaxValue;
+                return untilCache;
+            }
+        }
         public int charm;
         public int maxCount;
 

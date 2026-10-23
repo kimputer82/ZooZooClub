@@ -868,6 +868,15 @@ namespace ZooZooClub.Client
             if (view.def.kind == PlaceableKind.Plot) RefreshPlot(view, obj);
             else if (view.def.kind == PlaceableKind.Facility) RefreshFacility(view, obj);
             else if (view.def.kind == PlaceableKind.Defense) RefreshDefense(view, obj);
+            else if (view.def.buildQuizzes > 0) RefreshQuizBuilt(view, obj);
+        }
+
+        /// <summary>문제로 짓는 특별 장식: 다 짓기 전에는 흐릿하게 보이고 남은 문제 수를 단다.</summary>
+        void RefreshQuizBuilt(ObjectView view, PlacedObject obj)
+        {
+            bool building = obj.buildQuizzes > 0;
+            if (view.body != null) view.body.color = building ? new Color(0.75f, 0.75f, 0.75f, 0.55f) : Color.white;
+            view.label.text = building ? "짓는 중 · 문제 " + obj.buildQuizzes : "";
         }
 
         void RefreshPlot(ObjectView view, PlacedObject obj)

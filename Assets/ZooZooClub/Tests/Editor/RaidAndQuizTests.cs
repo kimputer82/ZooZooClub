@@ -23,6 +23,12 @@ namespace ZooZooClub.Tests
             var c = new GameCatalog();
 
             c.placeables.Add(new PlaceableDef { id = "fence", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 0 });
+            // 문제로 짓는 기간 한정 장식(1970-01-01 00:30 UTC = 1800초까지 판다).
+            c.placeables.Add(new PlaceableDef
+            {
+                id = "pumpkin", kind = PlaceableKind.Decor, width = 1, height = 1, cost = 0, charm = 8, buildQuizzes = 2,
+                theme = "halloween", availableUntil = "1970-01-01T00:30:00+00:00"
+            });
             // 침략자의 길을 막는 것(장식과 바닥은 넘어 다니므로 막지 못한다).
             c.placeables.Add(new PlaceableDef { id = "wall", kind = PlaceableKind.Facility, width = 1, height = 1, cost = 0, queueSlots = 1 });
             c.placeables.Add(new PlaceableDef
@@ -706,6 +712,39 @@ namespace ZooZooClub.Tests
             Assert.AreEqual(0, game.FindObject(tower).buildQuizzes);
 
             Assert.AreEqual(1, RunRaid().defeated);
+        }
+
+        [Test]
+        public void QuizBuiltDecor_IsFreeAndAddsCharmOnlyWhenFinished()
+        {
+            long coins = game.State.coins;
+            int pumpkin = Place("pumpkin", 1, 1);
+            Assert.AreEqual(coins, game.State.coins);
+            Assert.AreEqual(2, game.FindObject(pumpkin).buildQuizzes);
+            Assert.AreEqual(0, game.TotalCharm);
+
+            bool correct;
+            int reward, gems;
+            game.AnswerQuiz("q1", 2, out correct, out reward, out gems, pumpkin);
+            Assert.AreEqual(0, game.TotalCharm);
+            game.AnswerQuiz("q3", 2, out correct, out reward, out gems, pumpkin);
+            Assert.AreEqual(0, game.FindObject(pumpkin).buildQuizzes);
+            Assert.AreEqual(8, game.TotalCharm);
+        }
+
+        [Test]
+        public void LimitedDecor_CannotBeBoughtAfterItsPeriod()
+        {
+            // 1800초까지 판다. 시계는 1000초에서 시작한다.
+            var def = catalog.GetPlaceable("pumpkin");
+            Assert.IsTrue(game.IsOnSale(def));
+            int pumpkin = Place("pumpkin", 1, 1);
+
+            clock.Now = 1800;
+            Assert.IsFalse(game.IsOnSale(def));
+            int id;
+            Assert.AreEqual(ActionResult.EventEnded, game.BuyAndPlace("pumpkin", 2, 1, out id));
+            Assert.IsNotNull(game.FindObject(pumpkin), "이미 놓은 장식은 기간이 지나도 남는다");
         }
 
         [Test]

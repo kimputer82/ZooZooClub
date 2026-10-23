@@ -108,6 +108,7 @@ namespace ZooZooClub.Client
             new[] { "", "기본 장식" },
             new[] { "cloud", "구름" },
             new[] { "sport", "운동" },
+            new[] { "halloween", "할로윈" },
         };
 
         // 문제 풀기: 지금 보여 주는 문제, 보기를 섞은 순서(문제에 적힌 보기 번호, 1부터),
@@ -856,7 +857,7 @@ namespace ZooZooClub.Client
                     return;
                 }
             }
-            else if (def.kind == PlaceableKind.Defense && obj.buildQuizzes > 0)
+            else if (obj.buildQuizzes > 0)
             {
                 OpenGateQuiz(obj.id, null);
                 return;
@@ -1100,6 +1101,8 @@ namespace ZooZooClub.Client
                     : def.kind == PlaceableKind.Floor ? 3 : 0;
                 if (tab != buildTab) continue;
                 if (tab == 1 && (def.theme ?? "") != DecorThemes[decorTheme][0]) continue;
+                // 기간이 끝난 한정 장식은 건설 목록에서 뺀다(이미 놓은 것은 그대로).
+                if (!game.IsOnSale(def)) continue;
                 shown.Add(def);
             }
             bool decorTabs = buildTab == 1;
@@ -1124,7 +1127,17 @@ namespace ZooZooClub.Client
             foreach (var def in shown) BuildCard(grid, def);
         }
 
-        /// <summary>장식 탭 맨 위의 작은 탭(기본 장식·구름·운동).</summary>
+        /// <summary>그 묶음에 지금 살 수 있는 장식이 하나라도 있는가(기간이 끝난 한정 묶음은 탭을 숨긴다).</summary>
+        bool ThemeOnSale(string theme)
+        {
+            foreach (var def in game.Catalog.placeables)
+            {
+                if (def.kind == PlaceableKind.Decor && (def.theme ?? "") == theme && game.IsOnSale(def)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>장식 탭 맨 위의 작은 탭(기본 장식·구름·운동·할로윈).</summary>
         void DecorThemeTabs()
         {
             var row = Ui.Rect("DecorThemes", windowContent);
@@ -1134,6 +1147,7 @@ namespace ZooZooClub.Client
             group.childForceExpandWidth = false;
             for (int i = 0; i < DecorThemes.Length; i++)
             {
+                if (i > 0 && !ThemeOnSale(DecorThemes[i][0])) continue;
                 int index = i;
                 var tab = Ui.Button("Theme " + DecorThemes[i][0], row, DecorThemes[i][1], () =>
                 {
@@ -1160,6 +1174,23 @@ namespace ZooZooClub.Client
         /// <summary>구름·운동 탭 맨 위: 문제를 몇 개 더 맞혀야 열리는지, 또는 열렸다는 안내.</summary>
         void ThemeRow(string theme, string title)
         {
+            long until = 0;
+            foreach (var def in game.Catalog.placeables)
+            {
+                if ((def.theme ?? "") == theme && def.AvailableUntilUnix != long.MaxValue) until = Math.Max(until, def.AvailableUntilUnix);
+            }
+            if (until > 0)
+            {
+                // 기간 한정 장식: 언제까지인지와, 코인 대신 문제로 짓는다는 안내.
+                var last = DateTimeOffset.FromUnixTimeSeconds(until - 1).ToOffset(TimeSpan.FromHours(9));
+                var eventBox = Ui.Box("ThemeInfo", windowContent, Ui.CardSprite, Ui.Sand);
+                Ui.Fixed(eventBox.gameObject, 0f, 70f);
+                var eventLabel = Text(eventBox.transform, last.Month + "월 " + last.Day + "일까지만 설치할 수 있는 " + title
+                    + " 한정 장식이에요. 코인 대신, 놓은 뒤 문제를 맞혀 완성해요.", 24f, Ui.Ink, true);
+                Ui.Stretch(eventLabel.rectTransform, 16f, 0f, 16f, 0f);
+                return;
+            }
+
             int need = ThemeQuizzesNeeded(theme);
             int solved = game.State.quizSolved;
             var box = Ui.Box("ThemeInfo", windowContent, Ui.CardSprite, solved >= need ? Ui.Sand : Color.white);
@@ -1263,6 +1294,8 @@ namespace ZooZooClub.Client
                 Ui.Put(lockIcon.rectTransform, 0.5f, 0.5f, 0f, 0f, 34f, 34f);
             }
             else if (maxed) price = Ui.Chip("Price", inside, null, "설치 완료", Ui.Gray, 46f, 22f);
+            else if (def.buildQuizzes > 0 && def.cost <= 0)
+                price = Ui.Chip("Price", inside, Art("ui_icon_quiz"), "문제 " + def.buildQuizzes + "개", Ui.Purple, 46f, 24f);
             else price = Ui.Chip("Price", inside, Art("ui_icon_coin"), def.cost.ToString("N0"), Ui.Yellow, 46f, 24f);
             Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 22f, 170f, 46f);
         }
@@ -1477,15 +1510,16 @@ namespace ZooZooClub.Client
             var gateObj = quizGateId != 0 ? game.FindObject(quizGateId) : null;
             var gateDef = gateObj != null ? game.Catalog.GetPlaceable(gateObj.defId) : null;
             bool harvestGate = gateDef != null && gateDef.kind == PlaceableKind.Plot;
-            bool buildGate = gateDef != null && gateDef.kind == PlaceableKind.Defense;
+            bool buildGate = gateDef != null && (gateDef.kind == PlaceableKind.Defense || gateDef.buildQuizzes > 0);
             bool upgradeGate = gateDef != null && gateDef.kind == PlaceableKind.Facility;
             string title = "문제 풀기";
             if (harvestGate) title = "문제를 맞히면 수확할 수 있어요";
             else if (buildGate)
             {
+                bool decorBuild = gateDef.kind != PlaceableKind.Defense;
                 title = gateObj.buildQuizzes > 0
-                    ? gateDef.displayName + " 공사 중 · 문제 " + gateObj.buildQuizzes + "개 남음"
-                    : gateDef.displayName + " 공사 완료!";
+                    ? gateDef.displayName + (decorBuild ? " 짓는 중" : " 공사 중") + " · 문제 " + gateObj.buildQuizzes + "개 남음"
+                    : gateDef.displayName + (decorBuild ? " 완성!" : " 공사 완료!");
             }
             else if (upgradeGate)
             {
@@ -1630,13 +1664,14 @@ namespace ZooZooClub.Client
             if (quizCorrect && buildGate && gateObj.buildQuizzes <= 0)
             {
                 string builtName = gateDef.displayName;
+                bool builtDecor = gateDef.kind != PlaceableKind.Defense;
                 var done = Ui.Button("BuildDone", windowFooter, "공사 완료!", () =>
                 {
                     quizCurrent = null;
                     quizPicked = 0;
                     ClosePanel();
                     Sound.Play(Sound.Win);
-                    Toast(builtName + " 공사가 끝났어요! 이제 마을을 지켜요.");
+                    Toast(builtDecor ? builtName + " 완성! 마을 매력이 올랐어요." : builtName + " 공사가 끝났어요! 이제 마을을 지켜요.");
                 }, 64f, 26f, Ui.Green);
                 Ui.Fixed(done.gameObject, 300f, 64f);
                 return;
@@ -1731,6 +1766,11 @@ namespace ZooZooClub.Client
             var grade = game.GradeOf(obj);
             var def = game.Catalog.GetPlaceable(obj.defId);
             string name = (grade != null ? grade.displayName + " " : "") + (def != null ? def.displayName : "");
+            if (def != null && def.kind != PlaceableKind.Defense)
+            {
+                OpenGateQuiz(objectId, name + Texts.ObjectParticle(name) + " 놓았어요! 문제 " + obj.buildQuizzes + "개를 맞히면 완성돼요.");
+                return;
+            }
             OpenGateQuiz(objectId, name + " 등장! 문제 " + obj.buildQuizzes + "개를 맞히면 공사가 끝나요.");
         }
 

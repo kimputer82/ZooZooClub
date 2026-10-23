@@ -32,7 +32,8 @@ namespace ZooZooClub.Core
         MaxReached,
         NotEnoughGems,
         NeedsQuiz,
-        LockedByQuiz
+        LockedByQuiz,
+        EventEnded
     }
 
     /// <summary>

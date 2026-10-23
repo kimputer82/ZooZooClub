@@ -87,6 +87,22 @@
     {"id": "sport_goal", "width": 1.37, "lift": 0.12, "offsetX": 0},
     {"id": "sport_goal_back", "width": 1.327, "lift": 0.12, "offsetX": 0},
     {"id": "sport_tennis_net", "width": 1.356, "lift": 0.12, "offsetX": 0},
-    {"id": "sport_tennis_net_back", "width": 1.37, "lift": 0.12, "offsetX": 0}
+    {"id": "sport_tennis_net_back", "width": 1.37, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_tombstone", "width": 0.498, "lift": 0.15, "offsetX": 0},
+    {"id": "hw_tombstone_back", "width": 0.544, "lift": 0.15, "offsetX": 0},
+    {"id": "hw_black_cat", "width": 0.611, "lift": 0.15, "offsetX": 0},
+    {"id": "hw_black_cat_back", "width": 0.618, "lift": 0.15, "offsetX": 0},
+    {"id": "hw_candy_stall", "width": 0.995, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_candy_stall_back", "width": 1.087, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_cauldron", "width": 0.604, "lift": 0.15, "offsetX": 0},
+    {"id": "hw_cauldron_back", "width": 0.611, "lift": 0.15, "offsetX": 0},
+    {"id": "hw_fountain", "width": 1.795, "lift": 0, "offsetX": 0},
+    {"id": "hw_fountain_back", "width": 1.772, "lift": 0, "offsetX": 0},
+    {"id": "hw_arch", "width": 1.192, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_arch_back", "width": 1.185, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_pumpkins", "width": 0.636, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_pumpkins_back", "width": 0.643, "lift": 0.12, "offsetX": 0},
+    {"id": "hw_lamp", "width": 0.297, "lift": 0.2, "offsetX": 0},
+    {"id": "hw_lamp_back", "width": 0.329, "lift": 0.2, "offsetX": 0}
   ]
 }

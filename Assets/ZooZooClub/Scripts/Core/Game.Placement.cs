@@ -58,6 +58,12 @@ namespace ZooZooClub.Core
             return true;
         }
 
+        /// <summary>지금 살 수 있는 기간인가(기간 한정 장식). 기간이 없으면 언제나 true.</summary>
+        public bool IsOnSale(PlaceableDef def)
+        {
+            return def != null && Now < def.AvailableUntilUnix;
+        }
+
         public int CountPlaced(string defId)
         {
             int count = 0;
@@ -75,6 +81,7 @@ namespace ZooZooClub.Core
             if (def == null) return ActionResult.NotFound;
             if (State.level < def.unlockLevel) return ActionResult.LockedByLevel;
             if (State.quizSolved < def.requiredQuizzes) return ActionResult.LockedByQuiz;
+            if (!IsOnSale(def)) return ActionResult.EventEnded;
             if (def.maxCount > 0 && CountPlaced(defId) >= def.maxCount) return ActionResult.MaxReached;
             if (State.coins < def.cost) return ActionResult.NotEnoughCoins;
 
@@ -96,6 +103,11 @@ namespace ZooZooClub.Core
                 // 높은 등급이 나오면 문제를 맞혀야 공사가 끝난다. 문제가 없으면 바로 완성.
                 var grade = GradeOf(obj);
                 obj.buildQuizzes = grade != null && QuizCount > 0 ? Math.Max(0, grade.buildQuizzes) : 0;
+            }
+            else if (def.buildQuizzes > 0 && QuizCount > 0)
+            {
+                // 문제로 짓는 특별 장식: 놓은 뒤 문제를 다 맞혀야 완성된다(그 전에는 매력이 오르지 않는다).
+                obj.buildQuizzes = def.buildQuizzes;
             }
             State.objects.Add(obj);
             objectId = obj.id;
@@ -163,7 +175,7 @@ namespace ZooZooClub.Core
                 foreach (var obj in State.objects)
                 {
                     var def = Catalog.GetPlaceable(obj.defId);
-                    if (def != null) total += def.charm;
+                    if (def != null && obj.buildQuizzes <= 0) total += def.charm;
                 }
                 return total;
             }

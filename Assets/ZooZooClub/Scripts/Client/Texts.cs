@@ -27,6 +27,7 @@ namespace ZooZooClub.Client
                 case ActionResult.NotEnoughGems: return "보석이 부족해요.";
                 case ActionResult.NeedsQuiz: return "문제를 맞혀야 해요.";
                 case ActionResult.LockedByQuiz: return "문제를 더 맞혀야 열려요.";
+                case ActionResult.EventEnded: return "설치 기간이 끝난 장식이에요.";
                 default: return result.ToString();
             }
         }
@@ -62,6 +63,15 @@ namespace ZooZooClub.Client
             char last = word[word.Length - 1];
             if (last < '\uAC00' || last > '\uD7A3') return "이(가)";
             return (last - 0xAC00) % 28 != 0 ? "이" : "가";
+        }
+
+        /// <summary>낱말 뒤에 붙는 "을/를". 받침이 있으면 "을", 없으면 "를"(한글이 아니면 "을(를)").</summary>
+        public static string ObjectParticle(string word)
+        {
+            if (string.IsNullOrEmpty(word)) return "을(를)";
+            char last = word[word.Length - 1];
+            if (last < '\uAC00' || last > '\uD7A3') return "을(를)";
+            return (last - 0xAC00) % 28 != 0 ? "을" : "를";
         }
 
         // "3/4", "1과 1/3", "2와 2/5" 꼴의 분수. 대분수의 "과/와"는 그리지 않고 자연수 뒤에 분수를 붙인다.
