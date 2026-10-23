@@ -405,7 +405,10 @@ namespace ZooZooClub.Client
                 Ui.Fixed(row.gameObject, 280f, 64f);
 
                 // 얼굴 그림은 알약 모양 바탕보다 조금 크게, 위아래로 걸치게 둔다.
-                var face = Ui.Picture("Face", row.transform, Art("resident_" + resident.id));
+                // "일하는 중" 칸에는 상반신 얼굴 그림(worker_*)을 쓴다. 없으면 보통 주민 그림.
+                Sprite faceArt = Art("worker_" + resident.id);
+                if (faceArt == null) faceArt = Art("resident_" + resident.id);
+                var face = Ui.Picture("Face", row.transform, faceArt);
                 Ui.Put(face.rectTransform, 0f, 0.5f, 6f, 0f, 80f, 80f);
 
                 var place = Ui.Label("Place", row.transform,
