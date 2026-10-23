@@ -131,6 +131,11 @@ namespace ZooZooClub.Client
         bool dragging;
         Vector2 pressPosition;
         Vector2 lastPosition;
+        // 터치: 두 손가락으로 벌리고 오므려 확대·축소한다. 두 손가락을 댄 동안의 누름은 클릭으로 치지 않는다.
+        float lastPinchDistance;
+        bool pinchUsed;
+        float lastTouchTime = -10f;
+        static readonly List<RaycastResult> UiHits = new List<RaycastResult>();
 
         public int SelectedObjectId { get; set; }
 
@@ -362,16 +367,86 @@ namespace ZooZooClub.Client
             UpdateRaid(Time.unscaledDeltaTime);
         }
 
+        /// <summary>그 화면 위치에 UI(버튼·창)가 있는가. 마우스와 터치 모두 같은 방법으로 본다.</summary>
+        static bool IsOverUi(Vector2 position)
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null) return false;
+            var data = new PointerEventData(eventSystem) { position = position };
+            UiHits.Clear();
+            eventSystem.RaycastAll(data, UiHits);
+            return UiHits.Count > 0;
+        }
+
+        /// <summary>
+        /// 마우스와 터치를 하나로 읽는다. 터치를 쓰는 중이면(태블릿·휴대폰) 터치를, 아니면 마우스를 본다.
+        /// 손가락 두 개면 벌리고 오므린 만큼 zoom(1보다 크면 멀어짐)을 준다.
+        /// </summary>
+        bool ReadPointer(out Vector2 position, out bool isPressed, out bool pressedNow, out bool releasedNow, out float zoom)
+        {
+            position = Vector2.zero;
+            isPressed = pressedNow = releasedNow = false;
+            zoom = 1f;
+
+            var touch = Touchscreen.current;
+            if (touch != null)
+            {
+                int active = 0;
+                Vector2 first = Vector2.zero, second = Vector2.zero;
+                foreach (var t in touch.touches)
+                {
+                    if (!t.press.isPressed) continue;
+                    if (active == 0) first = t.position.ReadValue();
+                    else if (active == 1) second = t.position.ReadValue();
+                    active++;
+                }
+                var primary = touch.primaryTouch;
+                bool touchUsed = active > 0 || primary.press.wasReleasedThisFrame;
+                if (touchUsed)
+                {
+                    lastTouchTime = Time.unscaledTime;
+                    if (active >= 2)
+                    {
+                        float distance = Vector2.Distance(first, second);
+                        if (lastPinchDistance > 1f && distance > 1f) zoom = lastPinchDistance / distance;
+                        lastPinchDistance = distance;
+                        pinchUsed = true;
+                        position = (first + second) * 0.5f;
+                    }
+                    else
+                    {
+                        lastPinchDistance = 0f;
+                        position = primary.position.ReadValue();
+                    }
+                    isPressed = primary.press.isPressed;
+                    pressedNow = primary.press.wasPressedThisFrame;
+                    releasedNow = primary.press.wasReleasedThisFrame;
+                    return true;
+                }
+                lastPinchDistance = 0f;
+            }
+
+            // 터치 뒤에 브라우저가 흉내 내어 보내는 마우스 입력은 무시한다(한 번 눌렀는데 두 번 눌리지 않게).
+            if (Time.unscaledTime - lastTouchTime < 0.6f) return false;
+
+            var mouse = Mouse.current;
+            if (mouse == null) return false;
+            position = mouse.position.ReadValue();
+            isPressed = mouse.leftButton.isPressed;
+            pressedNow = mouse.leftButton.wasPressedThisFrame;
+            releasedNow = mouse.leftButton.wasReleasedThisFrame;
+            float scroll = mouse.scroll.ReadValue().y;
+            if (Mathf.Abs(scroll) > 0.01f) zoom = scroll > 0f ? 0.9f : 1.1f;
+            return true;
+        }
+
         void HandleInput()
         {
+            if (cam == null) return;
+
             var mouse = Mouse.current;
-            if (mouse == null || cam == null) return;
-
-            Vector2 position = mouse.position.ReadValue();
-            bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-
             var keyboard = Keyboard.current;
-            bool cancel = mouse.rightButton.wasPressedThisFrame
+            bool cancel = (mouse != null && mouse.rightButton.wasPressedThisFrame)
                 || (keyboard != null && keyboard.escapeKey.wasPressedThisFrame);
             if (cancel && mode != Mode.None)
             {
@@ -380,29 +455,35 @@ namespace ZooZooClub.Client
 
             if (mode != Mode.None && keyboard != null && keyboard.rKey.wasPressedThisFrame) RotatePlacement();
 
-            if (!overUi)
+            Vector2 position;
+            bool isPressed, pressedNow, releasedNow;
+            float zoom;
+            if (!ReadPointer(out position, out isPressed, out pressedNow, out releasedNow, out zoom))
             {
-                float scroll = mouse.scroll.ReadValue().y;
-                if (Mathf.Abs(scroll) > 0.01f)
-                {
-                    float factor = scroll > 0f ? 0.9f : 1.1f;
-                    cam.orthographicSize = Mathf.Clamp(cam.orthographicSize * factor, MinZoom, MaxZoom);
-                }
+                HideGhost();
+                return;
+            }
+            bool overUi = IsOverUi(position);
+
+            if (!overUi && Mathf.Abs(zoom - 1f) > 0.001f)
+            {
+                cam.orthographicSize = Mathf.Clamp(cam.orthographicSize * zoom, MinZoom, MaxZoom);
             }
 
-            if (mouse.leftButton.wasPressedThisFrame)
+            if (pressedNow)
             {
                 pressActive = true;
                 pressOverUi = overUi;
                 dragging = false;
+                pinchUsed = false;
                 pressPosition = position;
                 lastPosition = position;
             }
 
-            if (pressActive && mouse.leftButton.isPressed && !pressOverUi)
+            if (pressActive && isPressed && !pressOverUi)
             {
                 if (!dragging && (position - pressPosition).magnitude > DragThresholdPixels) dragging = true;
-                if (dragging)
+                if (dragging && !pinchUsed)
                 {
                     float unitsPerPixel = cam.orthographicSize * 2f / Mathf.Max(1, Screen.height);
                     Vector2 delta = (position - lastPosition) * unitsPerPixel;
@@ -411,10 +492,11 @@ namespace ZooZooClub.Client
                 lastPosition = position;
             }
 
-            if (pressActive && mouse.leftButton.wasReleasedThisFrame)
+            if (pressActive && releasedNow)
             {
                 pressActive = false;
-                if (!dragging && !pressOverUi && !overUi) Click(ScreenToCell(position));
+                if (!dragging && !pinchUsed && !pressOverUi && !overUi) Click(ScreenToCell(position));
+                pinchUsed = false;
             }
 
             if (mode == Mode.MovingSafe)

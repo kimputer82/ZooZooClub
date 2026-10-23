@@ -9,9 +9,17 @@ namespace ZooZooClub.Client
     {
         public Action Action;
 
+        /// <summary>두 번째 누름이 이 시간(초) 안에 오면 두 번 누른 것으로 본다.</summary>
+        const float Window = 0.45f;
+        float lastClick = -10f;
+
         public void OnPointerClick(PointerEventData eventData)
         {
-            if (eventData.clickCount == 2 && Action != null) Action();
+            // 터치에서는 clickCount가 늘지 않는 브라우저가 있어서, 누른 시각으로도 직접 센다.
+            float now = Time.unscaledTime;
+            bool twice = eventData.clickCount == 2 || now - lastClick <= Window;
+            lastClick = twice ? -10f : now;
+            if (twice && Action != null) Action();
         }
     }
 }
