@@ -9,14 +9,65 @@ namespace ZooZooClub.Client
     /// </summary>
     public sealed partial class WorldView
     {
-        const string BackdropArt = "background";
         const int BackdropOrder = GroundOrder - 10;
 
-        // 배경 그림에서 잰 풀밭 마름모(픽셀, 그림 왼쪽 위 기준). 그림을 바꾸면 이 값을 다시 잰다:
-        // 풀밭 안에 들어가는 가장 큰 2:1 마름모의 한가운데와 가로 반지름.
-        const float ClearingCenterX = 892f;
-        const float ClearingCenterY = 452f;
-        const float ClearingHalfWidth = 603f;
+        /// <summary>
+        /// 배경 그림 하나와, 그 그림에서 잰 풀밭 마름모(픽셀, 그림 왼쪽 위 기준): 풀밭 안에 들어가는 가장 큰 2:1 마름모의
+        /// 한가운데와 가로 반지름. 그림을 바꾸면 이 값을 다시 잰다.
+        /// </summary>
+        [System.Serializable]
+        class BackdropDef
+        {
+            public string name = "";
+            public string art = "background";
+            /// <summary>계절 배경일 때 쓰는 기간(예: "2026-10-01T00:00:00+09:00"). 비어 있으면 그쪽으로 끝이 없다.</summary>
+            public string from = "";
+            public string until = "";
+            public float centerX = 892f;
+            public float centerY = 452f;
+            public float halfWidth = 603f;
+        }
+
+        /// <summary>Resources/backdrop.json: 기본 배경과 계절 배경들. 기간 안에 드는 첫 계절 배경을 쓰고, 없으면 기본 배경.</summary>
+        [System.Serializable]
+        class BackdropConfig
+        {
+            public BackdropDef @default = new BackdropDef();
+            public System.Collections.Generic.List<BackdropDef> seasons = new System.Collections.Generic.List<BackdropDef>();
+        }
+
+        BackdropDef backdropDef;
+
+        static long ParseTime(string text, long fallback)
+        {
+            System.DateTimeOffset time;
+            return !string.IsNullOrEmpty(text) && System.DateTimeOffset.TryParse(text,
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out time)
+                ? time.ToUnixTimeSeconds() : fallback;
+        }
+
+        /// <summary>지금 쓸 배경. 계절 배경의 그림이 없으면 기본 배경으로 돌아간다.</summary>
+        BackdropDef ChooseBackdrop()
+        {
+            var config = new BackdropConfig();
+            var asset = Resources.Load<TextAsset>("backdrop");
+            if (asset != null)
+            {
+                try { config = JsonUtility.FromJson<BackdropConfig>(asset.text) ?? config; }
+                catch (System.Exception e) { Debug.LogWarning("[Zoo] backdrop.json 을 읽지 못했습니다: " + e.Message); }
+            }
+            long now = game.Now;
+            if (config.seasons != null)
+            {
+                foreach (var season in config.seasons)
+                {
+                    if (season == null || string.IsNullOrEmpty(season.art)) continue;
+                    if (now < ParseTime(season.from, long.MinValue) || now >= ParseTime(season.until, long.MaxValue)) continue;
+                    if (ArtLibrary.Get(season.art) != null) return season;
+                }
+            }
+            return config.@default ?? new BackdropDef();
+        }
 
         // 땅이 풀밭 가장자리의 나무·덤불에 닿지 않도록, 풀밭보다 조금 작게 맞춘다.
         const float ClearingFill = 0.985f;
@@ -33,7 +84,8 @@ namespace ZooZooClub.Client
         {
             if (backdrop == null)
             {
-                Sprite art = ArtLibrary.Get(BackdropArt);
+                backdropDef = ChooseBackdrop();
+                Sprite art = ArtLibrary.Get(backdropDef.art);
                 if (art == null) return;
                 backdrop = NewSprite("Backdrop", groundRoot, art);
                 backdrop.sortingOrder = BackdropOrder;
@@ -47,7 +99,7 @@ namespace ZooZooClub.Client
             int height = game.State.landHeight;
 
             // 땅 마름모의 가로 반지름은 (가로 칸 + 세로 칸) / 4. 이것이 그림 속 풀밭의 가로 반지름과 같아지는 축척.
-            float unitsPerPixel = (width + height) * 0.25f / (ClearingHalfWidth * ClearingFill);
+            float unitsPerPixel = (width + height) * 0.25f / (backdropDef.halfWidth * ClearingFill);
             float worldWidth = pixelWidth * unitsPerPixel;
             float worldHeight = pixelHeight * unitsPerPixel;
             float scale = worldWidth / Mathf.Max(0.0001f, sprite.bounds.size.x);
@@ -56,8 +108,8 @@ namespace ZooZooClub.Client
             // 풀밭 한가운데가 땅 한가운데에 오도록 그림을 놓는다(그림의 y는 아래로, 월드의 y는 위로 자란다).
             Vector3 landCenter = IsoMath.CellToWorld(width * 0.5f, height * 0.5f);
             Vector3 imageCenter = landCenter + new Vector3(
-                (pixelWidth * 0.5f - ClearingCenterX) * unitsPerPixel,
-                (ClearingCenterY - pixelHeight * 0.5f) * unitsPerPixel, 0f);
+                (pixelWidth * 0.5f - backdropDef.centerX) * unitsPerPixel,
+                (backdropDef.centerY - pixelHeight * 0.5f) * unitsPerPixel, 0f);
             backdrop.transform.localPosition = imageCenter - sprite.bounds.center * scale;
 
             backdropRect = new Rect(imageCenter.x - worldWidth * 0.5f, imageCenter.y - worldHeight * 0.5f,
