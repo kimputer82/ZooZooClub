@@ -124,6 +124,8 @@ namespace ZooZooClub.Client
 
         Mode mode;
         string placingDefId;
+        // 보관함에서 꺼내 놓는 중이면 그 배치물 번호(0이면 새로 사서 놓는 중).
+        int placingStoredId;
         int movingObjectId;
 
         bool pressActive;
@@ -165,7 +167,7 @@ namespace ZooZooClub.Client
                 {
                     var def = game.Catalog.GetPlaceable(placingDefId);
                     string name = def != null ? def.displayName : placingDefId;
-                    return name + " 놓을 곳을 클릭하세요  (" + keys + ")";
+                    return name + (placingStoredId != 0 ? "(보관함)" : "") + " 놓을 곳을 클릭하세요  (" + keys + ")";
                 }
                 if (mode == Mode.Moving) return "옮길 곳을 클릭하세요  (" + keys + ")";
                 if (mode == Mode.MovingSafe) return "금고(지킬 곳)를 옮길 빈칸을 클릭하세요  (" + keys + ")";
@@ -242,9 +244,22 @@ namespace ZooZooClub.Client
         public void BeginPlacing(string defId)
         {
             mode = Mode.Placing;
+            placingStoredId = 0;
             placingDefId = defId;
             movingObjectId = 0;
             placingRotation = 0;
+        }
+
+        /// <summary>보관함의 배치물을 꺼내 놓기 시작한다(값은 들지 않는다).</summary>
+        public void BeginPlacingStored(int storedId)
+        {
+            var obj = game.FindStored(storedId);
+            if (obj == null) return;
+            mode = Mode.Placing;
+            placingStoredId = storedId;
+            placingDefId = obj.defId;
+            movingObjectId = 0;
+            placingRotation = obj.rotation;
         }
 
         public void BeginMoving(int objectId)
@@ -312,6 +327,7 @@ namespace ZooZooClub.Client
         {
             mode = Mode.None;
             placingDefId = null;
+            placingStoredId = 0;
             movingObjectId = 0;
             HideGhost();
         }
@@ -544,6 +560,30 @@ namespace ZooZooClub.Client
                     return;
                 }
             }
+            if (mode == Mode.Placing && placingStoredId != 0)
+            {
+                var stored = game.FindStored(placingStoredId);
+                string key = stored != null ? Game.StoredKey(stored) : "";
+                var placed = game.PlaceStored(placingStoredId, cell.x, cell.y, placingRotation);
+                if (placed != ActionResult.Ok)
+                {
+                    Notify(Texts.Describe(placed));
+                    if (placed != ActionResult.InvalidPlacement) CancelMode();
+                    return;
+                }
+                Sound.Play(Sound.Build);
+
+                // 보관함에 같은 것이 더 있으면 이어서 놓는다.
+                int next = 0;
+                foreach (var other in game.State.stored)
+                {
+                    if (Game.StoredKey(other) == key) { next = other.id; break; }
+                }
+                if (next != 0) placingStoredId = next;
+                else CancelMode();
+                return;
+            }
+
             if (mode == Mode.Placing)
             {
                 int newId;

@@ -733,6 +733,37 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void Store_KeepsTheObjectAndPlacesItAgainForFree()
+        {
+            catalog.grades.Add(new GradeDef { id = "legend", displayName = "Legend", weight = 1, buildQuizzes = 2 });
+            int tower = Place("tower", 1, 1);
+            Assert.AreEqual(2, game.FindObject(tower).buildQuizzes);
+
+            Assert.AreEqual(ActionResult.Ok, game.Store(tower));
+            Assert.IsNull(game.FindObject(tower));
+            Assert.AreEqual(1, game.State.stored.Count);
+            Assert.AreEqual(1, game.CountPlaced("tower"), "보관함에 있는 것도 가진 수로 센다");
+
+            long coins = game.State.coins;
+            Assert.AreEqual(ActionResult.Ok, game.PlaceStored(tower, 3, 2, 0));
+            Assert.AreEqual(coins, game.State.coins, "다시 놓을 때는 값이 들지 않는다");
+            Assert.AreEqual(0, game.State.stored.Count);
+            var placed = game.FindObject(tower);
+            Assert.AreEqual(3, placed.x);
+            Assert.AreEqual("legend", placed.gradeId);
+            Assert.AreEqual(2, placed.buildQuizzes, "짓던 문제 수도 그대로");
+        }
+
+        [Test]
+        public void Store_RefusesAPlotWithACrop()
+        {
+            int plot = Place("plot", 1, 1);
+            Assert.AreEqual(ActionResult.Ok, game.Plant(plot, "carrot"));
+            Assert.AreEqual(ActionResult.Busy, game.Store(plot));
+            Assert.IsNotNull(game.FindObject(plot));
+        }
+
+        [Test]
         public void LimitedDecor_CannotBeBoughtAfterItsPeriod()
         {
             // 1800초까지 판다. 시계는 1000초에서 시작한다.

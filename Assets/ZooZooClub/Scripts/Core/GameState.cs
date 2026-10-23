@@ -89,6 +89,8 @@ namespace ZooZooClub.Core
         public int rngSeed = 1;
         public List<ItemAmount> inventory = new List<ItemAmount>();
         public List<PlacedObject> objects = new List<PlacedObject>();
+        /// <summary>보관함: 마을에서 거둬 둔 배치물. 등급·업그레이드·짓던 문제 수를 그대로 지닌 채 나중에 무료로 다시 놓는다.</summary>
+        public List<PlacedObject> stored = new List<PlacedObject>();
         public List<Order> orders = new List<Order>();
         public List<ResidentAssignment> assignments = new List<ResidentAssignment>();
 
@@ -144,6 +146,14 @@ namespace ZooZooClub.Core
             if (nextOrderId < 1) nextOrderId = 1;
             if (inventory == null) inventory = new List<ItemAmount>();
             if (objects == null) objects = new List<PlacedObject>();
+            if (stored == null) stored = new List<PlacedObject>();
+            foreach (var obj in stored)
+            {
+                if (obj.cropId == null) obj.cropId = "";
+                if (obj.gradeId == null) obj.gradeId = "";
+                if (obj.queue == null) obj.queue = new List<CraftJob>();
+                if (obj.id >= nextObjectId) nextObjectId = obj.id + 1;
+            }
             if (orders == null) orders = new List<Order>();
             if (assignments == null) assignments = new List<ResidentAssignment>();
             if (quizRecent == null) quizRecent = new List<string>();

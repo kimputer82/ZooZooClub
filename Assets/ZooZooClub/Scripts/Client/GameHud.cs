@@ -1096,6 +1096,11 @@ namespace ZooZooClub.Client
 
         void BuildBuildPanel()
         {
+            if (buildTab == 4)
+            {
+                BuildStoredPanel();
+                return;
+            }
             var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
@@ -1120,6 +1125,7 @@ namespace ZooZooClub.Client
             BuildTab("TabDecor", "장식", 1);
             BuildTab("TabDefense", "방어", 2);
             BuildTab("TabFloor", "바닥", 3);
+            BuildTab("TabStored", StoredTabText, 4);
 
             if (showGrades) GradeChances();
             if (showSafe) SafeRow();
@@ -1128,6 +1134,81 @@ namespace ZooZooClub.Client
 
             var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
             foreach (var def in shown) BuildCard(grid, def);
+        }
+
+        string StoredTabText
+        {
+            get { return game.State.stored.Count > 0 ? "보관함 " + game.State.stored.Count : "보관함"; }
+        }
+
+        /// <summary>건설 > 보관함: 거둬 둔 배치물. 같은 것끼리 한 칸으로 묶고, 누르면 무료로 다시 놓는다.</summary>
+        void BuildStoredPanel()
+        {
+            var groups = new List<List<PlacedObject>>();
+            var index = new Dictionary<string, List<PlacedObject>>();
+            foreach (var obj in game.State.stored)
+            {
+                string key = Game.StoredKey(obj);
+                List<PlacedObject> group;
+                if (!index.TryGetValue(key, out group))
+                {
+                    group = new List<PlacedObject>();
+                    index[key] = group;
+                    groups.Add(group);
+                }
+                group.Add(obj);
+            }
+
+            ShowWindow("건설", 1240f, WindowHeight(Math.Max(1, groups.Count), 5, 280f, 60f) + 84f);
+            ShowHeader(60f);
+            BuildTab("TabFacility", "밭 · 시설", 0);
+            BuildTab("TabDecor", "장식", 1);
+            BuildTab("TabDefense", "방어", 2);
+            BuildTab("TabFloor", "바닥", 3);
+            BuildTab("TabStored", StoredTabText, 4);
+
+            var info = Ui.Box("StoredInfo", windowContent, Ui.CardSprite, Ui.Sand);
+            Ui.Fixed(info.gameObject, 0f, 70f);
+            var infoLabel = Text(info.transform, groups.Count > 0
+                ? "보관해 둔 것을 누르면 다시 놓을 수 있어요. 코인은 들지 않아요."
+                : "보관함이 비어 있어요. 마을의 시설이나 장식을 누르고 '보관'을 누르면 여기에 넣어 둘 수 있어요.", 24f, Ui.Ink, true);
+            Ui.Stretch(infoLabel.rectTransform, 16f, 0f, 16f, 0f);
+
+            var grid = Ui.Grid("Grid", windowContent, 220f, 280f, 16f, 5);
+            foreach (var group in groups) StoredCard(grid, group);
+        }
+
+        void StoredCard(Transform grid, List<PlacedObject> group)
+        {
+            var first = group[0];
+            var def = game.Catalog.GetPlaceable(first.defId);
+            if (def == null) return;
+            int storedId = first.id;
+
+            var card = Ui.ButtonBox("Stored " + def.id, grid, Ui.CardSprite, Color.white, () =>
+            {
+                ClosePanel();
+                world.BeginPlacingStored(storedId);
+            });
+            Transform inside = card.transform;
+
+            var icon = Ui.Picture("Icon", inside, Art(def.kind == PlaceableKind.Plot ? "plot" : def.id));
+            Ui.Put(icon.rectTransform, 0.5f, 1f, 0f, -14f, 176f, 130f);
+
+            var name = Text(inside, def.displayName, 26f, Ui.Ink, true);
+            Ui.Put(name.rectTransform, 0.5f, 1f, 0f, -150f, 204f, 36f);
+
+            var grade = game.GradeOf(first);
+            string detail = grade != null
+                ? Texts.GradeColorTag(grade) + Texts.GradeStars(game.Catalog, grade) + "</color> " + grade.displayName
+                : first.upgraded ? "생산량 업그레이드 완료"
+                : first.buildQuizzes > 0 ? "짓는 중 · 문제 " + first.buildQuizzes
+                : def.kind == PlaceableKind.Decor || def.kind == PlaceableKind.Floor ? "매력 +" + def.charm : "";
+            var detailLabel = Text(inside, detail, 20f, Ui.Muted);
+            Ui.Put(detailLabel.rectTransform, 0.5f, 1f, 0f, -186f, 204f, 28f);
+
+            var price = Ui.Chip("Price", inside, null, group.Count > 1 ? "놓기  ×" + group.Count : "놓기", Ui.Green, 46f, 24f);
+            Ui.Put((RectTransform)price.transform.parent, 0.5f, 0f, 0f, 22f, 170f, 46f);
         }
 
         /// <summary>그 묶음에 지금 살 수 있는 장식이 하나라도 있는가(기간이 끝난 한정 묶음은 탭을 숨긴다).</summary>
@@ -1999,11 +2080,27 @@ namespace ZooZooClub.Client
                 world.BeginMoving(objectId);
             }, height, fontSize, Ui.Blue);
 
+            Ui.Button("Store", parent, "보관", () => StoreObject(objectId), height, fontSize, Ui.Sand);
+
             long refund = (long)def.cost * game.Catalog.balance.sellBackPercent / 100;
             Ui.Button("Remove", parent, "철거 +" + refund.ToString("N0"), () =>
             {
                 Report(game.Remove(objectId), "철거했어요.");
             }, height, fontSize, Ui.Red);
+        }
+
+        /// <summary>마을에서 거둬 보관함에 넣는다. 안 되는 까닭은 알아듣기 쉽게 알려 준다.</summary>
+        void StoreObject(int objectId)
+        {
+            var obj = game.FindObject(objectId);
+            if (obj == null) return;
+            if (!string.IsNullOrEmpty(obj.cropId)) { Toast("작물이 자라는 밭은 보관할 수 없어요. 먼저 수확해 주세요."); return; }
+            if (obj.queue.Count > 0) { Toast("만들고 있는 것이 있으면 보관할 수 없어요. 다 만들고 꺼낸 뒤에 보관해 주세요."); return; }
+            if (game.RaidActive) { Toast("침략 중에는 보관할 수 없어요."); return; }
+            var def = game.Catalog.GetPlaceable(obj.defId);
+            var result = game.Store(objectId);
+            if (result == ActionResult.Ok) ClosePanel();
+            Report(result, (def != null ? def.displayName + Texts.ObjectParticle(def.displayName) + " " : "") + "보관함에 넣었어요. 건설 → 보관함에서 다시 놓을 수 있어요.");
         }
 
         void InfoLine(string text, Color color)

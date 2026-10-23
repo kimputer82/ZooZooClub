@@ -64,6 +64,7 @@ namespace ZooZooClub.Core
             return def != null && Now < def.AvailableUntilUnix;
         }
 
+        /// <summary>가지고 있는 수(마을에 놓인 것과 보관함에 넣어 둔 것을 합친다). 최대 개수를 셀 때 쓴다.</summary>
         public int CountPlaced(string defId)
         {
             int count = 0;
@@ -71,7 +72,67 @@ namespace ZooZooClub.Core
             {
                 if (obj.defId == defId) count++;
             }
+            foreach (var obj in State.stored)
+            {
+                if (obj.defId == defId) count++;
+            }
             return count;
+        }
+
+        /// <summary>보관함에서 한 칸으로 묶어 보여 줄 같은 종류(배치물·등급·업그레이드·남은 짓기 문제가 모두 같은 것).</summary>
+        public static string StoredKey(PlacedObject obj)
+        {
+            return obj.defId + "|" + (obj.gradeId ?? "") + "|" + (obj.upgraded ? 1 : 0) + "|" + obj.buildQuizzes;
+        }
+
+        public PlacedObject FindStored(int storedId)
+        {
+            foreach (var obj in State.stored)
+            {
+                if (obj.id == storedId) return obj;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 마을에서 거둬 보관함에 넣는다(코인은 돌려받지 않고, 나중에 무료로 다시 놓는다).
+        /// 작물이 심겨 있거나 생산 중이면 Busy, 침략 중이면 NotReady. 일하던 주민은 쉬게 된다.
+        /// </summary>
+        public ActionResult Store(int objectId)
+        {
+            var obj = FindObject(objectId);
+            if (obj == null) return ActionResult.NotFound;
+            if (!string.IsNullOrEmpty(obj.cropId) || obj.queue.Count > 0) return ActionResult.Busy;
+            if (RaidActive) return ActionResult.NotReady;
+
+            ClearAssignmentsFor(obj.id);
+            State.objects.Remove(obj);
+            obj.quizGate = false;
+            State.stored.Add(obj);
+            layoutChanged = true;
+            NotifyChanged();
+            return ActionResult.Ok;
+        }
+
+        /// <summary>보관함의 배치물을 그 자리에 다시 놓는다. 값은 들지 않고, 레벨·문제·판매 기간 조건도 보지 않는다.</summary>
+        public ActionResult PlaceStored(int storedId, int x, int y, int rotation = 0)
+        {
+            var obj = FindStored(storedId);
+            if (obj == null) return ActionResult.NotFound;
+            var def = Catalog.GetPlaceable(obj.defId);
+            if (def == null) return ActionResult.NotFound;
+
+            rotation = Rotation.Normalize(def, rotation);
+            if (!CanPlace(obj.defId, x, y, 0, rotation)) return ActionResult.InvalidPlacement;
+
+            State.stored.Remove(obj);
+            obj.x = x;
+            obj.y = y;
+            obj.rotation = rotation;
+            State.objects.Add(obj);
+            layoutChanged = true;
+            NotifyChanged();
+            return ActionResult.Ok;
         }
 
         public ActionResult BuyAndPlace(string defId, int x, int y, out int objectId, int rotation = 0)
