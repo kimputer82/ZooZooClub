@@ -855,7 +855,18 @@ namespace ZooZooClub.Client
             else if (isFloor) view.baseColor = plotArt != null ? Color.white : PlaceholderArt.ColorFor(def.id);
             else view.baseColor = Color.clear;
 
-            for (int j = 0; j < cellsDeep; j++)
+            // 여러 칸짜리 바닥(예: 운동장 트랙)은 칸마다 깔지 않고 그림 한 장을 땅 전체에 깐다(방향도 돌린다).
+            bool bigFloor = isFloor && def.width * def.height > 1 && ArtLibrary.Get(def.id) != null;
+            if (bigFloor)
+            {
+                var whole = NewSprite("Base", view.root.transform, null);
+                float wholeLift, wholeTop;
+                FitObjectArt(whole, def, null, obj.rotation, out wholeLift, out wholeTop);
+                whole.color = view.baseColor;
+                view.bases.Add(whole);
+            }
+
+            for (int j = 0; j < (bigFloor ? 0 : cellsDeep); j++)
             {
                 for (int i = 0; i < cellsWide; i++)
                 {

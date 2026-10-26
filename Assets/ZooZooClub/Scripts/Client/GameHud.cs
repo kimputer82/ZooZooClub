@@ -1105,7 +1105,8 @@ namespace ZooZooClub.Client
             var shown = new List<PlaceableDef>();
             foreach (var def in game.Catalog.placeables)
             {
-                int tab = def.kind == PlaceableKind.Decor ? 1
+                // 묶음(구름·운동 등)이 있는 것은 바닥이라도 장식 탭의 그 묶음에 보여 준다(예: 운동장 트랙).
+                int tab = def.kind == PlaceableKind.Decor || !string.IsNullOrEmpty(def.theme) ? 1
                     : def.kind == PlaceableKind.Defense ? 2
                     : def.kind == PlaceableKind.Floor ? 3 : 0;
                 if (tab != buildTab) continue;
@@ -1217,7 +1218,8 @@ namespace ZooZooClub.Client
         {
             foreach (var def in game.Catalog.placeables)
             {
-                if (def.kind == PlaceableKind.Decor && (def.theme ?? "") == theme && game.IsOnSale(def)) return true;
+                bool themed = def.kind == PlaceableKind.Decor || !string.IsNullOrEmpty(def.theme);
+                if (themed && (def.theme ?? "") == theme && game.IsOnSale(def)) return true;
             }
             return false;
         }
