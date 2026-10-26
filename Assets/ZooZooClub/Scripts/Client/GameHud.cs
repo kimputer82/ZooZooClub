@@ -1140,7 +1140,7 @@ namespace ZooZooClub.Client
 
         string StoredTabText
         {
-            get { return game.State.stored.Count > 0 ? "보관함 " + game.State.stored.Count : "보관함"; }
+            get { return "보관함"; }
         }
 
         /// <summary>건설 > 보관함: 거둬 둔 배치물. 같은 것끼리 한 칸으로 묶고, 누르면 무료로 다시 놓는다.</summary>
