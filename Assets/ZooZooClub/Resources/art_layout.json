@@ -26,6 +26,8 @@
     {"id": "resident_dog_back", "width": 0.422, "lift": 0, "offsetX": 0},
     {"id": "resident_penguin", "width": 0.559, "lift": 0, "offsetX": 0},
     {"id": "resident_penguin_back", "width": 0.503, "lift": 0, "offsetX": 0},
+    {"id": "resident_sheep", "width": 0.635, "lift": 0, "offsetX": 0},
+    {"id": "resident_sheep_back", "width": 0.628, "lift": 0, "offsetX": 0},
     {"id": "resident_elephant_back", "width": 0.412, "lift": 0, "offsetX": 0},
     {"id": "resident_fox_back", "width": 0.431, "lift": 0, "offsetX": 0},
     {"id": "resident_rabbit_back", "width": 0.267, "lift": 0, "offsetX": 0},

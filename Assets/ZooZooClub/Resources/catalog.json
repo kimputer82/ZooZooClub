@@ -100,7 +100,8 @@
     { "id": "fox", "displayName": "루비", "species": "여우", "unlockLevel": 7, "craftSpeedBonusPercent": 40 }
   ],
   "visitors": [
-    { "id": "penguin", "displayName": "펭이", "species": "펭귄", "unlockLevel": 1 }
+    { "id": "penguin", "displayName": "펭이", "species": "펭귄", "unlockLevel": 1 },
+    { "id": "sheep", "displayName": "몽실", "species": "양", "unlockLevel": 1 }
   ],
   "levels": [
     { "xpToNext": 30, "rewardCoins": 50, "rewardGems": 1 },
