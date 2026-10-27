@@ -1170,6 +1170,11 @@ namespace ZooZooClub.Client
                 if (frames[i] == null) complete = false;
             }
             if (complete) set.walk = frames;
+            else if (frames[0] != null && frames[1] != null && frames[2] == null)
+            {
+                // 걷기 그림이 두 장(오른발·왼발)뿐이면 정지 → 오른발 → 왼발 순서로 되풀이한다.
+                set.walk = new[] { idle, frames[0], frames[1] };
+            }
             return set;
         }
 
