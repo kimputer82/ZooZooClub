@@ -1422,7 +1422,7 @@ namespace ZooZooClub.Client
             }
 
             var card = CardColumn("Order", grid, Color.white, 6f);
-            var customer = game.Catalog.GetResident(order.customerId);
+            var customer = game.Catalog.GetCustomer(order.customerId);
             Ui.Icon("Face", card, customer != null ? Art("resident_" + customer.id) : null, 96f);
             Text(card, customer != null ? customer.displayName + "의 주문" : "손님의 주문", 24f, Ui.Ink, true);
 

@@ -24,6 +24,18 @@ namespace ZooZooClub.Core
             return result;
         }
 
+        /// <summary>마을에 와 있는 방문객 목록(고용할 수 없고 돌아다니며 주문만 낸다).</summary>
+        public List<ResidentDef> ArrivedVisitors()
+        {
+            var result = new List<ResidentDef>();
+            if (Catalog.visitors == null) return result;
+            foreach (var def in Catalog.visitors)
+            {
+                if (State.level >= def.unlockLevel) result.Add(def);
+            }
+            return result;
+        }
+
         /// <summary>주민이 배치된 시설의 id. 배치되지 않았으면 0.</summary>
         public int AssignedObjectOf(string residentId)
         {

@@ -99,6 +99,9 @@
     { "id": "elephant", "displayName": "코코", "species": "코끼리", "unlockLevel": 5, "craftSpeedBonusPercent": 35 },
     { "id": "fox", "displayName": "루비", "species": "여우", "unlockLevel": 7, "craftSpeedBonusPercent": 40 }
   ],
+  "visitors": [
+    { "id": "penguin", "displayName": "펭이", "species": "펭귄", "unlockLevel": 1 }
+  ],
   "levels": [
     { "xpToNext": 30, "rewardCoins": 50, "rewardGems": 1 },
     { "xpToNext": 80, "rewardCoins": 75, "rewardGems": 1 },

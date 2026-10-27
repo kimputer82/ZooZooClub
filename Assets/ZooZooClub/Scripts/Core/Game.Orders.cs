@@ -104,12 +104,13 @@ namespace ZooZooClub.Core
                 availableAt = availableAt
             };
 
-            // 이미 마을에 온 주민만 주문을 낸다.
+            // 이미 마을에 온 주민과 방문객만 주문을 낸다.
             var customers = new List<ResidentDef>();
             foreach (var resident in Catalog.residents)
             {
                 if (resident.unlockLevel <= State.level) customers.Add(resident);
             }
+            customers.AddRange(ArrivedVisitors());
             if (customers.Count > 0)
             {
                 order.customerId = customers[NextRandom(customers.Count)].id;

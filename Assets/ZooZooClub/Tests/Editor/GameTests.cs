@@ -370,6 +370,26 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void Visitors_WanderAndPlaceOrdersButCannotBeHired()
+        {
+            catalog.visitors.Add(new ResidentDef { id = "penguin", displayName = "Penguin", species = "penguin", unlockLevel = 1 });
+            catalog.visitors.Add(new ResidentDef { id = "lion", displayName = "Lion", species = "lion", unlockLevel = 9 });
+            Assert.AreEqual(1, game.ArrivedVisitors().Count);
+            Assert.AreEqual("Penguin", catalog.GetCustomer("penguin").displayName);
+            Assert.IsNull(catalog.GetResident("penguin"), "방문객은 주민 목록에 없어 고용할 수 없다");
+
+            var seen = new HashSet<string>();
+            for (int i = 0; i < 200; i++)
+            {
+                game.State.orders.Clear();
+                game.RefillOrders();
+                foreach (var order in game.State.orders) seen.Add(order.customerId);
+            }
+            Assert.IsTrue(seen.Contains("penguin"), "방문객도 주문을 낸다");
+            Assert.IsFalse(seen.Contains("lion"), "아직 오지 않은 방문객은 주문을 내지 않는다");
+        }
+
+        [Test]
         public void AssignResident_ShortensCraftTime()
         {
             int bakery = PlaceBakery();

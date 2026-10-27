@@ -1094,7 +1094,10 @@ namespace ZooZooClub.Client
 
         void SyncResidents()
         {
-            foreach (var def in game.UnlockedResidents())
+            // 주민과 방문객은 똑같이 마을을 돌아다닌다(방문객은 일하러 가지 않는다).
+            var walkers = game.UnlockedResidents();
+            walkers.AddRange(game.ArrivedVisitors());
+            foreach (var def in walkers)
             {
                 if (residents.ContainsKey(def.id)) continue;
 

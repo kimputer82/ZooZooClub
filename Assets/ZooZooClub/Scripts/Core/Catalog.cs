@@ -391,6 +391,8 @@ namespace ZooZooClub.Core
         public List<RecipeDef> recipes = new List<RecipeDef>();
         public List<PlaceableDef> placeables = new List<PlaceableDef>();
         public List<ResidentDef> residents = new List<ResidentDef>();
+        /// <summary>방문객: 고용할 수 없고 마을을 돌아다니며 주문만 낸다. unlockLevel부터 마을에 온다.</summary>
+        public List<ResidentDef> visitors = new List<ResidentDef>();
         public List<InvaderDef> invaders = new List<InvaderDef>();
         public List<GradeDef> grades = new List<GradeDef>();
         public List<LevelDef> levels = new List<LevelDef>();
@@ -404,6 +406,7 @@ namespace ZooZooClub.Core
         Dictionary<string, RecipeDef> recipesById;
         Dictionary<string, PlaceableDef> placeablesById;
         Dictionary<string, ResidentDef> residentsById;
+        Dictionary<string, ResidentDef> visitorsById;
         Dictionary<string, InvaderDef> invadersById;
         Dictionary<string, GradeDef> gradesById;
         Dictionary<string, QuizDef> quizById;
@@ -430,6 +433,19 @@ namespace ZooZooClub.Core
         {
             if (placeablesById == null) placeablesById = Index(placeables, d => d.id);
             return Find(placeablesById, id);
+        }
+
+        public ResidentDef GetVisitor(string id)
+        {
+            if (visitors == null) return null;
+            if (visitorsById == null) visitorsById = Index(visitors, d => d.id);
+            return Find(visitorsById, id);
+        }
+
+        /// <summary>주문을 낸 손님(주민이거나 방문객).</summary>
+        public ResidentDef GetCustomer(string id)
+        {
+            return GetResident(id) ?? GetVisitor(id);
         }
 
         public ResidentDef GetResident(string id)
