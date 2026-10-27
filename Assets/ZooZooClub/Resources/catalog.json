@@ -108,7 +108,17 @@
     { "xpToNext": 700, "rewardCoins": 250, "rewardGems": 2 },
     { "xpToNext": 1000, "rewardCoins": 300, "rewardGems": 3 },
     { "xpToNext": 1400, "rewardCoins": 400, "rewardGems": 3 },
-    { "xpToNext": 1900, "rewardCoins": 500, "rewardGems": 5 }
+    { "xpToNext": 1900, "rewardCoins": 500, "rewardGems": 5 },
+    { "xpToNext": 2500, "rewardCoins": 600, "rewardGems": 5 },
+    { "xpToNext": 3200, "rewardCoins": 700, "rewardGems": 5 },
+    { "xpToNext": 4000, "rewardCoins": 800, "rewardGems": 6 },
+    { "xpToNext": 4900, "rewardCoins": 900, "rewardGems": 6 },
+    { "xpToNext": 5900, "rewardCoins": 1000, "rewardGems": 6 },
+    { "xpToNext": 7000, "rewardCoins": 1100, "rewardGems": 7 },
+    { "xpToNext": 8200, "rewardCoins": 1200, "rewardGems": 7 },
+    { "xpToNext": 9500, "rewardCoins": 1300, "rewardGems": 7 },
+    { "xpToNext": 11000, "rewardCoins": 1400, "rewardGems": 8 },
+    { "xpToNext": 12600, "rewardCoins": 1500, "rewardGems": 10 }
   ],
   "balance": {
     "startCoins": 200,

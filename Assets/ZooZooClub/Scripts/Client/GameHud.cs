@@ -1897,28 +1897,65 @@ namespace ZooZooClub.Client
         int rankVersion;
         float nextRankFetch;
         bool rankFetching;
+        RankKind rankKind = RankKind.Level;
+
+        static readonly RankKind[] RankKinds = { RankKind.Level, RankKind.Charm, RankKind.Quiz };
+
+        static string RankKindName(RankKind kind)
+        {
+            return kind == RankKind.Charm ? "매력" : kind == RankKind.Quiz ? "문제풀이" : "레벨";
+        }
+
+        /// <summary>순위표 한 줄에 크게 보여 줄 점수(지금 고른 순위의 점수).</summary>
+        static string RankMain(RankEntry e, RankKind kind)
+        {
+            return kind == RankKind.Charm ? "매력 " + e.charm.ToString("N0")
+                : kind == RankKind.Quiz ? "문제 " + e.quizSolved.ToString("N0") + "개"
+                : "Lv " + e.level;
+        }
+
+        /// <summary>그 옆에 작게 보여 줄 나머지 점수.</summary>
+        static string RankDetail(RankEntry e, RankKind kind)
+        {
+            return kind == RankKind.Charm ? "Lv " + e.level + " · 문제 " + e.quizSolved
+                : kind == RankKind.Quiz ? "Lv " + e.level + " · 매력 " + e.charm
+                : "매력 " + e.charm + " · 문제 " + e.quizSolved;
+        }
 
         void BuildRankPanel()
         {
             string code = ActiveRoom;
-            ShowWindow("랭킹  ·  방 코드 " + code, 900f, 760f);
-            ShowHeader(34f);
+            ShowWindow("랭킹  ·  방 코드 " + code, 1000f, 820f);
+            ShowHeader(60f);
+            foreach (var kind in RankKinds)
+            {
+                var k = kind;
+                var tab = Ui.Button("RankTab " + kind, windowHeader, RankKindName(kind) + " 순위", () =>
+                {
+                    rankKind = k;
+                    windowContent.anchoredPosition = Vector2.zero;
+                    rebuildNeeded = true;
+                }, 56f, 24f, rankKind == kind ? Ui.Orange : Ui.Sand);
+                Ui.Fixed(tab.gameObject, 220f, 56f);
+            }
             string when = rankError != null ? rankError
                 : rankEntries.Count == 0 ? "불러오는 중…"
-                : "같은 방 친구들의 레벨 순위예요. " + Online.RankRefreshSeconds + "초마다 새로 가져와요.";
-            var hint = Ui.Label("Hint", windowHeader, when, 22f, rankError != null ? Ui.Bad : Ui.Muted, TextAlignmentOptions.Center);
+                : Online.RankRefreshSeconds + "초마다 새로 가져와요.";
+            var hint = Ui.Label("Hint", windowHeader, when, 20f, rankError != null ? Ui.Bad : Ui.Muted, TextAlignmentOptions.Right);
             hint.gameObject.AddComponent<ULayoutElement>().flexibleWidth = 1f;
+
+            var sorted = RankBoard.Sort(rankEntries, rankKind);
 
             // 창을 열면 내 점수를 먼저 올리고 바로 받아 온다.
             var reporter = GetComponent<RankReporter>();
             if (reporter != null && Time.unscaledTime >= nextRankFetch) reporter.UploadNow();
             if (Time.unscaledTime >= nextRankFetch) FetchRank();
 
-            var places = RankBoard.Places(rankEntries);
+            var places = RankBoard.Places(sorted, rankKind);
             string me = PlayerName.Key(game.State.playerName);
-            for (int i = 0; i < rankEntries.Count; i++)
+            for (int i = 0; i < sorted.Count; i++)
             {
-                var entry = rankEntries[i];
+                var entry = sorted[i];
                 bool mine = PlayerName.Key(entry.name) == me;
                 var row = Ui.Box("Row " + i, windowContent, Ui.CardSprite, mine ? Ui.Yellow : places[i] <= 3 ? Ui.Sand : Color.white);
                 Ui.Fixed(row.gameObject, 0f, 56f);
@@ -1927,10 +1964,10 @@ namespace ZooZooClub.Client
                 Ui.Put(place.rectTransform, 0f, 0.5f, 10f, 0f, 100f, 48f);
                 var name = Ui.Label("Name", row.transform, entry.name + (mine ? "  (나)" : ""), 28f, Ui.Ink, TextAlignmentOptions.Left, true);
                 Ui.Put(name.rectTransform, 0f, 0.5f, 118f, 0f, 380f, 48f);
-                var level = Ui.Label("Level", row.transform, "Lv " + entry.level, 28f, Ui.Good, TextAlignmentOptions.Center, true);
-                Ui.Put(level.rectTransform, 1f, 0.5f, -330f, 0f, 120f, 48f);
-                var detail = Ui.Label("Detail", row.transform, "문제 " + entry.quizSolved + "개", 22f, Ui.Muted, TextAlignmentOptions.Right);
-                Ui.Put(detail.rectTransform, 1f, 0.5f, -150f, 0f, 170f, 48f);
+                var level = Ui.Label("Score", row.transform, RankMain(entry, rankKind), 28f, Ui.Good, TextAlignmentOptions.Center, true);
+                Ui.Put(level.rectTransform, 1f, 0.5f, -390f, 0f, 190f, 48f);
+                var detail = Ui.Label("Detail", row.transform, RankDetail(entry, rankKind), 20f, Ui.Muted, TextAlignmentOptions.Right);
+                Ui.Put(detail.rectTransform, 1f, 0.5f, -146f, 0f, 220f, 48f);
                 if (!mine)
                 {
                     string friend = entry.name;

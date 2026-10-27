@@ -45,6 +45,8 @@ namespace ZooZooClub.Client
         TextMeshProUGUI boardStatus;
         TextMeshProUGUI openButtonLabel;
         TextMeshProUGUI boardNote;
+        RankKind boardKind = RankKind.Level;
+        RectTransform boardTabs;
         bool quizBusy;
         float resetArmedUntil = -1f;
 
@@ -272,6 +274,9 @@ namespace ZooZooClub.Client
             boardStatus = Ui.Label("BoardStatus", content, "불러오는 중…", 24f, Ui.Muted, TextAlignmentOptions.Center);
             Ui.Fixed(boardStatus.gameObject, 0f, 36f);
 
+            boardTabs = ButtonRow(60f);
+            BuildBoardTabs();
+
             boardList = Ui.ScrollView("List", content, 6f);
 
             var row = ButtonRow(72f);
@@ -290,6 +295,22 @@ namespace ZooZooClub.Client
             Ui.Fixed(boardNote.gameObject, 0f, 84f);
             quizBusy = false;
             resetArmedUntil = -1f;
+        }
+
+        void BuildBoardTabs()
+        {
+            Ui.Clear(boardTabs);
+            foreach (var kind in new[] { RankKind.Level, RankKind.Charm, RankKind.Quiz })
+            {
+                var k = kind;
+                string text = kind == RankKind.Charm ? "매력 순위" : kind == RankKind.Quiz ? "문제풀이 순위" : "레벨 순위";
+                Ui.Button("BoardTab " + kind, boardTabs, text, () =>
+                {
+                    boardKind = k;
+                    BuildBoardTabs();
+                    RenderBoard();
+                }, 60f, 24f, boardKind == kind ? Ui.Orange : Ui.Sand);
+            }
         }
 
         void RefreshBoard()
@@ -336,10 +357,11 @@ namespace ZooZooClub.Client
                 return;
             }
 
-            var places = RankBoard.Places(boardEntries);
-            for (int i = 0; i < boardEntries.Count; i++)
+            var sorted = RankBoard.Sort(boardEntries, boardKind);
+            var places = RankBoard.Places(sorted, boardKind);
+            for (int i = 0; i < sorted.Count; i++)
             {
-                var entry = boardEntries[i];
+                var entry = sorted[i];
                 var rowBox = Ui.Box("Row " + i, boardList, Ui.CardSprite, places[i] <= 3 ? Ui.Sand : Color.white);
                 Ui.Fixed(rowBox.gameObject, 0f, 58f);
                 var place = Ui.Label("Place", rowBox.transform, places[i] + "위", 30f, places[i] == 1 ? Ui.Orange : Ui.Ink,
@@ -347,10 +369,14 @@ namespace ZooZooClub.Client
                 Ui.Put(place.rectTransform, 0f, 0.5f, 10f, 0f, 110f, 50f);
                 var name = Ui.Label("Name", rowBox.transform, entry.name, 30f, Ui.Ink, TextAlignmentOptions.Left, true);
                 Ui.Put(name.rectTransform, 0f, 0.5f, 130f, 0f, 440f, 50f);
-                var level = Ui.Label("Level", rowBox.transform, "Lv " + entry.level, 30f, Ui.Good, TextAlignmentOptions.Center, true);
-                Ui.Put(level.rectTransform, 1f, 0.5f, -300f, 0f, 150f, 50f);
-                var detail = Ui.Label("Detail", rowBox.transform, "경험치 " + entry.xp + "  ·  문제 " + entry.quizSolved + "개",
-                    22f, Ui.Muted, TextAlignmentOptions.Right);
+                string main = boardKind == RankKind.Charm ? "매력 " + entry.charm
+                    : boardKind == RankKind.Quiz ? "문제 " + entry.quizSolved + "개" : "Lv " + entry.level;
+                string rest = boardKind == RankKind.Charm ? "Lv " + entry.level + "  ·  문제 " + entry.quizSolved + "개"
+                    : boardKind == RankKind.Quiz ? "Lv " + entry.level + "  ·  매력 " + entry.charm
+                    : "매력 " + entry.charm + "  ·  문제 " + entry.quizSolved + "개";
+                var level = Ui.Label("Level", rowBox.transform, main, 30f, Ui.Good, TextAlignmentOptions.Center, true);
+                Ui.Put(level.rectTransform, 1f, 0.5f, -310f, 0f, 200f, 50f);
+                var detail = Ui.Label("Detail", rowBox.transform, rest, 22f, Ui.Muted, TextAlignmentOptions.Right);
                 Ui.Put(detail.rectTransform, 1f, 0.5f, -20f, 0f, 280f, 50f);
             }
         }

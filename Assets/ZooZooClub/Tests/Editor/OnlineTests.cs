@@ -65,14 +65,31 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void RankBoard_SortsByCharmAndByQuiz()
+        {
+            var a = new RankEntry { name = "가", level = 9, quizSolved = 10, charm = 50 };
+            var b = new RankEntry { name = "나", level = 3, quizSolved = 90, charm = 200 };
+            var c = new RankEntry { name = "다", level = 5, quizSolved = 90, charm = 10 };
+            var all = new List<RankEntry> { a, b, c };
+
+            CollectionAssert.AreEqual(new[] { "가", "다", "나" }, RankBoard.Sort(all, RankKind.Level).ConvertAll(e => e.name));
+            CollectionAssert.AreEqual(new[] { "나", "가", "다" }, RankBoard.Sort(all, RankKind.Charm).ConvertAll(e => e.name));
+            // 문제 수가 같으면 레벨이 높은 쪽이 먼저.
+            var byQuiz = RankBoard.Sort(all, RankKind.Quiz);
+            CollectionAssert.AreEqual(new[] { "다", "나", "가" }, byQuiz.ConvertAll(e => e.name));
+            CollectionAssert.AreEqual(new[] { 1, 2, 3 }, RankBoard.Places(byQuiz, RankKind.Quiz));
+        }
+
+        [Test]
         public void RankEntry_RoundTrips()
         {
-            var entry = new RankEntry { name = "김상진", level = 6, xp = 459, quizSolved = 13, updatedAt = 1700000000 };
+            var entry = new RankEntry { name = "김상진", level = 6, xp = 459, quizSolved = 13, charm = 77, updatedAt = 1700000000 };
             var back = RankEntry.FromJson(MiniJson.AsObject(MiniJson.Parse(MiniJson.Serialize(entry.ToJson()))));
             Assert.AreEqual("김상진", back.name);
             Assert.AreEqual(6, back.level);
             Assert.AreEqual(459, back.xp);
             Assert.AreEqual(13, back.quizSolved);
+            Assert.AreEqual(77, back.charm);
             Assert.AreEqual(1700000000, back.updatedAt);
         }
     }

@@ -47,7 +47,8 @@ namespace ZooZooClub.Client
             nextUpload = Time.unscaledTime + Online.RankUploadSeconds;
 
             var state = game.State;
-            var entry = new RankEntry { name = state.playerName, level = state.level, xp = state.xp, quizSolved = state.quizSolved };
+            var entry = new RankEntry { name = state.playerName, level = state.level, xp = state.xp, quizSolved = state.quizSolved,
+                charm = game.TotalCharm };
             string room = GameSession.Instance != null ? GameSession.Instance.ActiveRoom : "";
             if (string.IsNullOrEmpty(room)) { uploading = false; return; }
             Online.PostPlayer(room, entry, error =>
