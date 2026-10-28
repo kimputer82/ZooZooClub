@@ -93,6 +93,26 @@ namespace ZooZooClub.Client
             return key == null ? null : Path.Combine(Folder, Prefix + key + Extension);
         }
 
+        /// <summary>이 컴퓨터에 있는 그 이름의 저장을 지운다(서버의 저장은 그대로). 지웠으면 true.</summary>
+        public static bool DeleteProfile(string name)
+        {
+            try
+            {
+                string path = PathFor(name);
+                if (path == null || !File.Exists(path)) return false;
+                File.Delete(path);
+                string key = PlayerName.Key(name);
+                if (key != null && PlayerName.Key(LastName) == key) LastName = "";
+                WebSave.Flush();
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Zoo] 저장을 지우지 못했습니다: " + e.Message);
+                return false;
+            }
+        }
+
         public static bool AnyProfileExists()
         {
             return Directory.GetFiles(Folder, Prefix + "*" + Extension).Length > 0;

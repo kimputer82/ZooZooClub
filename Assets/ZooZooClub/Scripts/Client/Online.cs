@@ -304,6 +304,26 @@ namespace ZooZooClub.Client
             TeacherPatch(code, body, done, RoomQuizDenied);
         }
 
+        /// <summary>이 방 관리 키(방 비밀번호)가 맞는지 서버에 확인한다. 맞으면 error가 null.</summary>
+        public static void VerifyRoomKey(string code, string teacherKey, string roomKey, Action<string> done)
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "owner/key", teacherKey }, { "owner/stamp", Now }, { "owner/proof", roomKey }, { "verify", NowMs }
+            };
+            TeacherPatch(code, body, done, "선생님 비밀번호나 방 비밀번호가 맞지 않아요.");
+        }
+
+        /// <summary>방 관리 키를 바꾼다(지금 키를 알아야 한다). 방 비밀번호를 정하거나 바꿀 때 쓴다.</summary>
+        public static void SetRoomKey(string code, string teacherKey, string oldKey, string newKey, Action<string> done)
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "owner/key", teacherKey }, { "owner/stamp", Now }, { "owner/proof", oldKey }, { "owner/roomKey", newKey }
+            };
+            TeacherPatch(code, body, done, "선생님 비밀번호가 틀렸거나, 이 컴퓨터에 적힌 방 비밀번호가 맞지 않아요.");
+        }
+
         /// <summary>방 문제(문제 은행 JSON 글)를 올린다. quizJson이 null이면 지워서 기본 문제로 돌아간다.</summary>
         public static void PutRoomQuiz(string code, string teacherKey, string roomKey, string quizJson, int count, Action<string> done)
         {
@@ -315,7 +335,7 @@ namespace ZooZooClub.Client
             TeacherPatch(code, body, done, RoomQuizDenied);
         }
 
-        const string RoomQuizDenied = "비밀번호가 틀렸거나, 이 방을 만든 컴퓨터가 아니에요. 방 문제는 방을 만든 컴퓨터에서만 바꿀 수 있어요.";
+        const string RoomQuizDenied = "선생님 비밀번호나 방 비밀번호가 맞지 않아요. 방 문제는 방 비밀번호를 아는 선생님만 바꿀 수 있어요.";
 
         /// <summary>방 문제를 받아 온다. 올린 문제가 없으면 json이 null이고 error도 null이다.</summary>
         public static void FetchRoomQuiz(string code, Action<string, string> done)

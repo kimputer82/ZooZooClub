@@ -208,7 +208,13 @@ namespace ZooZooClub.Client
             foreach (string name in names)
             {
                 string picked = name;
-                Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), RecentHeight, 24f, Ui.Sand);
+                bool armed = removeArmed == name && Time.unscaledTime < removeArmedUntil;
+                var button = Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), RecentHeight, 24f,
+                    armed ? Ui.Orange : Ui.Sand);
+                // 잘못 만든 이름은 × 를 두 번 눌러 이 컴퓨터에서 지운다.
+                var remove = Ui.Button("Forget " + name, button.transform, armed ? "지우기?" : "×", () => ForgetName(picked),
+                    38f, 18f, Ui.Red);
+                Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -5f, 2f, armed ? 86f : 40f, 38f);
             }
 
             bool any = names.Count > 0;
@@ -352,6 +358,30 @@ namespace ZooZooClub.Client
                     });
                 });
             });
+        }
+
+        string removeArmed;
+        float removeArmedUntil;
+
+        /// <summary>
+        /// 이 컴퓨터에 있는 그 이름의 저장을 지운다(방 서버의 기록은 그대로, 지우려면 선생님이 지운다).
+        /// 실수로 누르지 않도록 4초 안에 한 번 더 눌러야 지운다.
+        /// </summary>
+        void ForgetName(string name)
+        {
+            if (busy) return;
+            if (removeArmed != name || Time.unscaledTime >= removeArmedUntil)
+            {
+                removeArmed = name;
+                removeArmedUntil = Time.unscaledTime + 4f;
+                Show();
+                SetError("한 번 더 누르면 '" + name + "'을(를) 이 컴퓨터에서 지워요. 되돌릴 수 없어요.");
+                return;
+            }
+            removeArmed = null;
+            bool removed = SaveFiles.DeleteProfile(name);
+            Show();
+            SetError(removed ? "'" + name + "'을(를) 이 컴퓨터에서 지웠어요." : "지우지 못했어요.");
         }
 
         void WrongPin()

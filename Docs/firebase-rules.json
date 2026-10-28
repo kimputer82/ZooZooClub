@@ -22,7 +22,7 @@
       "$code": {
         "owner": {
           ".read": false,
-          ".write": "newData.child('key').val() === root.child('secret').child('teacher').val() && newData.child('stamp').isNumber() && (!data.exists() || newData.child('stamp').val() > data.child('stamp').val()) && (!data.child('roomKey').exists() || newData.child('roomKey').val() === data.child('roomKey').val())"
+          ".write": "newData.child('key').val() === root.child('secret').child('teacher').val() && newData.child('stamp').isNumber() && (!data.exists() || newData.child('stamp').val() > data.child('stamp').val()) && (!data.child('roomKey').exists() || newData.child('roomKey').val() === data.child('roomKey').val() || newData.child('proof').val() === data.child('roomKey').val())"
         },
         "public": {
           ".read": true,
@@ -56,6 +56,11 @@
           "$player": {
             ".write": "root.child('rooms').child($code).child('public').child('open').val() === true && root.child('saves').child($code).child($player).child(newData.child('lock').val()).exists() && newData.child('stamp').isNumber() && (!data.exists() || newData.child('stamp').val() > data.child('stamp').val())"
           }
+        },
+        "verify": {
+          ".read": false,
+          ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val() && data.parent().child('owner').child('roomKey').exists() && newData.parent().child('owner').child('proof').val() === data.parent().child('owner').child('roomKey').val()",
+          ".validate": "newData.isNumber()"
         }
       }
     }

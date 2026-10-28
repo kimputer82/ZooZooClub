@@ -21,7 +21,10 @@ namespace ZooZooClub.Client
         const string TemplateFile = "quiz_template.xlsx";
         const int MaxSavedRooms = 8;
 
-        enum Step { Password, Rooms, Board }
+        enum Step { Password, Rooms, Board, RoomPassword }
+
+        const int MinRoomPassword = 4;
+        const int MaxRoomPassword = 20;
 
         Action onBack;
         Transform root;
@@ -32,6 +35,11 @@ namespace ZooZooClub.Client
         string teacherKey = "";
         TextEntry passwordEntry;
         TextEntry roomNameEntry;
+        TextEntry roomPasswordEntry;
+        TextEntry openCodeEntry;
+        TextEntry newRoomPasswordEntry;
+        string removeArmed;
+        float removeArmedUntil;
         TextMeshProUGUI status;
 
         // 랭킹판
@@ -119,7 +127,15 @@ namespace ZooZooClub.Client
             else if (step == Step.Rooms)
             {
                 roomNameEntry.Update();
-                if (roomNameEntry.TakeSubmit()) CreateRoom();
+                roomPasswordEntry.Update();
+                openCodeEntry.Update();
+                if (roomNameEntry.TakeSubmit() || roomPasswordEntry.TakeSubmit()) CreateRoom();
+                if (openCodeEntry.TakeSubmit()) OpenByCode();
+            }
+            else if (step == Step.RoomPassword)
+            {
+                newRoomPasswordEntry.Update();
+                if (newRoomPasswordEntry.TakeSubmit()) SaveRoomPassword();
             }
             else if (step == Step.Board)
             {
@@ -139,10 +155,13 @@ namespace ZooZooClub.Client
             TextEntry.HideAll();
             step = next;
             panel.sizeDelta = new Vector2(step == Step.Board ? 1300f : 1100f,
-                step == Step.Password ? 420f : step == Step.Rooms ? 760f : 1000f);
+                step == Step.Password ? 420f : step == Step.Rooms ? 940f : step == Step.RoomPassword ? 480f : 1000f);
             Ui.Clear(content);
             passwordEntry = null;
             roomNameEntry = null;
+            roomPasswordEntry = null;
+            openCodeEntry = null;
+            newRoomPasswordEntry = null;
             status = null;
 
             switch (step)
@@ -150,6 +169,7 @@ namespace ZooZooClub.Client
                 case Step.Password: BuildPassword(); break;
                 case Step.Rooms: BuildRooms(); break;
                 case Step.Board: BuildBoard(); break;
+                case Step.RoomPassword: BuildRoomPassword(); break;
             }
         }
 
@@ -212,30 +232,84 @@ namespace ZooZooClub.Client
         void BuildRooms()
         {
             Title("방 만들기");
-            Note("방 이름을 적고 만들면 6자리 방 코드가 나와요. 학생들은 그 코드로 들어와요.");
-            roomNameEntry = new TextEntry("RoomName", content, "방 이름 (예: 6학년 3반)", 20, 76f, 30f, false, () => SetStatus("", true));
+            Note("방 이름과 방 비밀번호를 적고 만들면 6자리 방 코드가 나와요. 학생들은 그 코드로 들어와요.");
+            roomNameEntry = new TextEntry("RoomName", content, "방 이름 (예: 6학년 3반)", 20, 70f, 28f, false, () => SetStatus("", true));
+            roomPasswordEntry = new TextEntry("RoomPassword", content, "방 비밀번호 (4자 이상, 문제 올리기·학생 관리에 써요)", MaxRoomPassword,
+                64f, 24f, true, () => SetStatus("", true));
             Status();
-            var row = ButtonRow(80f);
-            Ui.Button("BackButton", row, "돌아가기", () => { if (onBack != null) onBack(); }, 80f, 28f, Ui.Sand);
-            Ui.Button("CreateButton", row, "방 만들기", CreateRoom, 80f, 28f, Ui.Green);
+            var row = ButtonRow(76f);
+            Ui.Button("BackButton", row, "돌아가기", () => { if (onBack != null) onBack(); }, 76f, 26f, Ui.Sand);
+            Ui.Button("CreateButton", row, "방 만들기", CreateRoom, 76f, 26f, Ui.Green);
+
+            var openLabel = Ui.Label("OpenTitle", content, "다른 컴퓨터에서 만든 방, 목록에 없는 방은 방 코드와 방 비밀번호로 열어요",
+                20f, Ui.Muted, TextAlignmentOptions.Center);
+            Ui.Fixed(openLabel.gameObject, 0f, 40f);
+            openLabel.alignment = TextAlignmentOptions.Bottom;
+            var openRow = Ui.Rect("OpenRow", content);
+            Ui.Fixed(openRow.gameObject, 0f, 64f);
+            var openGroup = Ui.Horizontal(openRow.gameObject, 12f, 0);
+            openGroup.childForceExpandWidth = true;
+            openCodeEntry = new TextEntry("OpenCode", openRow, "방 코드", 8, 64f, 24f, false, () => SetStatus("", true));
+            var openButton = Ui.Button("OpenByCode", openRow, "코드로 열기", OpenByCode, 64f, 24f, Ui.Blue);
+            Ui.Fixed(openButton.gameObject, 260f, 64f);
 
             var rooms = SavedRooms();
             if (rooms.Count > 0)
             {
-                var label = Ui.Label("SavedTitle", content, "이 컴퓨터에서 만든 방", 24f, Ui.Muted, TextAlignmentOptions.Center);
-                Ui.Fixed(label.gameObject, 0f, 44f);
+                var label = Ui.Label("SavedTitle", content, "이 컴퓨터에서 만든 방  (× 로 목록에서 지워요)", 22f, Ui.Muted, TextAlignmentOptions.Center);
+                Ui.Fixed(label.gameObject, 0f, 40f);
                 label.alignment = TextAlignmentOptions.Bottom;
-                var grid = Ui.Grid("Saved", content, 480f, 64f, 12f, 2);
+                var grid = Ui.Grid("Saved", content, 480f, 60f, 12f, 2);
                 foreach (var pair in rooms)
                 {
                     string code = pair.Key;
-                    Ui.Button("Room " + code, grid, code + "  ·  " + pair.Value, () => OpenBoard(code), 64f, 26f, Ui.Sand);
+                    bool armed = removeArmed == code && Time.unscaledTime < removeArmedUntil;
+                    var roomButton = Ui.Button("Room " + code, grid, code + "  ·  " + pair.Value, () => OpenBoard(code), 60f, 24f,
+                        armed ? Ui.Orange : Ui.Sand);
+                    var remove = Ui.Button("Remove " + code, roomButton.transform, armed ? "지우기?" : "×",
+                        () => RemoveSavedRoom(code), 44f, 20f, Ui.Red);
+                    Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -8f, 2f, armed ? 100f : 48f, 44f);
                 }
             }
             Ui.Spacer(content, 0f, 1f);
-            Note("다른 컴퓨터에서 만든 방은 코드를 알면 학생 화면처럼 볼 수 있어요. 비밀번호가 틀리면 방 만들기에서 알려 줘요.");
             roomNameEntry.Update();
+            roomPasswordEntry.Update();
+            openCodeEntry.Update();
             roomNameEntry.Focus();
+        }
+
+        /// <summary>이 컴퓨터의 방 목록에서 지운다(서버의 방은 그대로). 4초 안에 한 번 더 눌러야 지운다.</summary>
+        void RemoveSavedRoom(string code)
+        {
+            if (removeArmed != code || Time.unscaledTime >= removeArmedUntil)
+            {
+                removeArmed = code;
+                removeArmedUntil = Time.unscaledTime + 4f;
+                ShowStep(Step.Rooms);
+                SetStatus("한 번 더 누르면 방 " + code + "을(를) 이 컴퓨터의 목록에서 지워요. 다시 열려면 방 코드와 방 비밀번호가 필요해요.", true);
+                return;
+            }
+            removeArmed = null;
+            var list = SavedRooms();
+            list.RemoveAll(pair => pair.Key == code);
+            WriteRooms(list);
+            ForgetKey(code);
+            ShowStep(Step.Rooms);
+            SetStatus("방 " + code + "을(를) 목록에서 지웠어요.", false);
+        }
+
+        string ReadRoomPassword(TextEntry entry, out string error)
+        {
+            string password = (entry != null ? entry.Value ?? "" : "").Trim();
+            error = null;
+            if (password.Length < MinRoomPassword) { error = "방 비밀번호를 " + MinRoomPassword + "자 이상 적어 주세요."; return null; }
+            return password;
+        }
+
+        /// <summary>방 비밀번호로 만든 방 관리 키. 같은 방 코드와 비밀번호면 어느 컴퓨터에서나 같다.</summary>
+        public static string RoomKeyFrom(string code, string password)
+        {
+            return RoomLock.Sha256Hex("room|" + code + "|" + password).Substring(0, 24);
         }
 
         void CreateRoom()
@@ -243,9 +317,13 @@ namespace ZooZooClub.Client
             string name = (roomNameEntry.Value ?? "").Trim();
             if (name.Length == 0) { SetStatus("방 이름을 적어 주세요.", true); return; }
             if (name.Length > 40) name = name.Substring(0, 40);
+            string pwError;
+            string password = ReadRoomPassword(roomPasswordEntry, out pwError);
+            if (password == null) { SetStatus(pwError, true); roomPasswordEntry.Focus(); return; }
             string code = RoomCode.Generate(new System.Random());
+            string roomKey = RoomKeyFrom(code, password);
             SetStatus("방을 만드는 중…", false);
-            Online.OpenRoom(code, name, teacherKey, KeyFor(code), error =>
+            Online.OpenRoom(code, name, teacherKey, roomKey, error =>
             {
                 if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
                 if (error != null)
@@ -254,9 +332,84 @@ namespace ZooZooClub.Client
                     if (error.Contains("비밀번호")) teacherKey = "";
                     return;
                 }
+                SaveKey(code, roomKey);
                 RememberRoom(code, name);
                 OpenBoard(code);
             });
+        }
+
+        /// <summary>방 코드와 방 비밀번호로 방을 연다(다른 컴퓨터에서 만들었거나 목록에서 지운 방).</summary>
+        void OpenByCode()
+        {
+            string code = RoomCode.Normalize(openCodeEntry.Value ?? "");
+            if (code == null) { SetStatus("방 코드는 영문과 숫자 4~8자예요.", true); openCodeEntry.Focus(); return; }
+            string pwError;
+            string password = ReadRoomPassword(roomPasswordEntry, out pwError);
+            if (password == null) { SetStatus(pwError + " (위의 방 비밀번호 칸)", true); roomPasswordEntry.Focus(); return; }
+            string roomKey = RoomKeyFrom(code, password);
+            SetStatus("방을 확인하는 중…", false);
+            Online.FetchRoom(code, (room, roomError) =>
+            {
+                if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                if (room == null) { SetStatus(roomError ?? "그런 방이 없어요.", true); return; }
+                Online.VerifyRoomKey(code, teacherKey, roomKey, error =>
+                {
+                    if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                    if (error == null) { Opened(code, roomKey, room.name); return; }
+                    // 방 관리 키가 아직 없는 예전 방이면 이 비밀번호로 처음 정한다.
+                    Online.ClaimRoom(code, teacherKey, roomKey, claimError =>
+                    {
+                        if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                        if (claimError != null) { SetStatus("선생님 비밀번호나 방 비밀번호가 맞지 않아요.", true); return; }
+                        Opened(code, roomKey, room.name);
+                    });
+                });
+            });
+        }
+
+        void Opened(string code, string roomKey, string name)
+        {
+            SaveKey(code, roomKey);
+            RememberRoom(code, name);
+            OpenBoard(code);
+        }
+
+        // ---------- 방 비밀번호 정하기(예전에 만든 방이나 바꿀 때) ----------
+
+        void BuildRoomPassword()
+        {
+            Title("방 비밀번호 정하기");
+            Note("방 " + boardCode + "의 방 비밀번호를 새로 정해요. 다른 컴퓨터에서도 이 비밀번호로 방을 관리할 수 있어요.");
+            newRoomPasswordEntry = new TextEntry("NewRoomPassword", content, "새 방 비밀번호 (4자 이상)", MaxRoomPassword, 70f, 26f, true,
+                () => SetStatus("", true));
+            Status();
+            var row = ButtonRow(76f);
+            Ui.Button("BackButton", row, "돌아가기", () => OpenBoard(boardCode), 76f, 26f, Ui.Sand);
+            Ui.Button("SaveRoomPassword", row, "저장", SaveRoomPassword, 76f, 26f, Ui.Green);
+            newRoomPasswordEntry.Update();
+            newRoomPasswordEntry.Focus();
+        }
+
+        void SaveRoomPassword()
+        {
+            string pwError;
+            string password = ReadRoomPassword(newRoomPasswordEntry, out pwError);
+            if (password == null) { SetStatus(pwError, true); return; }
+            string code = boardCode;
+            string newKey = RoomKeyFrom(code, password);
+            string oldKey = SavedKey(code);
+            SetStatus("저장하는 중…", false);
+            Action<string> done = error =>
+            {
+                if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
+                if (error != null) { SetStatus(error, true); return; }
+                SaveKey(code, newKey);
+                OpenBoard(code);
+                boardStatus.text = "방 비밀번호를 정했어요. 꼭 기억해 두세요.";
+                boardStatusHoldUntil = Time.unscaledTime + 6f;
+            };
+            if (oldKey != null) Online.SetRoomKey(code, teacherKey, oldKey, newKey, done);
+            else Online.ClaimRoom(code, teacherKey, newKey, done);
         }
 
         void OpenBoard(string code)
@@ -291,6 +444,7 @@ namespace ZooZooClub.Client
             Ui.Button("UploadQuizButton", quizRow, "문제 올리기", PickQuizFile, 72f, 26f, Ui.Purple);
             Ui.Button("ResetQuizButton", quizRow, "기본 문제로", ResetQuiz, 72f, 26f, Ui.Sand);
             Ui.Button("TemplateButton", quizRow, "엑셀 양식 받기", () => Application.OpenURL(TemplateFile), 72f, 26f, Ui.Blue);
+            Ui.Button("RoomPasswordButton", quizRow, "방 비밀번호", () => ShowStep(Step.RoomPassword), 72f, 26f, Ui.Yellow);
             boardNote = Ui.Label("BoardNote", content, "엑셀(.xlsx)로 이 방 문제를 바꿀 수 있어요. 첫 시트의 문제·보기1~4·정답 열을 읽어요.",
                 20f, Ui.Muted, TextAlignmentOptions.Center);
             Ui.Fixed(boardNote.gameObject, 0f, 84f);
@@ -571,12 +725,7 @@ namespace ZooZooClub.Client
         {
             string key = SavedKey(code);
             if (key != null) { done(key, null); return; }
-            key = KeyFor(code);
-            Online.ClaimRoom(code, teacherKey, key, error =>
-            {
-                if (error != null) ForgetKey(code);
-                done(error == null ? key : null, error);
-            });
+            done(null, "이 컴퓨터에 이 방의 방 비밀번호가 없어요. '방 비밀번호' 버튼으로 정하거나, 방 만들기 화면에서 방 코드와 방 비밀번호로 다시 열어 주세요.");
         }
 
         static string ProblemSummary(QuizSheetResult sheet)
@@ -598,6 +747,21 @@ namespace ZooZooClub.Client
                 if (colon > 0) map[item.Substring(0, colon)] = item.Substring(colon + 1);
             }
             return map;
+        }
+
+        static void SaveKey(string code, string key)
+        {
+            var map = SavedKeys();
+            map[code] = key;
+            WriteKeys(map);
+        }
+
+        static void WriteRooms(List<KeyValuePair<string, string>> list)
+        {
+            var parts = new List<string>();
+            foreach (var pair in list) parts.Add(pair.Key + ":" + pair.Value);
+            PlayerPrefs.SetString(RoomsKey, string.Join("|", parts.ToArray()));
+            PlayerPrefs.Save();
         }
 
         static void WriteKeys(Dictionary<string, string> map)
