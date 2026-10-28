@@ -72,6 +72,11 @@ mergeInto(LibraryManager.library, {
     for (var i = 0; i < inputs.length; i++) { inputs[i].style.display = "none"; inputs[i].blur(); }
   },
 
+  ZooWebInputSetValue: function (idPtr, valuePtr) {
+    var input = document.getElementById("zoo-input-" + UTF8ToString(idPtr));
+    if (input) input.value = UTF8ToString(valuePtr);
+  },
+
   ZooWebInputClear: function (idPtr) {
     var input = document.getElementById("zoo-input-" + UTF8ToString(idPtr));
     if (input) input.value = "";

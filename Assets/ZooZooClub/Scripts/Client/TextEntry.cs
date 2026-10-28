@@ -20,6 +20,7 @@ namespace ZooZooClub.Client
         [DllImport("__Internal")] static extern void ZooWebInputHide(string id);
         [DllImport("__Internal")] static extern void ZooWebInputHideAll();
         [DllImport("__Internal")] static extern void ZooWebInputClear(string id);
+        [DllImport("__Internal")] static extern void ZooWebInputSetValue(string id, string value);
         [DllImport("__Internal")] static extern string ZooWebInputGetValue(string id);
         [DllImport("__Internal")] static extern int ZooWebInputTakeSubmit();
         public const bool Web = true;
@@ -29,6 +30,7 @@ namespace ZooZooClub.Client
         static void ZooWebInputHide(string id) { }
         static void ZooWebInputHideAll() { }
         static void ZooWebInputClear(string id) { }
+        static void ZooWebInputSetValue(string id, string value) { }
         static string ZooWebInputGetValue(string id) { return ""; }
         static int ZooWebInputTakeSubmit() { return 0; }
         public const bool Web = false;
@@ -116,6 +118,14 @@ namespace ZooZooClub.Client
             HideUnityLabels();
             ZooWebInputClear(id);
             submitted = false;
+        }
+
+        /// <summary>칸에 글을 미리 채운다.</summary>
+        public void SetValue(string value)
+        {
+            field.text = value ?? "";
+            ZooWebInputSetValue(id, value ?? "");
+            HideUnityLabels();
         }
 
         public void Focus()
