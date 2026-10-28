@@ -398,18 +398,48 @@ namespace ZooZooClub.Client
             string code = boardCode;
             string newKey = RoomKeyFrom(code, password);
             string oldKey = SavedKey(code);
-            SetStatus("저장하는 중…", false);
-            Action<string> done = error =>
+            bool open = boardRoom == null || boardRoom.open;
+            SetStatus("선생님 비밀번호를 확인하는 중…", false);
+
+            // 1) 선생님 비밀번호부터 확인한다(방 상태를 그대로 다시 적어 본다).
+            Online.SetRoomOpen(code, open, teacherKey, teacherError =>
             {
                 if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
-                if (error != null) { SetStatus(error, true); return; }
-                SaveKey(code, newKey);
-                OpenBoard(code);
-                boardStatus.text = "방 비밀번호를 정했어요. 꼭 기억해 두세요.";
-                boardStatusHoldUntil = Time.unscaledTime + 6f;
-            };
-            if (oldKey != null) Online.SetRoomKey(code, teacherKey, oldKey, newKey, done);
-            else Online.ClaimRoom(code, teacherKey, newKey, done);
+                if (teacherError != null)
+                {
+                    SetStatus("선생님 비밀번호가 틀렸어요. 돌아가기를 눌러 선생님 화면에 다시 들어와 주세요.", true);
+                    teacherKey = "";
+                    return;
+                }
+                SetStatus("저장하는 중…", false);
+                // 2) 이 컴퓨터에 적힌 예전 관리 키로 바꾼다. 3) 안 되면 서버에 관리 키가 아직 없는 방으로 보고 처음 정한다.
+                Action claim = () => Online.ClaimRoom(code, teacherKey, newKey, claimError =>
+                {
+                    if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
+                    if (claimError != null)
+                    {
+                        SetStatus("이 방은 다른 관리 키로 잠겨 있어요(예전에 다른 컴퓨터나 브라우저에서 관리한 방). "
+                            + "그 컴퓨터에서 방 비밀번호를 정하거나, 새 방을 만들어 주세요.", true);
+                        return;
+                    }
+                    Saved(code, newKey);
+                });
+                if (oldKey == null) { claim(); return; }
+                Online.SetRoomKey(code, teacherKey, oldKey, newKey, error =>
+                {
+                    if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
+                    if (error == null) Saved(code, newKey);
+                    else claim();
+                });
+            });
+        }
+
+        void Saved(string code, string newKey)
+        {
+            SaveKey(code, newKey);
+            OpenBoard(code);
+            boardStatus.text = "방 비밀번호를 정했어요. 꼭 기억해 두세요.";
+            boardStatusHoldUntil = Time.unscaledTime + 6f;
         }
 
         void OpenBoard(string code)
