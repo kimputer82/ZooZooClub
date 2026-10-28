@@ -56,6 +56,10 @@ namespace ZooZooClub.Client
         RankKind boardKind = RankKind.Level;
         RectTransform boardTabs;
         bool quizBusy;
+        // 지금 연 방에 방 비밀번호가 정해져 있는가(-1 모름, 0 없음, 1 있음).
+        int boardKeyState = -1;
+        UnityEngine.UI.Button roomPasswordButton;
+        TextEntry currentRoomPasswordEntry;
         float resetArmedUntil = -1f;
 
         public void Init(Action onBack)
@@ -134,6 +138,7 @@ namespace ZooZooClub.Client
             }
             else if (step == Step.RoomPassword)
             {
+                if (currentRoomPasswordEntry != null) currentRoomPasswordEntry.Update();
                 newRoomPasswordEntry.Update();
                 if (newRoomPasswordEntry.TakeSubmit()) SaveRoomPassword();
             }
@@ -155,13 +160,15 @@ namespace ZooZooClub.Client
             TextEntry.HideAll();
             step = next;
             panel.sizeDelta = new Vector2(step == Step.Board ? 1300f : 1100f,
-                step == Step.Password ? 420f : step == Step.Rooms ? 940f : step == Step.RoomPassword ? 480f : 1000f);
+                step == Step.Password ? 420f : step == Step.Rooms ? 940f : step == Step.RoomPassword ? 560f : 1000f);
             Ui.Clear(content);
             passwordEntry = null;
             roomNameEntry = null;
             roomPasswordEntry = null;
             openCodeEntry = null;
             newRoomPasswordEntry = null;
+            currentRoomPasswordEntry = null;
+            roomPasswordButton = null;
             status = null;
 
             switch (step)
@@ -378,16 +385,25 @@ namespace ZooZooClub.Client
 
         void BuildRoomPassword()
         {
-            Title("방 비밀번호 정하기");
-            Note("방 " + boardCode + "의 방 비밀번호를 새로 정해요. 다른 컴퓨터에서도 이 비밀번호로 방을 관리할 수 있어요.");
+            bool change = boardKeyState == 1;
+            bool askCurrent = change && SavedKey(boardCode) == null;
+            Title(change ? "방 비밀번호 바꾸기" : "방 비밀번호 정하기");
+            Note(change
+                ? "방 " + boardCode + "의 방 비밀번호를 새로 바꿔요." + (askCurrent ? " 지금 방 비밀번호도 적어 주세요." : "")
+                : "방 " + boardCode + "의 방 비밀번호를 정해요. 다른 컴퓨터에서도 이 비밀번호로 방을 관리할 수 있어요.");
+            currentRoomPasswordEntry = askCurrent
+                ? new TextEntry("CurrentRoomPassword", content, "지금 방 비밀번호", MaxRoomPassword, 64f, 24f, true, () => SetStatus("", true))
+                : null;
             newRoomPasswordEntry = new TextEntry("NewRoomPassword", content, "새 방 비밀번호 (4자 이상)", MaxRoomPassword, 70f, 26f, true,
                 () => SetStatus("", true));
             Status();
             var row = ButtonRow(76f);
             Ui.Button("BackButton", row, "돌아가기", () => OpenBoard(boardCode), 76f, 26f, Ui.Sand);
             Ui.Button("SaveRoomPassword", row, "저장", SaveRoomPassword, 76f, 26f, Ui.Green);
+            if (currentRoomPasswordEntry != null) currentRoomPasswordEntry.Update();
             newRoomPasswordEntry.Update();
-            newRoomPasswordEntry.Focus();
+            if (currentRoomPasswordEntry != null) currentRoomPasswordEntry.Focus();
+            else newRoomPasswordEntry.Focus();
         }
 
         void SaveRoomPassword()
@@ -397,40 +413,40 @@ namespace ZooZooClub.Client
             if (password == null) { SetStatus(pwError, true); return; }
             string code = boardCode;
             string newKey = RoomKeyFrom(code, password);
-            string oldKey = SavedKey(code);
-            bool open = boardRoom == null || boardRoom.open;
-            SetStatus("선생님 비밀번호를 확인하는 중…", false);
+            SetStatus("저장하는 중…", false);
 
-            // 1) 선생님 비밀번호부터 확인한다(방 상태를 그대로 다시 적어 본다).
-            Online.SetRoomOpen(code, open, teacherKey, teacherError =>
+            if (boardKeyState != 1)
             {
-                if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
-                if (teacherError != null)
-                {
-                    SetStatus("선생님 비밀번호가 틀렸어요. 돌아가기를 눌러 선생님 화면에 다시 들어와 주세요.", true);
-                    teacherKey = "";
-                    return;
-                }
-                SetStatus("저장하는 중…", false);
-                // 2) 이 컴퓨터에 적힌 예전 관리 키로 바꾼다. 3) 안 되면 서버에 관리 키가 아직 없는 방으로 보고 처음 정한다.
-                Action claim = () => Online.ClaimRoom(code, teacherKey, newKey, claimError =>
+                // 아직 방 비밀번호가 없는 방: 처음 정한다.
+                Online.ClaimRoom(code, teacherKey, newKey, error =>
                 {
                     if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
-                    if (claimError != null)
-                    {
-                        SetStatus("이 방은 다른 관리 키로 잠겨 있어요(예전에 다른 컴퓨터나 브라우저에서 관리한 방). "
-                            + "그 컴퓨터에서 방 비밀번호를 정하거나, 새 방을 만들어 주세요.", true);
-                        return;
-                    }
+                    if (error != null) { SetStatus("정하지 못했어요. 선생님 비밀번호를 확인해 주세요.", true); return; }
                     Saved(code, newKey);
                 });
-                if (oldKey == null) { claim(); return; }
-                Online.SetRoomKey(code, teacherKey, oldKey, newKey, error =>
+                return;
+            }
+
+            // 이미 있는 방: 지금 방 비밀번호(또는 이 컴퓨터에 적힌 키)로 증명하고 새 비밀번호로 바꾼다.
+            string oldKey = SavedKey(code);
+            if (oldKey == null)
+            {
+                string current = ReadRoomPassword(currentRoomPasswordEntry, out pwError);
+                if (current == null) { SetStatus("지금 방 비밀번호를 적어 주세요.", true); return; }
+                oldKey = RoomKeyFrom(code, current);
+            }
+            Online.SetRoomKey(code, teacherKey, oldKey, newKey, error =>
+            {
+                if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
+                if (error != null)
                 {
-                    if (!gameObject.activeInHierarchy || step != Step.RoomPassword) return;
-                    if (error == null) Saved(code, newKey);
-                    else claim();
-                });
+                    SetStatus(currentRoomPasswordEntry != null
+                        ? "지금 방 비밀번호가 맞지 않아요."
+                        : "이 컴퓨터에 적힌 방 정보가 맞지 않아요. 방 만들기 화면에서 방 코드와 지금 방 비밀번호로 다시 열어 주세요.", true);
+                    if (currentRoomPasswordEntry == null) ForgetKey(code);
+                    return;
+                }
+                Saved(code, newKey);
             });
         }
 
@@ -438,7 +454,7 @@ namespace ZooZooClub.Client
         {
             SaveKey(code, newKey);
             OpenBoard(code);
-            boardStatus.text = "방 비밀번호를 정했어요. 꼭 기억해 두세요.";
+            boardStatus.text = "방 비밀번호를 저장했어요. 꼭 기억해 두세요.";
             boardStatusHoldUntil = Time.unscaledTime + 6f;
         }
 
@@ -447,8 +463,29 @@ namespace ZooZooClub.Client
             boardCode = code;
             boardRoom = null;
             boardEntries = new List<RankEntry>();
+            boardKeyState = -1;
             ShowStep(Step.Board);
             RefreshBoard();
+            CheckBoardKey();
+        }
+
+        /// <summary>방 비밀번호가 정해져 있는지 알아보고 버튼 글자와 안내를 바꾼다.</summary>
+        void CheckBoardKey()
+        {
+            string code = boardCode;
+            Online.CheckRoomKey(code, teacherKey, (hasKey, error) =>
+            {
+                if (!gameObject.activeInHierarchy || boardCode != code) return;
+                if (error != null) { boardKeyState = -1; if (step == Step.Board) SetNote(error, Ui.Bad); return; }
+                boardKeyState = hasKey ? 1 : 0;
+                if (step != Step.Board) return;
+                if (roomPasswordButton != null)
+                    Ui.SetButtonText(roomPasswordButton, hasKey ? "방 비밀번호 바꾸기" : "방 비밀번호 정하기");
+                if (!hasKey)
+                    SetNote("이 방은 아직 방 비밀번호가 없어요. '방 비밀번호 정하기'로 정하면 문제 올리기와 학생 관리를 할 수 있어요.", Ui.Orange);
+                else if (SavedKey(code) == null)
+                    SetNote("이 방은 방 비밀번호가 있어요. 문제 올리기나 학생 관리를 하려면 방 만들기 화면에서 방 코드와 방 비밀번호로 열어 주세요.", Ui.Orange);
+            });
         }
 
         void BuildBoard()
@@ -474,7 +511,9 @@ namespace ZooZooClub.Client
             Ui.Button("UploadQuizButton", quizRow, "문제 올리기", PickQuizFile, 72f, 26f, Ui.Purple);
             Ui.Button("ResetQuizButton", quizRow, "기본 문제로", ResetQuiz, 72f, 26f, Ui.Sand);
             Ui.Button("TemplateButton", quizRow, "엑셀 양식 받기", () => Application.OpenURL(TemplateFile), 72f, 26f, Ui.Blue);
-            Ui.Button("RoomPasswordButton", quizRow, "방 비밀번호", () => ShowStep(Step.RoomPassword), 72f, 26f, Ui.Yellow);
+            roomPasswordButton = Ui.Button("RoomPasswordButton", quizRow,
+                boardKeyState == 1 ? "방 비밀번호 바꾸기" : boardKeyState == 0 ? "방 비밀번호 정하기" : "방 비밀번호",
+                () => ShowStep(Step.RoomPassword), 72f, 26f, Ui.Yellow);
             boardNote = Ui.Label("BoardNote", content, "엑셀(.xlsx)로 이 방 문제를 바꿀 수 있어요. 첫 시트의 문제·보기1~4·정답 열을 읽어요.",
                 20f, Ui.Muted, TextAlignmentOptions.Center);
             Ui.Fixed(boardNote.gameObject, 0f, 84f);

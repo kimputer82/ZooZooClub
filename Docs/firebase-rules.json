@@ -61,6 +61,11 @@
           ".read": false,
           ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val() && data.parent().child('owner').child('roomKey').exists() && newData.parent().child('owner').child('proof').val() === data.parent().child('owner').child('roomKey').val()",
           ".validate": "newData.isNumber()"
+        },
+        "probe": {
+          ".read": false,
+          ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val() && !data.parent().child('owner').child('roomKey').exists()",
+          ".validate": "newData.isNumber()"
         }
       }
     }

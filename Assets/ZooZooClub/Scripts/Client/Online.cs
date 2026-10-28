@@ -83,9 +83,17 @@ namespace ZooZooClub.Client
             return instance;
         }
 
+        static long lastNow;
+
+        /// <summary>지금 시각(초). 선생님 기록의 stamp는 늘 커져야 하므로, 같은 초 안에서 여러 번 불러도 1씩 커지게 한다.</summary>
         static long Now
         {
-            get { return DateTimeOffset.UtcNow.ToUnixTimeSeconds(); }
+            get
+            {
+                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                lastNow = now > lastNow ? now : lastNow + 1;
+                return lastNow;
+            }
         }
 
         // ---------- 방과 순위 ----------
@@ -312,6 +320,21 @@ namespace ZooZooClub.Client
                 { "owner/key", teacherKey }, { "owner/stamp", Now }, { "owner/proof", roomKey }, { "verify", NowMs }
             };
             TeacherPatch(code, body, done, "선생님 비밀번호나 방 비밀번호가 맞지 않아요.");
+        }
+
+        /// <summary>
+        /// 이 방에 방 비밀번호(방 관리 키)가 정해져 있는지 알아본다. done(정해져 있음, 오류).
+        /// 선생님 비밀번호를 먼저 확인하고, 관리 키가 없을 때만 써지는 자리(probe)에 써 봐서 판단한다.
+        /// </summary>
+        public static void CheckRoomKey(string code, string teacherKey, Action<bool, string> done)
+        {
+            var who = new Dictionary<string, object> { { "owner/key", teacherKey }, { "owner/stamp", Now } };
+            TeacherPatch(code, who, teacherError =>
+            {
+                if (teacherError != null) { done(false, "선생님 비밀번호가 틀렸어요."); return; }
+                var probe = new Dictionary<string, object> { { "owner/key", teacherKey }, { "owner/stamp", Now }, { "probe", NowMs } };
+                TeacherPatch(code, probe, probeError => done(probeError != null, null), "");
+            }, "선생님 비밀번호가 틀렸어요.");
         }
 
         /// <summary>방 관리 키를 바꾼다(지금 키를 알아야 한다). 방 비밀번호를 정하거나 바꿀 때 쓴다.</summary>
