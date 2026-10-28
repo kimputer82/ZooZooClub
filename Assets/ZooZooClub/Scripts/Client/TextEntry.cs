@@ -71,6 +71,11 @@ namespace ZooZooClub.Client
             placeholder = Ui.Label("Placeholder", area, placeholderText, fontSize, new Color(0.59f, 0.46f, 0.35f, 0.55f),
                 TextAlignmentOptions.Center);
             Ui.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
+            // 안내 글이 칸보다 길면 글자 크기를 줄여 한 줄에 다 보이게 한다.
+            placeholder.textWrappingMode = TextWrappingModes.NoWrap;
+            placeholder.enableAutoSizing = true;
+            placeholder.fontSizeMax = fontSize;
+            placeholder.fontSizeMin = Mathf.Min(fontSize, 12f);
             text = Ui.Label("Text", area, "", fontSize, Ui.Ink, TextAlignmentOptions.Center, true);
             Ui.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using TMPro;
 using UnityEngine;
@@ -61,8 +62,6 @@ namespace ZooZooClub.Client
         int wrongPins;
         float pinLockedUntil;
         TextMeshProUGUI errorText;
-        GameObject recentTitle;
-        RectTransform recentGrid;
         float startHeight = StartFallbackHeight;
         bool busy;
 
@@ -126,53 +125,181 @@ namespace ZooZooClub.Client
             logo.sizeDelta = new Vector2(LogoWidth, height);
         }
 
+        // ---------- 창 ----------
+        // 처음에는 두 가지 들어가는 방법을 고른다:
+        //  · 이 컴퓨터에 저장된 이름 → 이름을 고르면 (방에 들어가던 이름이면) 비밀번호만 적는다
+        //  · 이름과 방 코드 → 이름, 방 코드, 비밀번호를 적는다(방 코드를 비우면 혼자 하기)
+
+        enum Mode { Choose, Saved, SavedPin, Form }
+        Mode mode;
+        RectTransform content;
+        string selectedName = "";
+        float panelHeight;
+
         void BuildPanel(Transform root)
         {
             var box = Ui.Box("LoginPanel", root, Ui.PanelSprite, Color.white);
             panel = box.rectTransform;
-
-            var content = Ui.Rect("Content", panel);
+            content = Ui.Rect("Content", panel);
             Ui.Stretch(content, PadSide, PadBottom, PadSide, PadTop);
             var group = Ui.Vertical(content.gameObject, Spacing, 0);
             group.childAlignment = TextAnchor.UpperCenter;
-
-            var prompt = Ui.Label("Prompt", content, "이름을 적고 내 마을로 들어가요", 28f, Ui.Muted, TextAlignmentOptions.Center);
-            Ui.Fixed(prompt.gameObject, 0f, PromptHeight);
-
-            nameEntry = new TextEntry("Name", content, "여기에 이름", PlayerName.MaxLength, InputHeight, 38f, false, () => SetError(""));
-            codeEntry = new TextEntry("Code", content, "방 코드 (처음 한 번만 적으면 다음엔 자동으로 들어가요)", 8, CodeHeight, 24f, false, () => SetError(""));
-            pinEntry = new TextEntry("Pin", content, "비밀번호 숫자 4자리 (방에 들어갈 때)", RoomLock.PinLength, PinHeight, 24f, true, () => SetError(""));
-
-            errorText = Ui.Label("Error", content, "", 24f, Ui.Bad, TextAlignmentOptions.Center, true);
-            Ui.Fixed(errorText.gameObject, 0f, ErrorHeight);
-
-            BuildStartButton(content);
-
-            var recentLabel = Ui.Label("RecentTitle", content, "이 컴퓨터에서 하던 친구", 22f, Ui.Muted, TextAlignmentOptions.Center);
-            Ui.Fixed(recentLabel.gameObject, 0f, RecentTitleHeight);
-            recentLabel.alignment = TextAlignmentOptions.Bottom;
-            recentTitle = recentLabel.gameObject;
-
-            float cellWidth = (ContentWidth - RecentGap * (RecentColumns - 1)) / RecentColumns;
-            recentGrid = Ui.Grid("Recent", content, cellWidth, RecentHeight, RecentGap, RecentColumns);
         }
 
-        void BuildStartButton(Transform parent)
+        /// <summary>창 안을 그 방법의 내용으로 다시 만든다.</summary>
+        void Rebuild(Mode next, string message = "")
+        {
+            TextEntry.HideAll();
+            mode = next;
+            Ui.Clear(content);
+            nameEntry = codeEntry = pinEntry = null;
+            errorText = null;
+            panelHeight = PadTop + PadBottom - Spacing;
+
+            switch (mode)
+            {
+                case Mode.Choose:
+                    Prompt("어떻게 들어갈까요?");
+                    BigButton("SavedLoginButton", "이 컴퓨터에 저장된 이름으로 들어가기", Ui.Sand, () => Rebuild(Mode.Saved));
+                    BigButton("FormLoginButton", "이름과 방 코드로 들어가기", Ui.Sand, () => Rebuild(Mode.Form));
+                    Error();
+                    break;
+
+                case Mode.Saved:
+                    Prompt("이 컴퓨터에서 하던 친구");
+                    var names = SaveFiles.RecentNames(MaxRecentNames);
+                    if (names.Count == 0)
+                    {
+                        var empty = Ui.Label("Empty", content, "아직 이 컴퓨터에 저장된 이름이 없어요.", 24f, Ui.Muted, TextAlignmentOptions.Center);
+                        Fixed(empty.gameObject, 60f);
+                    }
+                    else RecentGrid(names);
+                    Error();
+                    BackButton();
+                    break;
+
+                case Mode.SavedPin:
+                    Prompt(selectedName + WithParticle(selectedName) + " 들어가요");
+                    pinEntry = Entry("Pin", "비밀번호 숫자 4자리", RoomLock.PinLength, InputHeight, 34f, true);
+                    Error();
+                    StartButton(() => Submit(selectedName, "", pinEntry.Value));
+                    BackButton(() => Rebuild(Mode.Saved));
+                    break;
+
+                case Mode.Form:
+                    Prompt("이름과 방 코드를 적어요");
+                    nameEntry = Entry("Name", "이름", PlayerName.MaxLength, InputHeight, 36f, false);
+                    codeEntry = Entry("Code", "방 코드 (없으면 혼자 하기)", 8, CodeHeight, 26f, false);
+                    pinEntry = Entry("Pin", "비밀번호 숫자 4자리", RoomLock.PinLength, PinHeight, 26f, true);
+                    Error();
+                    StartButton(() => Submit(nameEntry.Value, codeEntry.Value, pinEntry.Value));
+                    BackButton();
+                    break;
+            }
+
+            Arrange(panelHeight);
+            SetError(message);
+            UpdateEntries();
+            if (nameEntry != null) nameEntry.Focus();
+            else if (pinEntry != null) pinEntry.Focus();
+        }
+
+        /// <summary>낱말 뒤의 "으로/로"(받침이 없거나 ㄹ 받침이면 "로").</summary>
+        static string WithParticle(string word)
+        {
+            if (string.IsNullOrEmpty(word)) return "(으)로";
+            char last = word[word.Length - 1];
+            if (last < '\uAC00' || last > '\uD7A3') return "(으)로";
+            int jong = (last - 0xAC00) % 28;
+            return jong == 0 || jong == 8 ? "로" : "으로";
+        }
+
+        void Fixed(GameObject go, float height)
+        {
+            Ui.Fixed(go, 0f, height);
+            panelHeight += height + Spacing;
+        }
+
+        void Prompt(string text)
+        {
+            var label = Ui.Label("Prompt", content, text, 28f, Ui.Muted, TextAlignmentOptions.Center);
+            Fixed(label.gameObject, PromptHeight + 8f);
+        }
+
+        void Error()
+        {
+            errorText = Ui.Label("Error", content, "", 22f, Ui.Bad, TextAlignmentOptions.Center, true);
+            Fixed(errorText.gameObject, ErrorHeight + 8f);
+        }
+
+        TextEntry Entry(string id, string placeholder, int maxLength, float height, float fontSize, bool password)
+        {
+            var entry = new TextEntry(id, content, placeholder, maxLength, height, fontSize, password, () => SetError(""));
+            panelHeight += height + Spacing;
+            return entry;
+        }
+
+        void BigButton(string name, string text, Color color, Action onClick)
+        {
+            var button = Ui.Button(name, content, text, onClick, 84f, 30f, color);
+            Fixed(button.gameObject, 84f);
+        }
+
+        void BackButton(Action onClick = null)
+        {
+            var button = Ui.Button("BackButton", content, "돌아가기", onClick ?? (() => Rebuild(Mode.Choose)), 60f, 24f, Ui.Cream);
+            Fixed(button.gameObject, 60f);
+        }
+
+        void StartButton(Action onClick)
         {
             Sprite sprite = ArtLibrary.Get(StartArt);
             if (sprite == null)
             {
-                Ui.Button("StartButton", parent, "시작", () => Submit(nameEntry.Value), StartFallbackHeight, 38f, Ui.Green);
+                var plain = Ui.Button("StartButton", content, "시작", onClick, StartFallbackHeight, 38f, Ui.Green);
+                Fixed(plain.gameObject, StartFallbackHeight);
                 return;
             }
-
             // '시작' 글자가 그림에 들어 있으므로 그림을 통째로 버튼으로 쓴다.
             startHeight = ContentWidth * sprite.rect.height / sprite.rect.width;
-            var button = Ui.ButtonBox("StartButton", parent, sprite, Color.white, () => Submit(nameEntry.Value));
+            var button = Ui.ButtonBox("StartButton", content, sprite, Color.white, onClick);
             var image = (Image)button.targetGraphic;
             image.type = Image.Type.Simple;
             image.preserveAspect = true;
-            Ui.Fixed(button.gameObject, 0f, startHeight);
+            Fixed(button.gameObject, startHeight);
+        }
+
+        void RecentGrid(List<string> names)
+        {
+            float cellWidth = (ContentWidth - RecentGap * (RecentColumns - 1)) / RecentColumns;
+            var grid = Ui.Grid("Recent", content, cellWidth, RecentHeight, RecentGap, RecentColumns);
+            foreach (string name in names)
+            {
+                string picked = name;
+                bool armed = removeArmed == name && Time.unscaledTime < removeArmedUntil;
+                var button = Ui.Button("Recent " + name, grid, name, () => PickSaved(picked), RecentHeight, 24f,
+                    armed ? Ui.Orange : Ui.Sand);
+                // 잘못 만든 이름은 × 를 두 번 눌러 이 컴퓨터에서 지운다.
+                var remove = Ui.Button("Forget " + name, button.transform, armed ? "지우기?" : "×", () => ForgetName(picked),
+                    38f, 18f, Ui.Red);
+                Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -5f, 2f, armed ? 86f : 40f, 38f);
+            }
+            int rows = (names.Count + RecentColumns - 1) / RecentColumns;
+            float height = rows * RecentHeight + (rows - 1) * RecentGap;
+            Fixed(grid.gameObject, height);
+        }
+
+        /// <summary>저장된 이름을 골랐다. 방에 들어가던 이름이면 비밀번호를 묻고, 혼자 하던 이름이면 바로 들어간다.</summary>
+        void PickSaved(string name)
+        {
+            if (busy) return;
+            selectedName = name;
+            if (string.IsNullOrEmpty(SaveFiles.RoomCodeOf(name)))
+            {
+                Submit(name, "", "");
+                return;
+            }
+            Rebuild(Mode.SavedPin);
         }
 
         void BuildTeacherButton(Transform root)
@@ -186,50 +313,29 @@ namespace ZooZooClub.Client
             Ui.Stretch(label.rectTransform, 0f, 0f, 0f, 0f);
         }
 
-        void Update()
+        void UpdateEntries()
         {
-            nameEntry.Update();
-            codeEntry.Update();
-            pinEntry.Update();
-            if (nameEntry.TakeSubmit() || codeEntry.TakeSubmit() || pinEntry.TakeSubmit()) Submit(nameEntry.Value);
+            if (nameEntry != null) nameEntry.Update();
+            if (codeEntry != null) codeEntry.Update();
+            if (pinEntry != null) pinEntry.Update();
         }
 
-        /// <summary>화면을 보여 준다. 하던 이름 목록을 새로 채우고 이름 칸을 비운다.</summary>
+        void Update()
+        {
+            UpdateEntries();
+            bool submit = (nameEntry != null && nameEntry.TakeSubmit()) | (codeEntry != null && codeEntry.TakeSubmit())
+                | (pinEntry != null && pinEntry.TakeSubmit());
+            if (!submit) return;
+            if (mode == Mode.Form) Submit(nameEntry.Value, codeEntry.Value, pinEntry.Value);
+            else if (mode == Mode.SavedPin) Submit(selectedName, "", pinEntry.Value);
+        }
+
+        /// <summary>화면을 보여 준다. 처음 고르는 화면부터 시작한다.</summary>
         public void Show()
         {
             gameObject.SetActive(true);
             busy = false;
-            nameEntry.Clear();
-            pinEntry.Clear();
-            SetError("");
-
-            Ui.Clear(recentGrid);
-            var names = SaveFiles.RecentNames(MaxRecentNames);
-            foreach (string name in names)
-            {
-                string picked = name;
-                bool armed = removeArmed == name && Time.unscaledTime < removeArmedUntil;
-                var button = Ui.Button("Recent " + name, recentGrid, name, () => Submit(picked), RecentHeight, 24f,
-                    armed ? Ui.Orange : Ui.Sand);
-                // 잘못 만든 이름은 × 를 두 번 눌러 이 컴퓨터에서 지운다.
-                var remove = Ui.Button("Forget " + name, button.transform, armed ? "지우기?" : "×", () => ForgetName(picked),
-                    38f, 18f, Ui.Red);
-                Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -5f, 2f, armed ? 86f : 40f, 38f);
-            }
-
-            bool any = names.Count > 0;
-            recentTitle.SetActive(any);
-            recentGrid.gameObject.SetActive(any);
-            int rows = (names.Count + RecentColumns - 1) / RecentColumns;
-
-            float height = PadTop + PromptHeight + InputHeight + CodeHeight + PinHeight + ErrorHeight + startHeight + Spacing * 5f + PadBottom;
-            if (any) height += Spacing * 2f + RecentTitleHeight + rows * RecentHeight + (rows - 1) * RecentGap;
-            Arrange(height);
-
-            nameEntry.Update();
-            codeEntry.Update();
-            pinEntry.Update();
-            nameEntry.Focus();
+            Rebuild(Mode.Choose);
         }
 
         /// <summary>로고와 창을 한 덩어리로 보고, 화면 위쪽과 동물들 머리 사이의 한가운데에 놓는다.</summary>
@@ -256,13 +362,11 @@ namespace ZooZooClub.Client
 
         public void Hide()
         {
-            nameEntry.Hide();
-            codeEntry.Hide();
-            pinEntry.Hide();
+            TextEntry.HideAll();
             gameObject.SetActive(false);
         }
 
-        void Submit(string name)
+        void Submit(string name, string codeText, string pinText)
         {
             if (onLogin == null || busy) return;
 
@@ -275,7 +379,6 @@ namespace ZooZooClub.Client
                 return;
             }
 
-            string codeText = codeEntry.Value;
             string code;
             bool remembered = false;
             if (string.IsNullOrWhiteSpace(codeText))
@@ -304,11 +407,11 @@ namespace ZooZooClub.Client
                 SetError("비밀번호를 여러 번 틀렸어요. " + Mathf.CeilToInt(pinLockedUntil - Time.unscaledTime) + "초 뒤에 다시 해 보세요.");
                 return;
             }
-            string pin = RoomLock.CleanPin(pinEntry.Value);
+            string pin = RoomLock.CleanPin(pinText);
             if (pin == null)
             {
                 SetError("방에 들어가려면 비밀번호 숫자 4자리를 적어 주세요.");
-                pinEntry.Focus();
+                if (pinEntry != null) pinEntry.Focus();
                 return;
             }
             string roomLock = RoomLock.For(code, PlayerName.Key(cleanName), pin);
@@ -374,13 +477,13 @@ namespace ZooZooClub.Client
             {
                 removeArmed = name;
                 removeArmedUntil = Time.unscaledTime + 4f;
-                Show();
+                Rebuild(Mode.Saved);
                 SetError("한 번 더 누르면 '" + name + "'을(를) 이 컴퓨터에서 지워요. 되돌릴 수 없어요.");
                 return;
             }
             removeArmed = null;
             bool removed = SaveFiles.DeleteProfile(name);
-            Show();
+            Rebuild(Mode.Saved);
             SetError(removed ? "'" + name + "'을(를) 이 컴퓨터에서 지웠어요." : "지우지 못했어요.");
         }
 
@@ -401,14 +504,16 @@ namespace ZooZooClub.Client
         {
             if (error == null) return;
             SetError(error);
-            if (gameObject.activeInHierarchy) nameEntry.Focus();
+            if (!gameObject.activeInHierarchy) return;
+            if (nameEntry != null) nameEntry.Focus();
+            else if (pinEntry != null) pinEntry.Focus();
         }
 
         void SetError(string text)
         {
             if (errorText == null) return;
             errorText.text = text;
-            errorText.color = text.EndsWith("중…") ? Ui.Muted : Ui.Bad;
+            errorText.color = text.EndsWith("중…") || text.StartsWith("'") && text.Contains("지웠어요") ? Ui.Muted : Ui.Bad;
         }
     }
 }

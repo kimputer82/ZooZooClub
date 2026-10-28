@@ -21,7 +21,7 @@ namespace ZooZooClub.Client
         const string TemplateFile = "quiz_template.xlsx";
         const int MaxSavedRooms = 8;
 
-        enum Step { Password, Rooms, Board, RoomPassword }
+        enum Step { Password, Rooms, Board, RoomPassword, Create, OpenCode, Saved }
 
         const int MinRoomPassword = 4;
         const int MaxRoomPassword = 20;
@@ -128,13 +128,17 @@ namespace ZooZooClub.Client
                 passwordEntry.Update();
                 if (passwordEntry.TakeSubmit()) EnterPassword();
             }
-            else if (step == Step.Rooms)
+            else if (step == Step.Create)
             {
                 roomNameEntry.Update();
                 roomPasswordEntry.Update();
-                openCodeEntry.Update();
                 if (roomNameEntry.TakeSubmit() || roomPasswordEntry.TakeSubmit()) CreateRoom();
-                if (openCodeEntry.TakeSubmit()) OpenByCode();
+            }
+            else if (step == Step.OpenCode)
+            {
+                openCodeEntry.Update();
+                roomPasswordEntry.Update();
+                if (openCodeEntry.TakeSubmit() || roomPasswordEntry.TakeSubmit()) OpenByCode();
             }
             else if (step == Step.RoomPassword)
             {
@@ -160,7 +164,8 @@ namespace ZooZooClub.Client
             TextEntry.HideAll();
             step = next;
             panel.sizeDelta = new Vector2(step == Step.Board ? 1300f : 1100f,
-                step == Step.Password ? 420f : step == Step.Rooms ? 940f : step == Step.RoomPassword ? 560f : 1000f);
+                step == Step.Password ? 420f : step == Step.Rooms ? 640f : step == Step.Create ? 600f
+                : step == Step.OpenCode ? 520f : step == Step.Saved ? 760f : step == Step.RoomPassword ? 560f : 1000f);
             Ui.Clear(content);
             passwordEntry = null;
             roomNameEntry = null;
@@ -177,6 +182,9 @@ namespace ZooZooClub.Client
                 case Step.Rooms: BuildRooms(); break;
                 case Step.Board: BuildBoard(); break;
                 case Step.RoomPassword: BuildRoomPassword(); break;
+                case Step.Create: BuildCreate(); break;
+                case Step.OpenCode: BuildOpenCode(); break;
+                case Step.Saved: BuildSaved(); break;
             }
         }
 
@@ -238,51 +246,83 @@ namespace ZooZooClub.Client
 
         void BuildRooms()
         {
-            Title("방 만들기");
-            Note("방 이름과 방 비밀번호를 적고 만들면 6자리 방 코드가 나와요. 학생들은 그 코드로 들어와요.");
-            roomNameEntry = new TextEntry("RoomName", content, "방 이름 (예: 6학년 3반)", 20, 70f, 28f, false, () => SetStatus("", true));
-            roomPasswordEntry = new TextEntry("RoomPassword", content, "방 비밀번호 (4자 이상, 문제 올리기·학생 관리에 써요)", MaxRoomPassword,
-                64f, 24f, true, () => SetStatus("", true));
+            Title("선생님");
+            Note("무엇을 할까요?");
+            Ui.Spacer(content, 0f, 8f);
+            MenuButton("MenuCreate", "방 만들기", Ui.Green, () => ShowStep(Step.Create));
+            MenuButton("MenuOpenCode", "방 코드로 들어가기", Ui.Blue, () => ShowStep(Step.OpenCode));
+            MenuButton("MenuSaved", "이 컴퓨터에 저장된 방", Ui.Sand, () => ShowStep(Step.Saved));
             Status();
+            Ui.Spacer(content, 0f, 1f);
+            var row = ButtonRow(70f);
+            Ui.Button("BackButton", row, "처음 화면으로", () => { if (onBack != null) onBack(); }, 70f, 24f, Ui.Cream);
+        }
+
+        void MenuButton(string name, string text, Color color, Action onClick)
+        {
+            var button = Ui.Button(name, content, text, onClick, 90f, 32f, color);
+            Ui.Fixed(button.gameObject, 0f, 90f);
+        }
+
+        void BackToMenuRow(string actionName, string actionText, Action action)
+        {
             var row = ButtonRow(76f);
-            Ui.Button("BackButton", row, "돌아가기", () => { if (onBack != null) onBack(); }, 76f, 26f, Ui.Sand);
-            Ui.Button("CreateButton", row, "방 만들기", CreateRoom, 76f, 26f, Ui.Green);
+            Ui.Button("BackButton", row, "돌아가기", () => ShowStep(Step.Rooms), 76f, 26f, Ui.Sand);
+            if (action != null) Ui.Button(actionName, row, actionText, action, 76f, 26f, Ui.Green);
+        }
 
-            var openLabel = Ui.Label("OpenTitle", content, "다른 컴퓨터에서 만든 방, 목록에 없는 방은 방 코드와 방 비밀번호로 열어요",
-                20f, Ui.Muted, TextAlignmentOptions.Center);
-            Ui.Fixed(openLabel.gameObject, 0f, 40f);
-            openLabel.alignment = TextAlignmentOptions.Bottom;
-            var openRow = Ui.Rect("OpenRow", content);
-            Ui.Fixed(openRow.gameObject, 0f, 64f);
-            var openGroup = Ui.Horizontal(openRow.gameObject, 12f, 0);
-            openGroup.childForceExpandWidth = true;
-            openCodeEntry = new TextEntry("OpenCode", openRow, "방 코드", 8, 64f, 24f, false, () => SetStatus("", true));
-            var openButton = Ui.Button("OpenByCode", openRow, "코드로 열기", OpenByCode, 64f, 24f, Ui.Blue);
-            Ui.Fixed(openButton.gameObject, 260f, 64f);
+        void BuildCreate()
+        {
+            Title("방 만들기");
+            Note("만들면 6자리 방 코드가 나와요. 학생들은 그 코드로 들어와요.");
+            roomNameEntry = new TextEntry("RoomName", content, "방 이름 (예: 6학년 3반)", 20, 76f, 28f, false, () => SetStatus("", true));
+            roomPasswordEntry = new TextEntry("RoomPassword", content, "방 비밀번호 (4자 이상)", MaxRoomPassword, 76f, 28f, true,
+                () => SetStatus("", true));
+            Note("방 비밀번호는 문제 올리기와 학생 관리에 써요. 다른 컴퓨터에서도 이 비밀번호로 방을 열어요.");
+            Status();
+            BackToMenuRow("CreateButton", "방 만들기", CreateRoom);
+            roomNameEntry.Update();
+            roomPasswordEntry.Update();
+            roomNameEntry.Focus();
+        }
 
+        void BuildOpenCode()
+        {
+            Title("방 코드로 들어가기");
+            Note("이미 만든 방의 방 코드와 방 비밀번호를 적어요.");
+            openCodeEntry = new TextEntry("OpenCode", content, "방 코드", 8, 76f, 28f, false, () => SetStatus("", true));
+            roomPasswordEntry = new TextEntry("RoomPassword", content, "방 비밀번호", MaxRoomPassword, 76f, 28f, true,
+                () => SetStatus("", true));
+            Status();
+            BackToMenuRow("OpenByCode", "들어가기", OpenByCode);
+            openCodeEntry.Update();
+            roomPasswordEntry.Update();
+            openCodeEntry.Focus();
+        }
+
+        void BuildSaved()
+        {
+            Title("이 컴퓨터에 저장된 방");
             var rooms = SavedRooms();
-            if (rooms.Count > 0)
+            if (rooms.Count == 0) Note("아직 이 컴퓨터에 저장된 방이 없어요.");
+            else
             {
-                var label = Ui.Label("SavedTitle", content, "이 컴퓨터에서 만든 방  (× 로 목록에서 지워요)", 22f, Ui.Muted, TextAlignmentOptions.Center);
-                Ui.Fixed(label.gameObject, 0f, 40f);
-                label.alignment = TextAlignmentOptions.Bottom;
-                var grid = Ui.Grid("Saved", content, 480f, 60f, 12f, 2);
+                Note("방을 누르면 들어가요. × 를 두 번 누르면 이 컴퓨터의 목록에서만 지워요.");
+                var grid = Ui.Grid("Saved", content, 480f, 64f, 12f, 2);
                 foreach (var pair in rooms)
                 {
                     string code = pair.Key;
                     bool armed = removeArmed == code && Time.unscaledTime < removeArmedUntil;
-                    var roomButton = Ui.Button("Room " + code, grid, code + "  ·  " + pair.Value, () => OpenBoard(code), 60f, 24f,
+                    var roomButton = Ui.Button("Room " + code, grid, code + "  ·  " + pair.Value, () => OpenBoard(code), 64f, 24f,
                         armed ? Ui.Orange : Ui.Sand);
                     var remove = Ui.Button("Remove " + code, roomButton.transform, armed ? "지우기?" : "×",
-                        () => RemoveSavedRoom(code), 44f, 20f, Ui.Red);
-                    Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -8f, 2f, armed ? 100f : 48f, 44f);
+                        () => RemoveSavedRoom(code), 46f, 20f, Ui.Red);
+                    Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -8f, 2f, armed ? 100f : 48f, 46f);
                 }
             }
+            Status();
             Ui.Spacer(content, 0f, 1f);
-            roomNameEntry.Update();
-            roomPasswordEntry.Update();
-            openCodeEntry.Update();
-            roomNameEntry.Focus();
+            BackToMenuRow(null, null, null);
         }
 
         /// <summary>이 컴퓨터의 방 목록에서 지운다(서버의 방은 그대로). 4초 안에 한 번 더 눌러야 지운다.</summary>
@@ -292,7 +332,7 @@ namespace ZooZooClub.Client
             {
                 removeArmed = code;
                 removeArmedUntil = Time.unscaledTime + 4f;
-                ShowStep(Step.Rooms);
+                ShowStep(Step.Saved);
                 SetStatus("한 번 더 누르면 방 " + code + "을(를) 이 컴퓨터의 목록에서 지워요. 다시 열려면 방 코드와 방 비밀번호가 필요해요.", true);
                 return;
             }
@@ -301,7 +341,7 @@ namespace ZooZooClub.Client
             list.RemoveAll(pair => pair.Key == code);
             WriteRooms(list);
             ForgetKey(code);
-            ShowStep(Step.Rooms);
+            ShowStep(Step.Saved);
             SetStatus("방 " + code + "을(를) 목록에서 지웠어요.", false);
         }
 
@@ -332,7 +372,7 @@ namespace ZooZooClub.Client
             SetStatus("방을 만드는 중…", false);
             Online.OpenRoom(code, name, teacherKey, roomKey, error =>
             {
-                if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                if (!gameObject.activeInHierarchy || step != Step.Create) return;
                 if (error != null)
                 {
                     SetStatus(error, true);
@@ -352,21 +392,21 @@ namespace ZooZooClub.Client
             if (code == null) { SetStatus("방 코드는 영문과 숫자 4~8자예요.", true); openCodeEntry.Focus(); return; }
             string pwError;
             string password = ReadRoomPassword(roomPasswordEntry, out pwError);
-            if (password == null) { SetStatus(pwError + " (위의 방 비밀번호 칸)", true); roomPasswordEntry.Focus(); return; }
+            if (password == null) { SetStatus(pwError + "", true); roomPasswordEntry.Focus(); return; }
             string roomKey = RoomKeyFrom(code, password);
             SetStatus("방을 확인하는 중…", false);
             Online.FetchRoom(code, (room, roomError) =>
             {
-                if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                if (!gameObject.activeInHierarchy || step != Step.OpenCode) return;
                 if (room == null) { SetStatus(roomError ?? "그런 방이 없어요.", true); return; }
                 Online.VerifyRoomKey(code, teacherKey, roomKey, error =>
                 {
-                    if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                    if (!gameObject.activeInHierarchy || step != Step.OpenCode) return;
                     if (error == null) { Opened(code, roomKey, room.name); return; }
                     // 방 관리 키가 아직 없는 예전 방이면 이 비밀번호로 처음 정한다.
                     Online.ClaimRoom(code, teacherKey, roomKey, claimError =>
                     {
-                        if (!gameObject.activeInHierarchy || step != Step.Rooms) return;
+                        if (!gameObject.activeInHierarchy || step != Step.OpenCode) return;
                         if (claimError != null) { SetStatus("선생님 비밀번호나 방 비밀번호가 맞지 않아요.", true); return; }
                         Opened(code, roomKey, room.name);
                     });

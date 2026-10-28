@@ -49,7 +49,11 @@ mergeInto(LibraryManager.library, {
     input.style.top = (rect.top + rect.height * top) + "px";
     input.style.width = (rect.width * width) + "px";
     input.style.height = ph + "px";
-    input.style.fontSize = Math.max(12, ph * 0.42) + "px";
+    // 안내 글이 칸보다 길면 글자 크기를 줄여 한 줄에 다 보이게 한다(한글은 대략 글자 하나가 1em).
+    var pw = rect.width * width - 24;
+    var placeholderLen = Math.max(1, input.placeholder.length);
+    var fit = pw / (placeholderLen * 0.92);
+    input.style.fontSize = Math.max(12, Math.min(ph * 0.42, fit)) + "px";
     input.style.display = "block";
   },
 
