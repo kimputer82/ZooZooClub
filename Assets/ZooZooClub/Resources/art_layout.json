@@ -28,8 +28,6 @@
     {"id": "resident_penguin_back", "width": 0.397, "lift": 0, "offsetX": 0},
     {"id": "resident_sheep", "width": 0.559, "lift": 0, "offsetX": 0},
     {"id": "resident_sheep_back", "width": 0.446, "lift": 0, "offsetX": 0},
-    {"id": "resident_otter", "width": 0.612, "lift": 0, "offsetX": 0},
-    {"id": "resident_otter_back", "width": 0.569, "lift": 0, "offsetX": 0},
     {"id": "resident_lion", "width": 0.523, "lift": 0, "offsetX": 0},
     {"id": "resident_lion_back", "width": 0.438, "lift": 0, "offsetX": 0},
     {"id": "resident_goat", "width": 0.549, "lift": 0, "offsetX": 0},

@@ -102,7 +102,6 @@
   "visitors": [
     { "id": "penguin", "displayName": "펭이", "species": "펭귄", "unlockLevel": 1 },
     { "id": "sheep", "displayName": "몽실", "species": "양", "unlockLevel": 1 },
-    { "id": "otter", "displayName": "달이", "species": "수달", "unlockLevel": 1 },
     { "id": "lion", "displayName": "사순이", "species": "사자", "unlockLevel": 1 },
     { "id": "goat", "displayName": "흑순이", "species": "염소", "unlockLevel": 1 }
   ],
