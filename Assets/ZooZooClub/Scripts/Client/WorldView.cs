@@ -67,7 +67,22 @@ namespace ZooZooClub.Client
             public bool working;
             public float waitUntil;
             public float phase;
+            // 방문객: 가끔 마을에 들렀다가 떠난다. present가 아니면 보이지 않고 returnAt에 다시 온다.
+            public bool isVisitor;
+            public bool present = true;
+            public float leaveAt;
+            public float returnAt;
+            public float fade = 1f;
+            public TextMeshPro label;
         }
+
+        // 방문객이 마을에 머무는 시간과, 떠난 뒤 다시 올 때까지의 시간(초), 한꺼번에 머무는 최대 수.
+        const float VisitorStayMin = 35f;
+        const float VisitorStayMax = 80f;
+        const float VisitorAwayMin = 20f;
+        const float VisitorAwayMax = 90f;
+        const int MaxVisitorsAtOnce = 3;
+        const float VisitorFadeSeconds = 0.8f;
 
         const float DragThresholdPixels = 10f;
         const float MinZoom = 2f;
@@ -1096,7 +1111,12 @@ namespace ZooZooClub.Client
         {
             // 주민과 방문객은 똑같이 마을을 돌아다닌다(방문객은 일하러 가지 않는다).
             var walkers = game.UnlockedResidents();
-            walkers.AddRange(game.ArrivedVisitors());
+            var visitorIds = new HashSet<string>();
+            foreach (var visitor in game.ArrivedVisitors())
+            {
+                walkers.Add(visitor);
+                visitorIds.Add(visitor.id);
+            }
             foreach (var def in walkers)
             {
                 if (residents.ContainsKey(def.id)) continue;
@@ -1128,6 +1148,16 @@ namespace ZooZooClub.Client
 
                 var label = NewLabel(view.root.transform, new Vector3(0f, view.front.top + 0.1f, 0f), 1.15f);
                 label.text = def.displayName;
+                view.label = label;
+                if (visitorIds.Contains(def.id))
+                {
+                    // 방문객은 처음부터 다 와 있지 않고, 조금씩 시차를 두고 들른다.
+                    view.isVisitor = true;
+                    view.present = false;
+                    view.fade = 0f;
+                    view.returnAt = Time.unscaledTime + UnityEngine.Random.Range(2f, 40f);
+                    view.root.SetActive(false);
+                }
 
                 Vector2 start;
                 if (!TryPickFreeCell(out start)) start = new Vector2(0.5f, 0.5f);
@@ -1246,6 +1276,53 @@ namespace ZooZooClub.Client
         /// 주민이 지금 목표 지점에 서 있을 때 다음에 갈 곳을 정한다. 새 목표가 생기면 true.
         /// 물체가 놓인 칸은 피해서, 칸에서 이웃 칸으로만 걷는다.
         /// </summary>
+        /// <summary>
+        /// 방문객이 오고 가는 것을 처리한다. 마을에 없으면 false(이번 프레임은 걷지 않는다).
+        /// 올 때는 빈칸에 서서히 나타나고, 머무는 시간이 지나면 서서히 사라진다.
+        /// </summary>
+        bool UpdateVisitorPresence(ResidentView view, float now, float deltaTime, ref int visitorsHere)
+        {
+            if (!view.present)
+            {
+                if (now < view.returnAt) return false;
+                Vector2 start;
+                if (visitorsHere >= MaxVisitorsAtOnce || !TryPickFreeCell(out start))
+                {
+                    view.returnAt = now + UnityEngine.Random.Range(5f, 15f);
+                    return false;
+                }
+                view.present = true;
+                visitorsHere++;
+                view.fade = 0f;
+                view.cell = start;
+                view.target = start;
+                view.path.Clear();
+                view.pathIndex = 0;
+                view.waitUntil = now + UnityEngine.Random.Range(0.5f, 1.5f);
+                view.leaveAt = now + UnityEngine.Random.Range(VisitorStayMin, VisitorStayMax);
+                view.root.SetActive(true);
+            }
+
+            bool leaving = now >= view.leaveAt;
+            view.fade = Mathf.Clamp01(view.fade + (leaving ? -1f : 1f) * deltaTime / VisitorFadeSeconds);
+            if (view.body != null)
+            {
+                var c = view.body.color;
+                view.body.color = new Color(c.r, c.g, c.b, view.fade);
+            }
+            if (view.label != null) view.label.alpha = view.fade;
+
+            if (leaving && view.fade <= 0f)
+            {
+                view.present = false;
+                visitorsHere--;
+                view.root.SetActive(false);
+                view.returnAt = now + UnityEngine.Random.Range(VisitorAwayMin, VisitorAwayMax);
+                return false;
+            }
+            return true;
+        }
+
         bool ChooseNextTarget(ResidentView view, float now)
         {
             int hereX = Mathf.FloorToInt(view.cell.x);
@@ -1325,8 +1402,16 @@ namespace ZooZooClub.Client
             float now = Time.unscaledTime;
             if (blockedCells == null) RebuildBlockedCells();
 
+            int visitorsHere = 0;
+            foreach (var other in residents.Values)
+            {
+                if (other.isVisitor && other.present) visitorsHere++;
+            }
+
             foreach (var view in residents.Values)
             {
+                if (view.isVisitor && !UpdateVisitorPresence(view, now, deltaTime, ref visitorsHere)) continue;
+
                 // 시설에 배치된 주민은 건물 안에서 일하는 것으로 보고 마을에서는 보이지 않게 한다.
                 // 누가 어디서 일하는지는 화면 왼쪽의 "일하는 중" 구역에 나온다. 나머지는 빈 땅을 산책한다.
                 int assigned = game.AssignedObjectOf(view.def.id);
