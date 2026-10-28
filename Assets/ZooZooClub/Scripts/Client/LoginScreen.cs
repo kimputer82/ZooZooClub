@@ -53,6 +53,13 @@ namespace ZooZooClub.Client
         RectTransform panel;
         TextEntry nameEntry;
         TextEntry codeEntry;
+        TextEntry pinEntry;
+        const float PinHeight = 64f;
+        // 비밀번호를 여러 번 틀리면 잠시 막는다(아무 숫자나 계속 넣어 보지 못하게).
+        const int MaxWrongPins = 5;
+        const float WrongPinLockSeconds = 60f;
+        int wrongPins;
+        float pinLockedUntil;
         TextMeshProUGUI errorText;
         GameObject recentTitle;
         RectTransform recentGrid;
@@ -134,6 +141,7 @@ namespace ZooZooClub.Client
 
             nameEntry = new TextEntry("Name", content, "여기에 이름", PlayerName.MaxLength, InputHeight, 38f, false, () => SetError(""));
             codeEntry = new TextEntry("Code", content, "방 코드 (처음 한 번만 적으면 다음엔 자동으로 들어가요)", 8, CodeHeight, 24f, false, () => SetError(""));
+            pinEntry = new TextEntry("Pin", content, "비밀번호 숫자 4자리 (방에 들어갈 때)", RoomLock.PinLength, PinHeight, 24f, true, () => SetError(""));
 
             errorText = Ui.Label("Error", content, "", 24f, Ui.Bad, TextAlignmentOptions.Center, true);
             Ui.Fixed(errorText.gameObject, 0f, ErrorHeight);
@@ -182,7 +190,8 @@ namespace ZooZooClub.Client
         {
             nameEntry.Update();
             codeEntry.Update();
-            if (nameEntry.TakeSubmit() || codeEntry.TakeSubmit()) Submit(nameEntry.Value);
+            pinEntry.Update();
+            if (nameEntry.TakeSubmit() || codeEntry.TakeSubmit() || pinEntry.TakeSubmit()) Submit(nameEntry.Value);
         }
 
         /// <summary>화면을 보여 준다. 하던 이름 목록을 새로 채우고 이름 칸을 비운다.</summary>
@@ -191,6 +200,7 @@ namespace ZooZooClub.Client
             gameObject.SetActive(true);
             busy = false;
             nameEntry.Clear();
+            pinEntry.Clear();
             SetError("");
 
             Ui.Clear(recentGrid);
@@ -206,12 +216,13 @@ namespace ZooZooClub.Client
             recentGrid.gameObject.SetActive(any);
             int rows = (names.Count + RecentColumns - 1) / RecentColumns;
 
-            float height = PadTop + PromptHeight + InputHeight + CodeHeight + ErrorHeight + startHeight + Spacing * 4f + PadBottom;
+            float height = PadTop + PromptHeight + InputHeight + CodeHeight + PinHeight + ErrorHeight + startHeight + Spacing * 5f + PadBottom;
             if (any) height += Spacing * 2f + RecentTitleHeight + rows * RecentHeight + (rows - 1) * RecentGap;
             Arrange(height);
 
             nameEntry.Update();
             codeEntry.Update();
+            pinEntry.Update();
             nameEntry.Focus();
         }
 
@@ -241,6 +252,7 @@ namespace ZooZooClub.Client
         {
             nameEntry.Hide();
             codeEntry.Hide();
+            pinEntry.Hide();
             gameObject.SetActive(false);
         }
 
@@ -281,6 +293,20 @@ namespace ZooZooClub.Client
                 }
             }
 
+            if (Time.unscaledTime < pinLockedUntil)
+            {
+                SetError("비밀번호를 여러 번 틀렸어요. " + Mathf.CeilToInt(pinLockedUntil - Time.unscaledTime) + "초 뒤에 다시 해 보세요.");
+                return;
+            }
+            string pin = RoomLock.CleanPin(pinEntry.Value);
+            if (pin == null)
+            {
+                SetError("방에 들어가려면 비밀번호 숫자 4자리를 적어 주세요.");
+                pinEntry.Focus();
+                return;
+            }
+            string roomLock = RoomLock.For(code, PlayerName.Key(cleanName), pin);
+
             busy = true;
             SetError("방을 확인하는 중…");
             Online.CheckRoom(code, (room, error) =>
@@ -291,6 +317,9 @@ namespace ZooZooClub.Client
                     busy = false;
                     if (!remembered) { Finish(error); return; }
                     // 전에 들어갔던 방이 닫혔거나 서버가 안 되면 혼자 하기로 들어간다(방 코드는 기억해 둔다).
+                    // 이때도 이 컴퓨터에 적힌 비밀번호와 맞아야 들어간다.
+                    string localLock = GameSession.LocalLockOf(cleanName);
+                    if (localLock.Length > 0 && localLock != roomLock) { WrongPin(); return; }
                     var session = GameSession.Instance;
                     if (session != null) session.LoginNotice = "방 " + code + "에 들어가지 못해 혼자 하기로 들어왔어요. (" + error + ")";
                     Finish(onLogin(cleanName, "", null));
@@ -298,10 +327,20 @@ namespace ZooZooClub.Client
                 }
                 SetError("저장을 불러오는 중…");
                 // 서버에 이 이름의 저장이 있으면 가져와서, 이 컴퓨터의 저장과 견주어 더 새것을 쓴다.
-                Online.FetchSave(code, cleanName, (json, saveError) =>
+                Online.FetchSave(code, cleanName, roomLock, (lookup, json, saveError) =>
                 {
                     if (!gameObject.activeInHierarchy) { busy = false; return; }
-                    if (saveError != null) { busy = false; Finish(saveError); return; }
+                    if (lookup == Online.SaveLookup.Error) { busy = false; Finish(saveError); return; }
+                    if (lookup == Online.SaveLookup.WrongPin) { busy = false; WrongPin(); return; }
+                    wrongPins = 0;
+                    var me = GameSession.Instance;
+                    if (me != null)
+                    {
+                        me.PendingLock = roomLock;
+                        me.PendingClaim = lookup != Online.SaveLookup.Found;
+                        if (lookup != Online.SaveLookup.Found)
+                            me.LoginNotice = "비밀번호를 정했어요. 다음부터 이 비밀번호로 들어와요. 잊지 마세요!";
+                    }
                     // 선생님이 이 방에 올린 문제가 있으면 받아 둔다. 받지 못하면 기본 문제로 한다.
                     Online.FetchRoomQuiz(code, (quizJson, quizError) =>
                     {
@@ -313,6 +352,19 @@ namespace ZooZooClub.Client
                     });
                 });
             });
+        }
+
+        void WrongPin()
+        {
+            wrongPins++;
+            if (wrongPins >= MaxWrongPins)
+            {
+                wrongPins = 0;
+                pinLockedUntil = Time.unscaledTime + WrongPinLockSeconds;
+                Finish("비밀번호를 여러 번 틀렸어요. 1분 뒤에 다시 해 보세요.");
+                return;
+            }
+            Finish("비밀번호가 맞지 않아요. 잊었으면 선생님께 비밀번호 초기화를 부탁하세요.");
         }
 
         void Finish(string error)

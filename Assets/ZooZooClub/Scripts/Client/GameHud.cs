@@ -2001,7 +2001,7 @@ namespace ZooZooClub.Client
             Sound.Play(Sound.Click);
             visitFetching = true;
             Toast(friend + "의 마을로 가는 중…");
-            Online.FetchSave(ActiveRoom, friend, (json, error) =>
+            Online.FetchVisit(ActiveRoom, friend, (json, error) =>
             {
                 visitFetching = false;
                 if (this == null) return;

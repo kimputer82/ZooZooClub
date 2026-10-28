@@ -7,9 +7,14 @@
     "saves": {
       "$code": {
         "$player": {
-          ".read": true,
-          ".write": "root.child('rooms').child($code).child('public').child('open').val() === true",
-          ".validate": "newData.isString() && newData.val().length < 300000"
+          ".read": "!data.exists() || data.isString()",
+          ".write": "newData.parent().parent().parent().child('rooms').child($code).child('owner').child('stamp').val() !== root.child('rooms').child($code).child('owner').child('stamp').val() && newData.parent().parent().parent().child('rooms').child($code).child('owner').child('key').val() === root.child('secret').child('teacher').val() && root.child('rooms').child($code).child('owner').child('roomKey').exists() && newData.parent().parent().parent().child('rooms').child($code).child('owner').child('proof').val() === root.child('rooms').child($code).child('owner').child('roomKey').val()",
+          ".validate": "!newData.isString() || newData.val().length < 300000",
+          "$lock": {
+            ".read": true,
+            ".write": "root.child('rooms').child($code).child('public').child('open').val() === true && (data.exists() || !data.parent().exists() || data.parent().isString())",
+            ".validate": "newData.isString() && newData.val().length < 300000"
+          }
         }
       }
     },
@@ -28,7 +33,7 @@
           ".read": true,
           ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val()",
           "$player": {
-            ".write": "root.child('rooms').child($code).child('public').child('open').val() === true",
+            ".write": "root.child('rooms').child($code).child('public').child('open').val() === true && newData.parent().parent().child('proof').child($player).child('stamp').val() !== data.parent().parent().child('proof').child($player).child('stamp').val()",
             ".validate": "newData.hasChildren(['name', 'level', 'updatedAt']) && newData.child('name').isString() && newData.child('name').val().length <= 20 && newData.child('level').isNumber() && newData.child('level').val() <= 100 && newData.child('xp').isNumber() && newData.child('quizSolved').isNumber()"
           }
         },
@@ -36,6 +41,21 @@
           ".read": true,
           ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val() && data.parent().child('owner').child('roomKey').exists() && newData.parent().child('owner').child('proof').val() === data.parent().child('owner').child('roomKey').val()",
           ".validate": "newData.isString() && newData.val().length < 1000000"
+        },
+        "visits": {
+          ".read": true,
+          ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val()",
+          "$player": {
+            ".write": "root.child('rooms').child($code).child('public').child('open').val() === true && newData.parent().parent().child('proof').child($player).child('stamp').val() !== data.parent().parent().child('proof').child($player).child('stamp').val()",
+            ".validate": "newData.isString() && newData.val().length < 300000"
+          }
+        },
+        "proof": {
+          ".read": false,
+          ".write": "newData.parent().child('owner').child('stamp').val() !== data.parent().child('owner').child('stamp').val() && newData.parent().child('owner').child('key').val() === root.child('secret').child('teacher').val()",
+          "$player": {
+            ".write": "root.child('rooms').child($code).child('public').child('open').val() === true && root.child('saves').child($code).child($player).child(newData.child('lock').val()).exists() && newData.child('stamp').isNumber() && (!data.exists() || newData.child('stamp').val() > data.child('stamp').val())"
+          }
         }
       }
     }

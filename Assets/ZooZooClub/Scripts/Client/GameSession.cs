@@ -153,6 +153,22 @@ namespace ZooZooClub.Client
         /// </summary>
         public string PendingRoomQuiz { get; set; }
 
+        /// <summary>들어가려는 방에서 쓸 저장 열쇠(비밀번호로 만든 값). 로그인 화면이 정해 두고 Login이 가져간다.</summary>
+        public string PendingLock { get; set; }
+
+        /// <summary>이번에 이 비밀번호로 이름을 처음 잠그는가(새 이름이거나 예전 저장). 그러면 들어가자마자 서버에 올린다.</summary>
+        public bool PendingClaim { get; set; }
+
+        /// <summary>이번 접속의 저장 열쇠. 방에 들어오지 않았으면 빈 문자열.</summary>
+        public string CurrentLock { get; private set; }
+
+        /// <summary>이 컴퓨터에 있는 그 이름의 저장에 적힌 열쇠(없으면 빈 문자열). 서버가 안 될 때 비밀번호 확인에 쓴다.</summary>
+        public static string LocalLockOf(string name)
+        {
+            var state = LoadState(SaveFiles.PathFor(name));
+            return state != null ? state.roomLock ?? "" : "";
+        }
+
         /// <summary>이번 접속에서 실제로 연결된 방 코드. 빈 문자열이면 혼자 하는 중(저장에 적힌 방은 기억만 한다).</summary>
         public string ActiveRoom { get; private set; }
 
@@ -217,6 +233,12 @@ namespace ZooZooClub.Client
             ActiveRoom = roomCode ?? "";
             bool roomChanged = ActiveRoom.Length > 0 && state.roomCode != ActiveRoom;
             if (ActiveRoom.Length > 0) state.roomCode = ActiveRoom;
+            CurrentLock = ActiveRoom.Length > 0 ? PendingLock ?? "" : "";
+            bool claim = ActiveRoom.Length > 0 && PendingClaim;
+            bool lockChanged = ActiveRoom.Length > 0 && state.roomLock != CurrentLock;
+            if (ActiveRoom.Length > 0) state.roomLock = CurrentLock;
+            PendingLock = null;
+            PendingClaim = false;
 
             // 방에 선생님이 올린 문제가 있으면 그 문제로, 아니면 기본 문제로 푼다.
             QuizBank roomQuiz = ActiveRoom.Length > 0 ? ParseRoomQuiz(PendingRoomQuiz) : null;
@@ -259,7 +281,9 @@ namespace ZooZooClub.Client
             }
 
             // 새 마을이나 이어받은 마을은 바로 한 번 저장해서, 다음에 이름 목록에 나오게 한다.
-            if (isNew || adopted || roomChanged || fromCloud) Save();
+            if (isNew || adopted || roomChanged || fromCloud || claim || lockChanged) Save();
+            // 이 비밀번호로 이름을 처음 잠글 때는 서버에 바로 올려서, 다른 사람이 그 이름을 먼저 차지하지 못하게 한다.
+            if (claim) cloudAt = 0f;
 
             Debug.Log("[Zoo] started. player=" + state.playerName + (isNew ? " (new)" : adopted ? " (adopted)" : "")
                 + (ActiveRoom.Length > 0 ? " room=" + ActiveRoom : "") + (fromCloud ? " (cloud)" : "")
@@ -353,6 +377,7 @@ namespace ZooZooClub.Client
             Game = null;
             SavePath = null;
             ActiveRoom = "";
+            CurrentLock = "";
             dirty = false;
 
             login.Show();
@@ -471,7 +496,7 @@ namespace ZooZooClub.Client
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(name)) { cloudPending = null; return; }
             cloudPending = null;
             cloudUploading = true;
-            Online.PutSave(code, name, json, error =>
+            Online.PutSave(code, name, CurrentLock, json, error =>
             {
                 cloudUploading = false;
                 if (error != null)

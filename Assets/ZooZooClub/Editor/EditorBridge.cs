@@ -306,13 +306,15 @@ namespace ZooZooClub.EditorTools
             if (!EditorApplication.isPlaying) { WriteOut(id + " login: skipped, not playing"); return; }
             var session = GameSession.Instance;
             if (session == null) { WriteOut(id + " login: no session"); return; }
-            // "이름|방코드" 꼴이면 그 방으로 들어간다(방이 있는지는 확인하지 않고, 서버 저장은 가져온다).
+            // "이름|방코드|비밀번호" 꼴이면 그 방으로 들어간다(비밀번호를 빼면 0000).
             string code = "";
-            int bar = name.IndexOf('|');
-            if (bar >= 0)
+            string pin = "0000";
+            var bits = name.Split('|');
+            if (bits.Length >= 2)
             {
-                code = ZooZooClub.Core.RoomCode.Normalize(name.Substring(bar + 1)) ?? "";
-                name = name.Substring(0, bar);
+                code = ZooZooClub.Core.RoomCode.Normalize(bits[1]) ?? "";
+                if (bits.Length >= 3) pin = bits[2];
+                name = bits[0];
             }
             string cleanName = name;
             if (code.Length == 0)
@@ -321,12 +323,16 @@ namespace ZooZooClub.EditorTools
                 WriteOut(id + " login: " + (error ?? ("ok, save=" + Path.GetFileName(session.SavePath))));
                 return;
             }
-            Online.FetchSave(code, cleanName, (json, fetchError) =>
+            string roomLock = ZooZooClub.Core.RoomLock.For(code, ZooZooClub.Core.PlayerName.Key(cleanName), pin);
+            Online.FetchSave(code, cleanName, roomLock, (lookup, json, fetchError) =>
             {
-                if (fetchError != null) { WriteOut(id + " login: " + fetchError); return; }
+                if (lookup == Online.SaveLookup.Error) { WriteOut(id + " login: " + fetchError); return; }
+                if (lookup == Online.SaveLookup.WrongPin) { WriteOut(id + " login: wrong pin"); return; }
+                session.PendingLock = roomLock;
+                session.PendingClaim = lookup != Online.SaveLookup.Found;
                 string error = session.Login(cleanName, code, json);
                 WriteOut(id + " login: " + (error ?? ("ok, save=" + Path.GetFileName(session.SavePath) + " room=" + code
-                    + (json != null ? " cloud=" + json.Length + "B" : " cloud=none"))));
+                    + " lookup=" + lookup + (json != null ? " cloud=" + json.Length + "B" : " cloud=none"))));
             });
         }
 

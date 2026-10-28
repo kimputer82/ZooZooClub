@@ -138,7 +138,8 @@ namespace ZooZooClub.Client
         {
             TextEntry.HideAll();
             step = next;
-            panel.sizeDelta = new Vector2(1100f, step == Step.Password ? 420f : step == Step.Rooms ? 760f : 1000f);
+            panel.sizeDelta = new Vector2(step == Step.Board ? 1300f : 1100f,
+                step == Step.Password ? 420f : step == Step.Rooms ? 760f : 1000f);
             Ui.Clear(content);
             passwordEntry = null;
             roomNameEntry = null;
@@ -344,6 +345,7 @@ namespace ZooZooClub.Client
             boardTitle.text = (boardRoom != null && boardRoom.name.Length > 0 ? boardRoom.name + "   " : "") + "방 코드  " + boardCode;
             bool open = boardRoom == null || boardRoom.open;
             int quizCount = boardRoom != null ? boardRoom.quizCount : 0;
+            if (Time.unscaledTime >= boardStatusHoldUntil)
             boardStatus.text = (open ? "열린 방" : "닫힌 방") + "  ·  " + boardEntries.Count + "명  ·  "
                 + (quizCount > 0 ? "올린 문제 " + quizCount + "개" : "기본 문제") + "  ·  "
                 + DateTime.Now.ToString("HH:mm:ss") + " 기준 (" + Online.BoardRefreshSeconds + "초마다 새로고침)";
@@ -368,18 +370,93 @@ namespace ZooZooClub.Client
                     TextAlignmentOptions.Center, true);
                 Ui.Put(place.rectTransform, 0f, 0.5f, 10f, 0f, 110f, 50f);
                 var name = Ui.Label("Name", rowBox.transform, entry.name, 30f, Ui.Ink, TextAlignmentOptions.Left, true);
-                Ui.Put(name.rectTransform, 0f, 0.5f, 130f, 0f, 440f, 50f);
+                Ui.Put(name.rectTransform, 0f, 0.5f, 130f, 0f, 290f, 50f);
                 string main = boardKind == RankKind.Charm ? "매력 " + entry.charm
                     : boardKind == RankKind.Quiz ? "문제 " + entry.quizSolved + "개" : "Lv " + entry.level;
                 string rest = boardKind == RankKind.Charm ? "Lv " + entry.level + "  ·  문제 " + entry.quizSolved + "개"
                     : boardKind == RankKind.Quiz ? "Lv " + entry.level + "  ·  매력 " + entry.charm
                     : "매력 " + entry.charm + "  ·  문제 " + entry.quizSolved + "개";
                 var level = Ui.Label("Level", rowBox.transform, main, 30f, Ui.Good, TextAlignmentOptions.Center, true);
-                Ui.Put(level.rectTransform, 1f, 0.5f, -310f, 0f, 200f, 50f);
-                var detail = Ui.Label("Detail", rowBox.transform, rest, 22f, Ui.Muted, TextAlignmentOptions.Right);
-                Ui.Put(detail.rectTransform, 1f, 0.5f, -20f, 0f, 280f, 50f);
+                Ui.Put(level.rectTransform, 1f, 0.5f, -590f, 0f, 170f, 50f);
+                var detail = Ui.Label("Detail", rowBox.transform, rest, 20f, Ui.Muted, TextAlignmentOptions.Right);
+                Ui.Put(detail.rectTransform, 1f, 0.5f, -300f, 0f, 280f, 50f);
+
+                // 학생 관리: 비밀번호를 잊은 학생은 초기화, 잘못 만든 이름은 삭제(둘 다 한 번 더 눌러야 실행).
+                string student = entry.name;
+                var reset = Ui.Button("ResetPin " + i, rowBox.transform, Armed(student, false) ? "정말 초기화?" : "비번 초기화",
+                    () => StudentAction(student, false), 44f, 20f, Armed(student, false) ? Ui.Orange : Ui.Sand);
+                Ui.Put((RectTransform)reset.transform, 1f, 0.5f, -150f, 0f, 140f, 44f);
+                var remove = Ui.Button("Delete " + i, rowBox.transform, Armed(student, true) ? "정말 삭제?" : "삭제",
+                    () => StudentAction(student, true), 44f, 20f, Ui.Red);
+                Ui.Put((RectTransform)remove.transform, 1f, 0.5f, -10f, 0f, 130f, 44f);
             }
         }
+
+        // ---------- 학생 관리 ----------
+
+        string armedStudent;
+        bool armedDelete;
+        float armedUntil;
+        bool studentBusy;
+
+        bool Armed(string student, bool delete)
+        {
+            return armedStudent == student && armedDelete == delete && Time.unscaledTime < armedUntil;
+        }
+
+        /// <summary>
+        /// 학생 한 명의 비밀번호를 초기화하거나 지운다. 실수로 누르지 않도록 4초 안에 한 번 더 눌러야 실행한다.
+        /// 방을 만든 이 컴퓨터(방 관리 키)에서만 된다.
+        /// </summary>
+        void StudentAction(string student, bool delete)
+        {
+            if (studentBusy) return;
+            if (!Armed(student, delete))
+            {
+                armedStudent = student;
+                armedDelete = delete;
+                armedUntil = Time.unscaledTime + 4f;
+                boardStatus.text = delete
+                    ? "한 번 더 누르면 '" + student + "'의 마을과 기록을 모두 지워요. 되돌릴 수 없어요."
+                    : "한 번 더 누르면 '" + student + "'의 비밀번호를 지워요. 다음에 들어올 때 새로 정해요.";
+                RenderRowsSoon();
+                return;
+            }
+            armedStudent = null;
+            studentBusy = true;
+            string code = boardCode;
+            boardStatus.text = delete ? "'" + student + "' 지우는 중…" : "'" + student + "' 비밀번호 초기화 중…";
+            WithRoomKey(code, (roomKey, keyError) =>
+            {
+                if (keyError != null) { studentBusy = false; ShowStudentResult(code, keyError); return; }
+                Action<string> done = error =>
+                {
+                    studentBusy = false;
+                    ShowStudentResult(code, error ?? (delete
+                        ? "'" + student + "'을(를) 지웠어요."
+                        : "'" + student + "'의 비밀번호를 지웠어요. 학생이 다음에 들어올 때 새 비밀번호를 정하면 마을을 이어서 해요."));
+                    nextBoardRefresh = 0f;
+                };
+                if (delete) Online.DeleteStudent(code, student, teacherKey, roomKey, done);
+                else Online.ResetStudentPin(code, student, teacherKey, roomKey, done);
+            });
+        }
+
+        void RenderRowsSoon()
+        {
+            string keep = boardStatus.text;
+            RenderBoard();
+            boardStatus.text = keep;
+        }
+
+        void ShowStudentResult(string code, string text)
+        {
+            if (!gameObject.activeInHierarchy || step != Step.Board || boardCode != code) return;
+            boardStatus.text = text;
+            boardStatusHoldUntil = Time.unscaledTime + 6f;
+        }
+
+        float boardStatusHoldUntil;
 
         void ToggleOpen()
         {

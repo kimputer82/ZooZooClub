@@ -51,7 +51,8 @@ namespace ZooZooClub.Client
                 charm = game.TotalCharm };
             string room = GameSession.Instance != null ? GameSession.Instance.ActiveRoom : "";
             if (string.IsNullOrEmpty(room)) { uploading = false; return; }
-            Online.PostPlayer(room, entry, error =>
+            string roomLock = GameSession.Instance != null ? GameSession.Instance.CurrentLock : "";
+            Online.PostPlayer(room, entry, roomLock, error =>
             {
                 uploading = false;
                 LastError = error;

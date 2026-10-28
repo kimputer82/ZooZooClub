@@ -74,6 +74,8 @@ namespace ZooZooClub.Core
         public string playerName = "";
         /// <summary>마지막으로 들어간 방 코드(선생님이 만든 방). 빈 문자열이면 혼자 하는 중.</summary>
         public string roomCode = "";
+        /// <summary>그 방에서 쓰는 저장 열쇠(비밀번호로 만든 값, RoomLock). 서버가 안 될 때 이 컴퓨터에서 비밀번호를 확인하는 데 쓴다.</summary>
+        public string roomLock = "";
         /// <summary>마지막으로 저장한 시각(유닉스 초). 이 컴퓨터의 저장과 서버의 저장 가운데 더 새것을 고를 때 쓴다.</summary>
         public long savedAt;
         public long createdAt;
@@ -159,6 +161,7 @@ namespace ZooZooClub.Core
             if (quizRecent == null) quizRecent = new List<string>();
             if (playerName == null) playerName = "";
             if (roomCode == null) roomCode = "";
+            if (roomLock == null) roomLock = "";
             if (raidWave < 0) raidWave = 0;
 
             foreach (var obj in objects)

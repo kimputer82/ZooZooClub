@@ -104,18 +104,35 @@ namespace ZooZooClub.Client
             }));
         }
 
-        /// <summary>내 순위 정보를 방에 올린다.</summary>
-        public static void PostPlayer(string code, RankEntry entry, Action<string> done)
+        static long NowMs
+        {
+            get { return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }
+        }
+
+        /// <summary>
+        /// 내 순위 정보를 방에 올린다. 같은 요청에 "증명"(내 저장 열쇠와 새 시각)을 함께 써서,
+        /// 비밀번호를 모르는 사람은 남의 순위를 고칠 수 없게 한다(서버 규칙이 확인한다).
+        /// </summary>
+        public static void PostPlayer(string code, RankEntry entry, string roomLock, Action<string> done)
         {
             if (!Enabled) { if (done != null) done("온라인 기능이 꺼져 있어요."); return; }
             string key = PlayerName.Key(entry.name);
             if (key == null) { if (done != null) done("이름이 이상해요."); return; }
             entry.updatedAt = Now;
-            string body = MiniJson.Serialize(entry.ToJson());
-            instance.StartCoroutine(instance.Request("PUT", "rooms/" + code + "/players/" + Uri.EscapeDataString(key), body, (status, text) =>
+            var body = new Dictionary<string, object>
+            {
+                { "players/" + key, entry.ToJson() },
+                { "proof/" + key, Proof(roomLock) }
+            };
+            instance.StartCoroutine(instance.Request("PATCH", "rooms/" + code, MiniJson.Serialize(body), (status, text) =>
             {
                 if (done != null) done(status == 200 ? null : NetworkError(status));
             }));
+        }
+
+        static Dictionary<string, object> Proof(string roomLock)
+        {
+            return new Dictionary<string, object> { { "lock", roomLock ?? "" }, { "stamp", NowMs } };
         }
 
         /// <summary>방의 순위표를 받아 온다(정렬된 상태).</summary>
@@ -149,35 +166,93 @@ namespace ZooZooClub.Client
 
         // ---------- 서버 저장 ----------
 
-        /// <summary>방에 들어온 학생의 저장(JSON 글)을 받아 온다. 없으면 json이 null이고 error도 null이다.</summary>
-        public static void FetchSave(string code, string name, Action<string, string> done)
+        /// <summary>서버에서 저장을 찾아본 결과.</summary>
+        public enum SaveLookup
+        {
+            /// <summary>이 비밀번호의 저장이 있다.</summary>
+            Found,
+            /// <summary>비밀번호를 쓰기 전에 올린 예전 저장이 있다. 이번 비밀번호로 새로 잠근다.</summary>
+            Legacy,
+            /// <summary>이 이름으로 처음 들어온다. 이번 비밀번호로 잠근다.</summary>
+            New,
+            /// <summary>이 이름은 다른 비밀번호로 잠겨 있다.</summary>
+            WrongPin,
+            Error
+        }
+
+        /// <summary>
+        /// 방에 들어온 학생의 저장(JSON 글)을 비밀번호 열쇠로 받아 온다.
+        /// done(결과, 저장 글(없으면 null), 오류 글).
+        /// </summary>
+        public static void FetchSave(string code, string name, string roomLock, Action<SaveLookup, string, string> done)
+        {
+            if (!Enabled) { done(SaveLookup.Error, null, "온라인 기능이 꺼져 있어요."); return; }
+            string key = PlayerName.Key(name);
+            if (key == null) { done(SaveLookup.Error, null, "이름이 이상해요."); return; }
+            string path = "saves/" + code + "/" + Uri.EscapeDataString(key);
+            instance.StartCoroutine(instance.Request("GET", path + "/" + roomLock, null, (status, text) =>
+            {
+                if (status != 200) { done(SaveLookup.Error, null, NetworkError(status)); return; }
+                string json = ParseString(text);
+                if (json != null) { done(SaveLookup.Found, json, null); return; }
+                // 이 열쇠의 저장이 없다. 이름 자리를 보면: 비어 있으면 처음, 글이면 예전 저장, 읽을 수 없으면 다른 비밀번호.
+                instance.StartCoroutine(instance.Request("GET", path, null, (status2, text2) =>
+                {
+                    if (status2 == 401 || status2 == 403) { done(SaveLookup.WrongPin, null, null); return; }
+                    if (status2 != 200) { done(SaveLookup.Error, null, NetworkError(status2)); return; }
+                    string legacy = ParseString(text2);
+                    if (legacy != null) done(SaveLookup.Legacy, legacy, null);
+                    else done(SaveLookup.New, null, null);
+                }));
+            }));
+        }
+
+        static string ParseString(string text)
+        {
+            try { return MiniJson.Parse(text) as string; }
+            catch (Exception) { return null; }
+        }
+
+        /// <summary>
+        /// 학생의 저장(JSON 글)을 서버의 내 열쇠 자리에 올리고, 친구들이 구경할 수 있는 사본도 방에 올린다.
+        /// </summary>
+        public static void PutSave(string code, string name, string roomLock, string json, Action<string> done)
+        {
+            if (!Enabled) { if (done != null) done("온라인 기능이 꺼져 있어요."); return; }
+            string key = PlayerName.Key(name);
+            if (key == null || string.IsNullOrEmpty(roomLock)) { if (done != null) done("이름이 이상해요."); return; }
+            string path = "saves/" + code + "/" + Uri.EscapeDataString(key) + "/" + roomLock;
+            instance.StartCoroutine(instance.Request("PUT", path, MiniJson.Serialize(json), (status, text) =>
+            {
+                if (status != 200) { if (done != null) done(NetworkError(status)); return; }
+                var body = new Dictionary<string, object>
+                {
+                    { "visits/" + key, json },
+                    { "proof/" + key, Proof(roomLock) }
+                };
+                instance.StartCoroutine(instance.Request("PATCH", "rooms/" + code, MiniJson.Serialize(body), (status2, text2) =>
+                {
+                    if (done != null) done(status2 == 200 ? null : NetworkError(status2));
+                }));
+            }));
+        }
+
+        /// <summary>친구 마을 구경용 사본을 받아 온다. 없으면(아직 안 올렸으면) 예전 방식 저장을 찾아본다.</summary>
+        public static void FetchVisit(string code, string name, Action<string, string> done)
         {
             if (!Enabled) { done(null, "온라인 기능이 꺼져 있어요."); return; }
             string key = PlayerName.Key(name);
             if (key == null) { done(null, "이름이 이상해요."); return; }
-            instance.StartCoroutine(instance.Request("GET", "saves/" + code + "/" + Uri.EscapeDataString(key), null, (status, text) =>
+            string escaped = Uri.EscapeDataString(key);
+            instance.StartCoroutine(instance.Request("GET", "rooms/" + code + "/visits/" + escaped, null, (status, text) =>
             {
                 if (status != 200) { done(null, NetworkError(status)); return; }
-                try
+                string json = ParseString(text);
+                if (json != null) { done(json, null); return; }
+                instance.StartCoroutine(instance.Request("GET", "saves/" + code + "/" + escaped, null, (status2, text2) =>
                 {
-                    done(MiniJson.Parse(text) as string, null);
-                }
-                catch (Exception e)
-                {
-                    done(null, "저장을 읽지 못했어요: " + e.Message);
-                }
-            }));
-        }
-
-        /// <summary>학생의 저장(JSON 글)을 서버에 올린다.</summary>
-        public static void PutSave(string code, string name, string json, Action<string> done)
-        {
-            if (!Enabled) { if (done != null) done("온라인 기능이 꺼져 있어요."); return; }
-            string key = PlayerName.Key(name);
-            if (key == null) { if (done != null) done("이름이 이상해요."); return; }
-            instance.StartCoroutine(instance.Request("PUT", "saves/" + code + "/" + Uri.EscapeDataString(key), MiniJson.Serialize(json), (status, text) =>
-            {
-                if (done != null) done(status == 200 ? null : NetworkError(status));
+                    done(status2 == 200 ? ParseString(text2) : null, null);
+                }));
             }));
         }
 
@@ -257,6 +332,56 @@ namespace ZooZooClub.Client
                 {
                     done(null, "방 문제를 읽지 못했어요: " + e.Message);
                 }
+            }));
+        }
+
+        /// <summary>
+        /// 방에서 학생 한 명을 지운다(저장, 순위, 구경용 사본 모두). 방을 만든 컴퓨터(방 관리 키)에서만 된다.
+        /// </summary>
+        public static void DeleteStudent(string code, string name, string teacherKey, string roomKey, Action<string> done)
+        {
+            StudentPatch(code, name, teacherKey, roomKey, null, true, done);
+        }
+
+        /// <summary>
+        /// 학생의 비밀번호를 지운다. 마을은 구경용 사본으로 되살려 두어, 학생이 다음에 들어올 때 새 비밀번호를 정하고 이어 한다.
+        /// </summary>
+        public static void ResetStudentPin(string code, string name, string teacherKey, string roomKey, Action<string> done)
+        {
+            if (!Enabled) { done("온라인 기능이 꺼져 있어요."); return; }
+            string key = PlayerName.Key(name);
+            if (key == null) { done("이름이 이상해요."); return; }
+            instance.StartCoroutine(instance.Request("GET", "rooms/" + code + "/visits/" + Uri.EscapeDataString(key), null, (status, text) =>
+            {
+                if (status != 200) { done(NetworkError(status)); return; }
+                StudentPatch(code, name, teacherKey, roomKey, ParseString(text), false, done);
+            }));
+        }
+
+        static void StudentPatch(string code, string name, string teacherKey, string roomKey, string keepSave, bool removeAll,
+            Action<string> done)
+        {
+            if (!Enabled) { done("온라인 기능이 꺼져 있어요."); return; }
+            string key = PlayerName.Key(name);
+            if (key == null) { done("이름이 이상해요."); return; }
+            var body = new Dictionary<string, object>
+            {
+                { "rooms/" + code + "/owner/key", teacherKey },
+                { "rooms/" + code + "/owner/stamp", Now },
+                { "rooms/" + code + "/owner/proof", roomKey },
+                { "saves/" + code + "/" + key, keepSave },
+                { "rooms/" + code + "/proof/" + key, null }
+            };
+            if (removeAll)
+            {
+                body["rooms/" + code + "/players/" + key] = null;
+                body["rooms/" + code + "/visits/" + key] = null;
+            }
+            instance.StartCoroutine(instance.Request("PATCH", "", MiniJson.Serialize(body), (status, text) =>
+            {
+                if (status == 200) done(null);
+                else if (status == 401 || status == 403) done(RoomQuizDenied.Replace("방 문제는", "학생 관리는"));
+                else done(NetworkError(status));
             }));
         }
 

@@ -81,6 +81,17 @@ namespace ZooZooClub.Tests
         }
 
         [Test]
+        public void RoomLock_IsStableSha256AndChecksPins()
+        {
+            Assert.AreEqual("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", RoomLock.Sha256Hex("abc"));
+            Assert.AreEqual("797b3af041b9d96439f016c9786d2e9b", RoomLock.For("ABC123", "김상진", "1234"));
+            Assert.AreNotEqual(RoomLock.For("ABC123", "김상진", "1234"), RoomLock.For("ABC123", "김상진", "1235"));
+            Assert.AreEqual("0420", RoomLock.CleanPin(" 0420 "));
+            Assert.IsNull(RoomLock.CleanPin("12a4"));
+            Assert.IsNull(RoomLock.CleanPin("123"));
+        }
+
+        [Test]
         public void RankEntry_RoundTrips()
         {
             var entry = new RankEntry { name = "김상진", level = 6, xp = 459, quizSolved = 13, charm = 77, updatedAt = 1700000000 };
