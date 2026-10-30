@@ -112,10 +112,10 @@
     {"id": "hw_pumpkins_back", "width": 0.81, "lift": 0.12, "offsetX": 0.0},
     {"id": "hw_lamp", "width": 0.432, "lift": 0.25, "offsetX": 0},
     {"id": "hw_lamp_back", "width": 0.479, "lift": 0.25, "offsetX": 0},
-    {"id": "wood_fence", "width": 0.648, "lift": 0.124, "offsetX": 0.002},
-    {"id": "wood_fence_corner", "width": 0.45, "lift": 0.248, "offsetX": -0.008},
-    {"id": "wood_fence_corner_back", "width": 0.466, "lift": 0.218, "offsetX": 0.0},
-    {"id": "pizza_shop", "width": 2.097, "lift": 0.0, "offsetX": -0.002},
+    {"id": "wood_fence", "width": 0.65, "lift": 0.123, "offsetX": 0.002},
+    {"id": "wood_fence_corner", "width": 0.452, "lift": 0.247, "offsetX": -0.008},
+    {"id": "wood_fence_corner_back", "width": 0.468, "lift": 0.215, "offsetX": 0.001},
+    {"id": "pizza_shop", "width": 2.099, "lift": 0.0, "offsetX": -0.003},
     {"id": "pizza_shop_back", "width": 2.066, "lift": 0.0, "offsetX": 0.0}
   ]
 }
