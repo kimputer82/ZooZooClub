@@ -24,6 +24,7 @@ namespace ZooZooClub.Client
             { "juice_bar", new Color(0.98f, 0.6f, 0.45f) },
             { "jam_workshop", new Color(0.78f, 0.3f, 0.45f) },
             { "popcorn_cart", new Color(0.95f, 0.9f, 0.6f) },
+            { "pizza_shop", new Color(0.93f, 0.55f, 0.4f) },
             { "fence", new Color(0.72f, 0.56f, 0.38f) },
             { "flower_bed", new Color(0.95f, 0.55f, 0.75f) },
             { "tree", new Color(0.2f, 0.55f, 0.28f) },
