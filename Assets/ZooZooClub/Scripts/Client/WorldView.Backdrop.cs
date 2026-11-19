@@ -34,6 +34,8 @@ namespace ZooZooClub.Client
         {
             public BackdropDef @default = new BackdropDef();
             public System.Collections.Generic.List<BackdropDef> seasons = new System.Collections.Generic.List<BackdropDef>();
+            /// <summary>눈이 내리는 기간들(WorldView.Snow.cs).</summary>
+            public System.Collections.Generic.List<SnowPeriod> snow = new System.Collections.Generic.List<SnowPeriod>();
         }
 
         BackdropDef backdropDef;
@@ -146,6 +148,7 @@ namespace ZooZooClub.Client
         void LateUpdate()
         {
             ClampCameraToBackdrop();
+            UpdateSnow();
         }
     }
 }
