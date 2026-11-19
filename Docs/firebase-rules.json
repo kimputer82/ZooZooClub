@@ -4,6 +4,11 @@
       ".read": false,
       ".write": false
     },
+    "teacherCheck": {
+      ".read": false,
+      ".write": "newData.child('key').val() === root.child('secret').child('teacher').val()",
+      ".validate": "newData.hasChildren(['key', 'at']) && newData.child('at').isNumber()"
+    },
     "saves": {
       "$code": {
         "$player": {

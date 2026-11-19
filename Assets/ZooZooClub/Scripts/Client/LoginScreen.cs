@@ -162,6 +162,7 @@ namespace ZooZooClub.Client
                     Prompt("어떻게 들어갈까요?");
                     BigButton("SavedLoginButton", "이 컴퓨터에 저장된 이름으로 들어가기", Ui.Sand, () => Rebuild(Mode.Saved));
                     BigButton("FormLoginButton", "이름과 방 코드로 들어가기", Ui.Sand, () => Rebuild(Mode.Form));
+                    Hint("처음 하는 친구는 '이름과 방 코드로 들어가기'를 눌러요.");
                     Error();
                     break;
 
@@ -188,6 +189,7 @@ namespace ZooZooClub.Client
 
                 case Mode.Form:
                     Prompt("이름과 방 코드를 적어요");
+                    Hint("처음이면 비밀번호(숫자 4자리)를 새로 정해 적어요. 그러면 내 계정이 만들어지고, 다음부터 같은 이름과 비밀번호로 들어와요.", 70f);
                     nameEntry = Entry("Name", "이름", PlayerName.MaxLength, InputHeight, 36f, false);
                     codeEntry = Entry("Code", "방 코드 (없으면 혼자 하기)", 8, CodeHeight, 26f, false);
                     pinEntry = Entry("Pin", "비밀번호 숫자 4자리", RoomLock.PinLength, PinHeight, 26f, true);
@@ -224,6 +226,13 @@ namespace ZooZooClub.Client
         {
             var label = Ui.Label("Prompt", content, text, 28f, Ui.Muted, TextAlignmentOptions.Center);
             Fixed(label.gameObject, PromptHeight + 8f);
+        }
+
+        /// <summary>작은 글씨의 도움말(줄이 길면 낱말 단위로 넘긴다).</summary>
+        void Hint(string text, float height = 40f)
+        {
+            var label = Ui.Label("Hint", content, text, 21f, Ui.Muted, TextAlignmentOptions.Center, true);
+            Fixed(label.gameObject, height);
         }
 
         void Error()

@@ -115,6 +115,14 @@ namespace ZooZooClub.Client
             OpenBoard(code);
         }
 
+        /// <summary>테스트용: 비밀번호 칸에 적고 들어가기를 누른다.</summary>
+        public void EnterPasswordForTest(string password)
+        {
+            if (step != Step.Password || passwordEntry == null) return;
+            passwordEntry.SetValue(password ?? "");
+            EnterPassword();
+        }
+
         public void Hide()
         {
             TextEntry.HideAll();
@@ -236,12 +244,23 @@ namespace ZooZooClub.Client
             passwordEntry.Focus();
         }
 
+        bool checkingPassword;
+
         void EnterPassword()
         {
             string key = (passwordEntry.Value ?? "").Trim();
             if (key.Length == 0) { SetStatus("비밀번호를 적어 주세요.", true); return; }
-            teacherKey = key;
-            ShowStep(Step.Rooms);
+            if (checkingPassword) return;
+            checkingPassword = true;
+            SetStatus("비밀번호를 확인하고 있어요…", false);
+            Online.CheckTeacherKey(key, error =>
+            {
+                checkingPassword = false;
+                if (this == null || step != Step.Password) return;
+                if (error != null) { SetStatus(error, true); return; }
+                teacherKey = key;
+                ShowStep(Step.Rooms);
+            });
         }
 
         void BuildRooms()

@@ -170,6 +170,16 @@ namespace ZooZooClub.EditorTools
                     break;
                 }
 
+                case "teacherpw":
+                {
+                    // teacherpw <비밀번호>: 선생님 비밀번호 화면에서 적고 들어가기를 누른다.
+                    var screen = UnityEngine.Object.FindAnyObjectByType<TeacherScreen>();
+                    if (!EditorApplication.isPlaying || screen == null) { WriteOut(id + " teacherpw: skipped"); break; }
+                    screen.EnterPasswordForTest(argument);
+                    WriteOut(id + " teacherpw: sent");
+                    break;
+                }
+
                 case "quizfile":
                     // 다음에 '문제 올리기'를 누르면 파일 창 없이 이 엑셀을 고른 것으로 한다.
                     QuizFilePicker.TestPath = argument;

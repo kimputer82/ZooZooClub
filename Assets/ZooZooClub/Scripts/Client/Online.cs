@@ -25,6 +25,7 @@ namespace ZooZooClub.Client
     ///
     /// 자료 모양(규칙은 Docs/firebase-rules.json):
     ///   secret/teacher                 선생님 비밀번호(아무도 읽지 못한다. 콘솔에서 직접 적는다)
+    ///   teacherCheck                   {key, at}  선생님 화면에 들어갈 때 비밀번호 확인용. 읽지 못한다
     ///   rooms/&lt;코드&gt;/owner      {key, stamp}  선생님이 방을 만들거나 바꿀 때 함께 적는다. 읽지 못한다
     ///   rooms/&lt;코드&gt;/public     {name, createdAt, open}
     ///   rooms/&lt;코드&gt;/players/&lt;이름키&gt;  {name, level, xp, quizSolved, updatedAt}
@@ -424,6 +425,22 @@ namespace ZooZooClub.Client
             {
                 if (status == 200) done(null);
                 else if (status == 401 || status == 403) done(RoomQuizDenied.Replace("방 문제는", "학생 관리는"));
+                else done(NetworkError(status));
+            }));
+        }
+
+        /// <summary>
+        /// 선생님 비밀번호가 맞는지 서버에 물어본다. teacherCheck 자리는 secret/teacher와 같은 key를 적을 때만
+        /// 써진다(규칙). 아무도 읽을 수 없다. 맞으면 null, 틀리면 안내 글.
+        /// </summary>
+        public static void CheckTeacherKey(string teacherKey, Action<string> done)
+        {
+            if (!Enabled) { done("온라인 기능이 꺼져 있어요."); return; }
+            var body = new Dictionary<string, object> { { "key", teacherKey }, { "at", NowMs } };
+            instance.StartCoroutine(instance.Request("PUT", "teacherCheck", MiniJson.Serialize(body), (status, text) =>
+            {
+                if (status == 200) done(null);
+                else if (status == 401 || status == 403) done("선생님 비밀번호가 틀렸어요.");
                 else done(NetworkError(status));
             }));
         }
