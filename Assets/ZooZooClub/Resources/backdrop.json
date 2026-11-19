@@ -4,6 +4,7 @@
     {
       "name": "겨울",
       "art": "background_winter",
+      "ground": "ground_winter",
       "from": "2026-11-19T00:00:00+09:00",
       "until": "2027-03-01T00:00:00+09:00",
       "centerX": 905, "centerY": 455, "halfWidth": 590

@@ -20,6 +20,8 @@ namespace ZooZooClub.Client
         {
             public string name = "";
             public string art = "background";
+            /// <summary>이 배경일 때 마을 땅에 깔 바닥 그림(예: 겨울의 눈밭). 비어 있거나 그림이 없으면 기본 풀밭(ground).</summary>
+            public string ground = "";
             /// <summary>계절 배경일 때 쓰는 기간(예: "2026-10-01T00:00:00+09:00"). 비어 있으면 그쪽으로 끝이 없다.</summary>
             public string from = "";
             public string until = "";
@@ -81,12 +83,20 @@ namespace ZooZooClub.Client
         Rect backdropRect;
         bool hasBackdrop;
 
+        /// <summary>지금 계절에 쓸 바닥 그림 이름. 계절 바닥이 없으면 null(기본 풀밭).</summary>
+        string SeasonGround()
+        {
+            if (backdropDef == null) backdropDef = ChooseBackdrop();
+            string name = backdropDef != null ? backdropDef.ground : null;
+            return !string.IsNullOrEmpty(name) && ArtLibrary.Get(name) != null ? name : null;
+        }
+
         /// <summary>배경 그림을 지금 땅 크기에 맞춘다. 그림이 없으면 아무것도 하지 않는다(하늘색 바탕 그대로).</summary>
         void FitBackdrop()
         {
             if (backdrop == null)
             {
-                backdropDef = ChooseBackdrop();
+                if (backdropDef == null) backdropDef = ChooseBackdrop();
                 Sprite art = ArtLibrary.Get(backdropDef.art);
                 if (art == null) return;
                 backdrop = NewSprite("Backdrop", groundRoot, art);

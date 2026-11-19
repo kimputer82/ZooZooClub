@@ -94,6 +94,8 @@ namespace ZooZooClub.Client
 
         // 바닥 그림(Art/ground) 한 장이 덮는 칸 수(가로·세로 각각). 그림은 이 간격으로 되풀이된다.
         const float GroundCellsPerImage = 6f;
+        // 계절 바닥(눈밭)일 때 땅 가장자리 바탕색.
+        static readonly Color SnowGround = new Color32(246, 237, 229, 255);
         const int GroundOrder = -5000;
         const int BaseOrder = -4000;
         const int SortBase = 5000;
@@ -748,7 +750,7 @@ namespace ZooZooClub.Client
             // 바닥 그림은 칸 방향으로 펼친 정사각형 그림이다. 처음 한 번 스프라이트로 만들어 둔다.
             if (groundSprite == null)
             {
-                Sprite source = ArtLibrary.Get("ground");
+                Sprite source = ArtLibrary.Get(SeasonGround() ?? "ground");
                 if (source != null)
                 {
                     var texture = source.texture;
@@ -762,7 +764,8 @@ namespace ZooZooClub.Client
             if (groundBacking == null)
             {
                 groundBacking = NewSprite("Backing", groundRoot, PlaceholderArt.Diamond);
-                groundBacking.color = groundSprite != null ? PlaceholderArt.Grass : PlaceholderArt.GroundSeam;
+                groundBacking.color = groundSprite == null ? PlaceholderArt.GroundSeam
+                    : SeasonGround() != null ? SnowGround : PlaceholderArt.Grass;
                 groundBacking.sortingOrder = GroundOrder - 1;
             }
             float span = (width + height) * 0.5f;
@@ -830,7 +833,8 @@ namespace ZooZooClub.Client
             if (Ui.Font != null) label.font = Ui.Font;
             label.fontSize = fontSize;
             label.alignment = TextAlignmentOptions.Center;
-            label.color = Color.white;
+            // 하얀 눈밭 위에서는 흰 글씨가 묻히므로 짙은 글씨로 쓴다.
+            label.color = SeasonGround() != null ? new Color32(70, 52, 38, 255) : Color.white;
             label.outlineWidth = 0.25f;
             label.outlineColor = new Color32(40, 30, 20, 255);
             label.rectTransform.sizeDelta = new Vector2(3f, 1f);
