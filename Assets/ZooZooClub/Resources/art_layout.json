@@ -116,6 +116,15 @@
     {"id": "wood_fence_corner", "width": 0.452, "lift": 0.247, "offsetX": -0.008},
     {"id": "wood_fence_corner_back", "width": 0.468, "lift": 0.215, "offsetX": 0.001},
     {"id": "pizza_shop", "width": 2.099, "lift": 0.0, "offsetX": -0.003},
-    {"id": "pizza_shop_back", "width": 2.066, "lift": 0.0, "offsetX": 0.0}
+    {"id": "pizza_shop_back", "width": 2.066, "lift": 0.0, "offsetX": 0.0},
+    {"id": "xmas_big_tree", "width": 1.328, "lift": 0.12, "offsetX": 0},
+    {"id": "xmas_snowman", "width": 0.659, "lift": 0.15, "offsetX": 0},
+    {"id": "xmas_snowman_back", "width": 0.66, "lift": 0.15, "offsetX": 0},
+    {"id": "xmas_gifts", "width": 0.872, "lift": 0.13, "offsetX": 0},
+    {"id": "xmas_gifts_back", "width": 0.906, "lift": 0.13, "offsetX": 0},
+    {"id": "xmas_tree", "width": 0.782, "lift": 0.17, "offsetX": 0},
+    {"id": "xmas_tree_back", "width": 0.788, "lift": 0.17, "offsetX": 0},
+    {"id": "xmas_lamp", "width": 0.563, "lift": 0.17, "offsetX": 0},
+    {"id": "xmas_lamp_back", "width": 0.561, "lift": 0.17, "offsetX": 0}
   ]
 }

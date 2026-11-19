@@ -109,6 +109,7 @@ namespace ZooZooClub.Client
             new[] { "cloud", "구름" },
             new[] { "sport", "운동" },
             new[] { "halloween", "할로윈" },
+            new[] { "christmas", "크리스마스" },
         };
 
         // 문제 풀기: 지금 보여 주는 문제, 보기를 섞은 순서(문제에 적힌 보기 번호, 1부터),
