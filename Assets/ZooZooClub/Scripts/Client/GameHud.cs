@@ -1680,6 +1680,7 @@ namespace ZooZooClub.Client
             Ui.Fixed(card.gameObject, 0f, 190f);
             var question = Ui.Label("Text", card.transform, quiz.question, 36f, Ui.Ink, TextAlignmentOptions.Center, true);
             Ui.Stretch(question.rectTransform, 28f, 22f, 28f, 16f);
+            question.text = BreakNicely(question, quiz.question);
             ShowAsWritten(question, 22f);
 
             bool answered = quizPicked != 0;
@@ -1694,7 +1695,9 @@ namespace ZooZooClub.Client
                 Action onClick = null;
                 if (!answered) onClick = () => AnswerQuiz(number);
                 var choiceButton = Ui.Button("Choice " + (i + 1), grid, quiz.choices[number - 1], onClick, 96f, 30f, color);
-                ShowAsWritten(choiceButton.GetComponentInChildren<TextMeshProUGUI>(), 18f);
+                var choiceText = choiceButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (choiceText != null) choiceText.text = Texts.GlueMath(choiceText.text);
+                ShowAsWritten(choiceText, 18f);
             }
 
             windowFooter.gameObject.SetActive(true);
@@ -1789,6 +1792,52 @@ namespace ZooZooClub.Client
         /// 선생님이 적은 글(문제, 보기)을 적힌 그대로 보여 주게 한다. 꺾쇠 괄호(수식의 부등호 등)나 역슬래시가
         /// 꾸밈 명령으로 읽혀 사라지지 않게 하고, 글이 길면 칸에 들어가도록 minSize까지 글자를 줄인다.
         /// </summary>
+        /// <summary>
+        /// 문제 글을 읽기 좋은 곳에서 줄을 바꾼다.
+        /// 식("24 ÷ 6 = □")은 한 줄에 두고, 한 줄에 다 들어가지 않는 글은 문장마다 새 줄에서 시작한다
+        /// (그렇게 해도 줄 수가 늘지 않거나 칸에 그대로 들어갈 때만). 선생님이 엑셀에서 직접 줄을 바꾼 문제는 그대로 둔다.
+        /// </summary>
+        static string BreakNicely(TextMeshProUGUI label, string text)
+        {
+            if (label == null || string.IsNullOrEmpty(text)) return text ?? "";
+            if (label.font != null) label.font.TryAddCharacters("\u00A0");
+            string glued = Texts.GlueMath(text.Trim());
+            if (glued.IndexOf('\n') >= 0) return glued;
+
+            var sentences = Texts.Sentences(glued);
+            if (sentences.Count < 2) return glued;
+
+            Canvas.ForceUpdateCanvases();
+            Rect area = label.rectTransform.rect;
+            if (area.width < 10f || area.height < 10f) return glued;
+
+            bool rich = label.richText;
+            bool auto = label.enableAutoSizing;
+            label.richText = false;
+            label.enableAutoSizing = false;
+            float plainHeight = label.GetPreferredValues(glued, area.width, 0f).y;
+            if (plainHeight <= label.fontSize * 1.6f)
+            {
+                // 이미 한 줄에 다 들어간다.
+                label.richText = rich;
+                label.enableAutoSizing = auto;
+                return glued;
+            }
+            string perSentence = string.Join("\n", sentences);
+            float size = label.fontSize;
+            bool useSentences = label.GetPreferredValues(perSentence, area.width, 0f).y <= plainHeight + 0.5f;
+            // 문장마다 한 줄로 두었을 때 글자를 조금(최대 약 20%)만 줄여서 칸에 들어가면 그렇게 쓴다.
+            for (float tryingSize = size; !useSentences && tryingSize >= size * 0.78f; tryingSize -= 2f)
+            {
+                label.fontSize = tryingSize;
+                useSentences = label.GetPreferredValues(perSentence, area.width, 0f).y <= area.height + 0.5f;
+            }
+            label.fontSize = size;
+            label.richText = rich;
+            label.enableAutoSizing = auto;
+            return useSentences ? perSentence : glued;
+        }
+
         static void ShowAsWritten(TextMeshProUGUI label, float minSize)
         {
             if (label == null) return;

@@ -75,6 +75,31 @@ namespace ZooZooClub.Client
         }
 
         // "3/4", "1과 1/3", "2와 2/5" 꼴의 분수. 대분수의 "과/와"는 그리지 않고 자연수 뒤에 분수를 붙인다.
+        // 식 안의 띄어쓰기: 수(또는 □·괄호) 옆의 연산 기호 앞뒤. 여기서는 줄을 바꾸지 않는다.
+        static readonly Regex MathSpace = new Regex(
+            @"(?<=[0-9□△○☆)\]])[ \t]+(?=[+\-−×÷=<>≤≥:])|(?<=[+\-−×÷=<>≤≥:])[ \t]+(?=[0-9□△○☆(\[])");
+
+        // 문장 끝(. ? !) 뒤의 띄어쓰기.
+        static readonly Regex SentenceEnd = new Regex(@"(?<=[.?!。])[ \t]+");
+
+        /// <summary>"24 ÷ 6 = □" 같은 식이 두 줄로 갈라지지 않게, 식 안의 띄어쓰기를 줄바꿈 없는 띄어쓰기로 바꾼다.</summary>
+        public static string GlueMath(string text)
+        {
+            return string.IsNullOrEmpty(text) ? text ?? "" : MathSpace.Replace(text, "\u00A0");
+        }
+
+        /// <summary>글을 문장 단위로 나눈다(문장 끝의 . ? ! 다음 띄어쓰기에서).</summary>
+        public static List<string> Sentences(string text)
+        {
+            var list = new List<string>();
+            if (string.IsNullOrEmpty(text)) return list;
+            foreach (string part in SentenceEnd.Split(text.Trim()))
+            {
+                if (part.Trim().Length > 0) list.Add(part.Trim());
+            }
+            return list;
+        }
+
         static readonly Regex FractionPattern = new Regex(@"(?:(\d+)\s*[과와]\s*)?(\d+)/(\d+)");
 
         /// <summary>글에 "3/4" 같은 분수가 들어 있는지.</summary>
